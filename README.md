@@ -1,17 +1,25 @@
 # POOSD_large_proj
 Team 6 | Large Project POOSD UCF
 
-A web + mobile app built on the MERN stack (MongoDB, Express, React, Node.js)
-with a Flutter mobile client. Users register (with email verification), log in,
-reset their password, and manage their own data. Search runs on the server
-with partial matching.
+**Menu Macro Fitter**: a web + mobile app for students who want to lose,
+maintain, or gain weight while eating near campus. Users enter their height,
+weight, age, sex, and activity level; the app calculates their daily
+maintenance calories and a goal target. They then search restaurants within
+5, 10, 15, or 20 miles and see menu items that fit, ranked as high-protein or
+high-carb options under a per-meal calorie limit. No meal logging or food diary.
+
+Built on the MERN stack (MongoDB, Express, React, Node.js) with a Flutter
+mobile client. Calorie targets are general estimates, not medical advice.
 
 ## Repository layout
 
 | Folder | What lives there | Small-project equivalent |
 |---|---|---|
 | `backend/` | Express + Node REST API, Mongoose models, JWT auth, email (SendGrid/NodeMailer) | `API/` |
+| `backend/src/services/` | Our own logic: calorie calculation and menu ranking (unit tested) | — (new) |
+| `backend/src/integrations/` | Maps/places API client for the nearby-restaurant search | — (new) |
 | `backend/db/` | Seed script and example queries | `API/sql/` |
+| `backend/db/menu-data/` | Menu nutrition data entered from chain sources (estimates labeled) | — (new) |
 | `web/` | React + TypeScript web client (Bootstrap or Tailwind) | `frontend/` |
 | `mobile/` | Flutter app that calls the same API | — (new) |
 | `docs/` | API contract, SwaggerHub spec, PlantUML diagrams, Gantt, wireframes, test results, slides | `docs/` |
