@@ -104,3 +104,9 @@ mobile/ios/Pods/
 mobile/ios/Flutter/Generated.xcconfig
 *.jks
 *.keystore
+
+# ---------------------------------------------------------------------------
+# AI prompt logs per member: kept private until final submission, then remove
+# these lines so the disclosure ships with the project
+# ---------------------------------------------------------------------------
+/prompts/marcus/
