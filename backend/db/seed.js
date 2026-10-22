@@ -9,12 +9,13 @@
 //
 // TEST ACCOUNTS (plain-text password below is for testing only -- never do
 // this with real user data). Every account's password is: Password123!
-//   jane.doe@example.com      verified, profile filled in (lose)
-//   kevin.nguyen@example.com  verified, profile filled in (gain)
-//   maria.lopez@example.com   verified, profile filled in (maintain)
-//   sam.patel@example.com     verified, no profile yet (just registered)
-//   alex.kim@example.com      NOT verified -- login must be refused
-//   chris.brown@example.com   verified, password reset in progress
+//   username   email                     state
+//   janedoe    jane.doe@example.com      verified, full profile (lose, carb mode)
+//   kevinn     kevin.nguyen@example.com  verified, full profile (gain, protein mode)
+//   marial     maria.lopez@example.com   verified, full profile (maintain, metric units)
+//   sampatel   sam.patel@example.com     verified, profile null (just registered)
+//   alexkim    alex.kim@example.com      NOT verified -- login must be refused
+//   chrisb     chris.brown@example.com   verified, password reset pending, 600-cal meal limit
 //
 // The hash below was generated with bcryptjs:
 //   node -e "console.log(require('bcryptjs').hashSync('Password123!', 10))"
@@ -39,10 +40,14 @@ db.users.deleteMany({});
 // ---------------------------------------------------------------------------
 // users
 // ---------------------------------------------------------------------------
-function user(firstName, lastName, email, extra) {
+// Defaults the API gives every new account at registration.
+const DEFAULT_PREFERENCES = { units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null };
+
+function user(firstName, lastName, username, email, extra) {
   return {
     firstName,
     lastName,
+    username,
     email,
     passwordHash: PASSWORD_HASH,
     isVerified: true,
@@ -51,6 +56,7 @@ function user(firstName, lastName, email, extra) {
     resetTokenHash: null,
     resetTokenExpires: null,
     profile: null,
+    preferences: DEFAULT_PREFERENCES,
     createdAt: now,
     updatedAt: now,
     ...extra,
@@ -58,23 +64,27 @@ function user(firstName, lastName, email, extra) {
 }
 
 const users = db.users.insertMany([
-  user("Jane", "Doe", "jane.doe@example.com", {
-    profile: { heightIn: 65, weightLb: 160, age: 20, sex: "female", activityLevel: "light", goal: "lose" },
+  user("Jane", "Doe", "janedoe", "jane.doe@example.com", {
+    profile: { heightIn: 65, weightLb: 160, birthDate: new Date("2006-03-14"), sex: "female", activityLevel: "light", goal: "lose" },
+    preferences: { ...DEFAULT_PREFERENCES, recommendationMode: "carb" },
   }),
-  user("Kevin", "Nguyen", "kevin.nguyen@example.com", {
-    profile: { heightIn: 70, weightLb: 155, age: 21, sex: "male", activityLevel: "active", goal: "gain" },
+  user("Kevin", "Nguyen", "kevinn", "kevin.nguyen@example.com", {
+    profile: { heightIn: 70, weightLb: 155, birthDate: new Date("2005-06-02"), sex: "male", activityLevel: "active", goal: "gain" },
+    preferences: { ...DEFAULT_PREFERENCES, searchRadius: 10 },
   }),
-  user("Maria", "Lopez", "maria.lopez@example.com", {
-    profile: { heightIn: 63, weightLb: 130, age: 22, sex: "female", activityLevel: "moderate", goal: "maintain" },
+  user("Maria", "Lopez", "marial", "maria.lopez@example.com", {
+    profile: { heightIn: 63, weightLb: 130, birthDate: new Date("2004-09-30"), sex: "female", activityLevel: "moderate", goal: "maintain" },
+    preferences: { ...DEFAULT_PREFERENCES, units: "metric" },
   }),
-  user("Sam", "Patel", "sam.patel@example.com"),
-  user("Alex", "Kim", "alex.kim@example.com", {
+  user("Sam", "Patel", "sampatel", "sam.patel@example.com"),
+  user("Alex", "Kim", "alexkim", "alex.kim@example.com", {
     isVerified: false,
     verificationTokenHash: "e88423eff51b27a761e50d04964225c3b7c2e5c8339dff83de0e0e63f1c93a72",
     verificationTokenExpires: inOneDay,
   }),
-  user("Chris", "Brown", "chris.brown@example.com", {
-    profile: { heightIn: 72, weightLb: 210, age: 24, sex: "male", activityLevel: "sedentary", goal: "lose" },
+  user("Chris", "Brown", "chrisb", "chris.brown@example.com", {
+    profile: { heightIn: 72, weightLb: 210, birthDate: new Date("2002-01-15"), sex: "male", activityLevel: "sedentary", goal: "lose" },
+    preferences: { ...DEFAULT_PREFERENCES, mealCalorieLimit: 600 },
     resetTokenHash: "49aa6134750dec3a09830296a87a731a519d46688b6617e336fca4c6c1eebedf",
     resetTokenExpires: inOneHour,
   }),
