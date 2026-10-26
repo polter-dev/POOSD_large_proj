@@ -1,7 +1,7 @@
 // seed.js  (mongosh script)
 //
-// Fills MenuMacroFitter with test users, the UCF campus restaurants, and
-// their menu items, so developers and the demo have data to query.
+// Fills MenuMacroFitter with test users, restaurant chains, their menu items,
+// and a few favorites, so developers and the demo have data to query.
 //
 // SAFE TO RE-RUN: deletes existing documents first, so running it twice does
 // not create duplicates. Run it AFTER schema.js, from this folder:
@@ -10,8 +10,8 @@
 // TEST ACCOUNTS (plain-text password below is for testing only -- never do
 // this with real user data). Every account's password is: Password123!
 //   username   email                     state
-//   janedoe    jane.doe@example.com      verified, full profile (lose, carb mode)
-//   kevinn     kevin.nguyen@example.com  verified, full profile (gain, protein mode)
+//   janedoe    jane.doe@example.com      verified, full profile (lose, carb mode), 2 favorites
+//   kevinn     kevin.nguyen@example.com  verified, full profile (gain, protein mode), 1 favorite
 //   marial     maria.lopez@example.com   verified, full profile (maintain, metric units)
 //   sampatel   sam.patel@example.com     verified, profile null (just registered)
 //   alexkim    alex.kim@example.com      NOT verified -- login must be refused
@@ -25,16 +25,29 @@
 // "demo-reset-token" (the raw token is what the email link would contain).
 
 db = db.getSiblingDB("MenuMacroFitter");
-load("menu-data/ucf-campus.js"); // defines UCF_CAMPUS_MENUS
+load("menu-data/chains.js"); // defines CHAINS
 
 const PASSWORD_HASH = "$2b$10$fYkTDYUE26dcsyJDdm8T2.ePWbXs35ePgSzevHC1y6fEpOm85Py/u";
 const now = new Date();
 const inOneDay = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 const inOneHour = new Date(now.getTime() + 60 * 60 * 1000);
 
-// Clear existing data first (menuItems reference restaurants).
+// The one normalize rule (see schema.js); the API must use the same one for
+// Places names and search text.
+function normalize(s) {
+  return s
+    .normalize("NFD").replace(/[̀-ͯ]/g, "") // Caffè -> Caffe
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+// Clear existing data first (children before parents).
+db.favorites.deleteMany({});
 db.menuItems.deleteMany({});
-db.restaurants.deleteMany({});
+db.chains.deleteMany({});
 db.users.deleteMany({});
 
 // ---------------------------------------------------------------------------
@@ -92,30 +105,48 @@ const users = db.users.insertMany([
 print(`users inserted: ${Object.keys(users.insertedIds).length}`);
 
 // ---------------------------------------------------------------------------
-// restaurants + menuItems
+// chains + menuItems
 // ---------------------------------------------------------------------------
 let itemCount = 0;
-for (const r of UCF_CAMPUS_MENUS) {
-  const { insertedId: restaurantId } = db.restaurants.insertOne({
-    name: r.name,
-    campusLocation: r.campusLocation,
-    menuSourceUrl: r.menuSourceUrl,
+for (const c of CHAINS) {
+  const nameKey = normalize(c.name);
+  const { insertedId: chainId } = db.chains.insertOne({
+    name: c.name,
+    nameKey,
+    // The chain's own name is matched by nameKey, so leave it out here.
+    alternateNames: [...new Set(c.alternateNames.map(normalize))].filter((n) => n !== nameKey),
+    nutritionSourceUrl: c.nutritionSourceUrl,
     createdAt: now,
+    updatedAt: now,
   });
 
-  const items = r.items.map((item) => ({
-    restaurantId,
-    restaurantName: r.name,
+  const items = c.items.map((item) => ({
+    chainId,
+    chainName: c.name,
+    searchName: normalize(item.name),
     isEstimate: true,
-    source: "sample value, not yet checked against " + r.menuSourceUrl,
+    source: "draft value, not yet checked against " + c.nutritionSourceUrl,
     lastVerified: null,
-    ...item,
+    ...item, // a verified item overrides isEstimate / source / lastVerified
   }));
   if (items.length > 0) {
     db.menuItems.insertMany(items);
     itemCount += items.length;
   }
 }
-print(`restaurants inserted: ${UCF_CAMPUS_MENUS.length}`);
+print(`chains inserted: ${CHAINS.length}`);
 print(`menuItems inserted: ${itemCount}`);
+
+// ---------------------------------------------------------------------------
+// favorites
+// ---------------------------------------------------------------------------
+// Place IDs are made-up placeholders in Google's format; real ones come from
+// the Places API once #27 picks a provider.
+const userId = (username) => db.users.findOne({ username }, { _id: 1 })._id;
+const favorites = db.favorites.insertMany([
+  { userId: userId("janedoe"), placeId: "ChIJdemo_ChickfilA_StudentUnion", label: "Union Chick-fil-A", createdAt: now },
+  { userId: userId("janedoe"), placeId: "ChIJdemo_Chipotle_UniversityBlvd", label: null, createdAt: now },
+  { userId: userId("kevinn"), placeId: "ChIJdemo_ChickfilA_StudentUnion", label: "Post-gym", createdAt: now },
+]);
+print(`favorites inserted: ${Object.keys(favorites.insertedIds).length}`);
 print("seed.js done");

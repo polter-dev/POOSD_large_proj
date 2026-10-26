@@ -7,6 +7,7 @@
 //
 // SAFE TO RE-RUN: existing collections get their validator updated (collMod)
 // instead of being dropped, and createIndex is a no-op if the index exists.
+// Needs MongoDB 5.0+ ($dateSubtract in the users rule); check with db.version().
 //
 // Run (from this folder):
 //   mongosh "<connection string>" schema.js
@@ -14,6 +15,15 @@
 db = db.getSiblingDB("MenuMacroFitter");
 
 const number = { bsonType: ["int", "long", "double", "decimal"] };
+const numberOrNull = { bsonType: [...number.bsonType, "null"] };
+
+// Chain names, alternate spellings and menu item search names are stored
+// NORMALIZED (see normalize() in seed.js): lowercase, "&" -> "and",
+// apostrophes dropped, every other non-letter/digit -> one space, trimmed.
+//   "Chick-fil-A" -> "chick fil a"     "McDonald's" -> "mcdonalds"
+// The API must normalize what it looks up (Places names, search text) the
+// same way.
+const normalized = { bsonType: "string", pattern: "^[a-z0-9]+( [a-z0-9]+)*$" };
 
 // ---------------------------------------------------------------------------
 // users
@@ -37,9 +47,9 @@ const usersSchema = {
     },
     email: {
       bsonType: "string",
-      pattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+      pattern: "^[^@\\sA-Z]+@[^@\\sA-Z]+\\.[^@\\sA-Z]+$",
       maxLength: 254,
-      description: "stored lowercase; unique index below",
+      description: "stored lowercase (uppercase is rejected so case can't dodge the unique index)",
     },
     passwordHash: { bsonType: "string", description: "bcrypt hash, never the plain password" },
     isVerified: { bsonType: "bool", description: "false until the email link is clicked; login is refused while false" },
@@ -56,7 +66,7 @@ const usersSchema = {
       properties: {
         heightIn: { ...number, minimum: 36, maximum: 96 },
         weightLb: { ...number, minimum: 50, maximum: 700 },
-        birthDate: { bsonType: "date", description: "age is computed from this, never stored; must be 18+ (rule below)" },
+        birthDate: { bsonType: "date", description: "age is computed from this, never stored; must be 18-120 (rule below)" },
         sex: { enum: ["male", "female"], description: "needed by the Mifflin-St Jeor formula" },
         activityLevel: { enum: ["sedentary", "light", "moderate", "active", "very_active"] },
         goal: { enum: ["lose", "maintain", "gain"] },
@@ -68,10 +78,10 @@ const usersSchema = {
       additionalProperties: false,
       properties: {
         units: { enum: ["imperial", "metric"], description: "display units only" },
-        searchRadius: { enum: [5, 10, 15, 20], description: "miles; used once location filtering is built" },
+        searchRadius: { enum: [5, 10, 15, 20], description: "miles, for the nearby search" },
         recommendationMode: { enum: ["protein", "carb"], description: "high-protein or high-carb ranking" },
         mealCalorieLimit: {
-          bsonType: ["int", "long", "double", "decimal", "null"],
+          ...numberOrNull,
           minimum: 100,
           maximum: 3000,
           description: "per-meal limit the user set; null = use daily target / 3",
@@ -83,49 +93,107 @@ const usersSchema = {
   },
 };
 
+// $jsonSchema can't compare against today's date, so the age rule is an $expr
+// next to it: 18 or older (spec), and at most 120 so a typo like 1826 can't
+// produce a negative calorie target. A null profile skips the check.
+const ageRule = {
+  $expr: {
+    $or: [
+      { $eq: [{ $ifNull: ["$profile", null] }, null] },
+      {
+        $and: [
+          { $lte: ["$profile.birthDate", { $dateSubtract: { startDate: "$$NOW", unit: "year", amount: 18 } }] },
+          { $gte: ["$profile.birthDate", { $dateSubtract: { startDate: "$$NOW", unit: "year", amount: 120 } }] },
+        ],
+      },
+    ],
+  },
+};
+
 // ---------------------------------------------------------------------------
-// restaurants
+// chains
 // ---------------------------------------------------------------------------
-// For now: fast-food places on the UCF campus. Location filtering by miles
-// comes later (it will add a GeoJSON point + 2dsphere index here).
-const restaurantsSchema = {
+// A restaurant BRAND (Chick-fil-A), not a location. Locations come live from
+// the Places API (#30) and are never stored; the API matches each Places
+// result to a chain by nameKey or alternateNames. Whether a chain "has
+// nutrition data" is computed from menuItems, not stored.
+const chainsSchema = {
   bsonType: "object",
-  required: ["name", "campusLocation", "menuSourceUrl", "createdAt"],
+  required: ["name", "nameKey", "alternateNames", "nutritionSourceUrl", "createdAt", "updatedAt"],
   additionalProperties: false,
   properties: {
     _id: { bsonType: "objectId" },
-    name: { bsonType: "string", minLength: 1, maxLength: 100 },
-    campusLocation: { bsonType: "string", description: "building on campus, e.g. Student Union" },
-    menuSourceUrl: { bsonType: "string", description: "public nutrition page the menu items were copied from" },
+    name: { bsonType: "string", minLength: 1, maxLength: 100, description: "display name, e.g. Chick-fil-A" },
+    nameKey: { ...normalized, description: "normalized name; unique index below" },
+    alternateNames: {
+      bsonType: "array",
+      uniqueItems: true,
+      items: normalized,
+      description: "other normalized spellings Places may return, e.g. chickfila",
+    },
+    nutritionSourceUrl: {
+      bsonType: "string",
+      pattern: "^https://",
+      description: "the chain's official nutrition page; menu items are checked against it",
+    },
     createdAt: { bsonType: "date" },
+    updatedAt: { bsonType: "date" },
   },
 };
 
 // ---------------------------------------------------------------------------
 // menuItems
 // ---------------------------------------------------------------------------
-// Separate collection (REFERENCES restaurants by restaurantId) rather than an
-// array inside each restaurant, so the search API can query and sort items
-// across every restaurant in one query ("high-protein items under 600 cal").
-// restaurantName is copied in (denormalized) so search results can show it
-// without a $lookup on every keystroke.
+// Separate collection (REFERENCES chains by chainId) rather than an array
+// inside each chain, so the search API can query and sort items across every
+// chain in one query ("high-protein items under 600 cal"). chainName is
+// copied in (denormalized) so results can show it without a $lookup.
+//
+// Unknown macros are stored as null, NEVER 0 (#28): a 0 would be ranked as a
+// real value. Calories can't be null; chains are required to publish them.
 const menuItemsSchema = {
   bsonType: "object",
-  required: ["restaurantId", "restaurantName", "name", "category", "calories", "proteinG", "carbsG", "fatG", "isEstimate", "source"],
+  required: ["chainId", "chainName", "name", "searchName", "category", "calories", "proteinG", "carbsG", "fatG", "isEstimate", "source", "lastVerified"],
   additionalProperties: false,
   properties: {
     _id: { bsonType: "objectId" },
-    restaurantId: { bsonType: "objectId" },
-    restaurantName: { bsonType: "string" },
+    chainId: { bsonType: "objectId", description: "chains._id" },
+    chainName: { bsonType: "string", description: "copy of chains.name" },
     name: { bsonType: "string", minLength: 1, maxLength: 150 },
+    searchName: { ...normalized, description: "normalized name for partial-match search (index below)" },
     category: { enum: ["entree", "side", "breakfast", "salad", "drink", "dessert"] },
-    calories: { ...number, minimum: 0 },
-    proteinG: { ...number, minimum: 0 },
-    carbsG: { ...number, minimum: 0 },
-    fatG: { ...number, minimum: 0 },
-    isEstimate: { bsonType: "bool", description: "true if not copied from an official nutrition page" },
-    source: { bsonType: "string", description: "where the numbers came from" },
-    lastVerified: { bsonType: ["date", "null"] },
+    calories: { ...number, minimum: 0, maximum: 5000 },
+    proteinG: { ...numberOrNull, minimum: 0 },
+    carbsG: { ...numberOrNull, minimum: 0 },
+    fatG: { ...numberOrNull, minimum: 0 },
+    isEstimate: { bsonType: "bool", description: "false only once checked against the chain's official page" },
+    source: { bsonType: "string", minLength: 1, description: "where the numbers came from" },
+    lastVerified: { bsonType: ["date", "null"], description: "when someone checked the official page" },
+  },
+};
+
+// A verified item must say when it was verified (#28: verified only counts
+// when checked against the official page).
+const verifiedNeedsDate = {
+  $expr: { $or: [{ $eq: ["$isEstimate", true] }, { $eq: [{ $type: "$lastVerified" }, "date"] }] },
+};
+
+// ---------------------------------------------------------------------------
+// favorites
+// ---------------------------------------------------------------------------
+// A saved restaurant LOCATION. Spec N4: store only the user, the Google place
+// ID and an optional label (no address, no coordinates, no user location).
+// additionalProperties: false makes the database enforce that.
+const favoritesSchema = {
+  bsonType: "object",
+  required: ["userId", "placeId", "label", "createdAt"],
+  additionalProperties: false,
+  properties: {
+    _id: { bsonType: "objectId" },
+    userId: { bsonType: "objectId", description: "users._id" },
+    placeId: { bsonType: "string", pattern: "^[A-Za-z0-9_-]{10,300}$", description: "Google Places place_id" },
+    label: { bsonType: ["string", "null"], minLength: 1, maxLength: 50, description: "optional, e.g. Union Chick-fil-A" },
+    createdAt: { bsonType: "date" },
   },
 };
 
@@ -134,31 +202,34 @@ const menuItemsSchema = {
 // ---------------------------------------------------------------------------
 function ensureCollection(name, schema, extraRules = {}) {
   const options = { validator: { $jsonSchema: schema, ...extraRules }, validationLevel: "strict", validationAction: "error" };
-  if (db.getCollectionNames().includes(name)) {
-    db.runCommand({ collMod: name, ...options });
-    print(`updated validator: ${name}`);
-  } else {
-    db.createCollection(name, options);
-    print(`created collection: ${name}`);
-  }
+  // runCommand returns { ok: 0 } instead of throwing, so check it; otherwise a
+  // rejected validator would silently leave the old one in place.
+  const exists = db.getCollectionNames().includes(name);
+  const res = exists ? db.runCommand({ collMod: name, ...options }) : db.runCommand({ create: name, ...options });
+  if (!res.ok) throw new Error(`${exists ? "collMod" : "create"} ${name} failed: ${res.errmsg}`);
+  print(`${exists ? "updated validator" : "created collection"}: ${name}`);
 }
 
-// $jsonSchema can't compare against today's date, so the 18+ rule is an
-// $expr next to it. A null profile passes (null sorts before any date).
-const adultsOnly = {
-  $expr: { $lte: ["$profile.birthDate", { $dateSubtract: { startDate: "$$NOW", unit: "year", amount: 18 } }] },
-};
+// Old design (before #29): menu items pointed at a campus "restaurants"
+// collection. Drop it and the menu items that referenced it (their old
+// indexes would clash); seed.js reloads menu items against chains.
+if (db.getCollectionNames().includes("restaurants")) {
+  db.restaurants.drop();
+  db.menuItems.drop();
+  print("dropped old collections: restaurants, menuItems");
+}
 
-ensureCollection("users", usersSchema, adultsOnly);
-ensureCollection("restaurants", restaurantsSchema);
-ensureCollection("menuItems", menuItemsSchema);
+ensureCollection("users", usersSchema, ageRule);
+ensureCollection("chains", chainsSchema);
+ensureCollection("menuItems", menuItemsSchema, verifiedNeedsDate);
+ensureCollection("favorites", favoritesSchema);
 
 // ---------------------------------------------------------------------------
 // Indexes
 // ---------------------------------------------------------------------------
 db.users.createIndex({ email: 1 }, { unique: true, name: "email_unique" });
-// Partial so this can be created on a database that still holds older users
-// without a username; the validator requires username on every new write.
+// Kept partial (as first deployed): changing an index's options under the
+// same name makes createIndex fail on the existing server.
 db.users.createIndex(
   { username: 1 },
   { unique: true, name: "username_unique", partialFilterExpression: { username: { $type: "string" } } }
@@ -174,10 +245,20 @@ db.users.createIndex(
   { name: "reset_token", partialFilterExpression: { resetTokenHash: { $type: "string" } } }
 );
 
-db.restaurants.createIndex({ name: 1, campusLocation: 1 }, { unique: true, name: "name_location_unique" });
+// Nearby search (#30) matches a Places name with { nameKey: k } or
+// { alternateNames: k }; both are index lookups.
+db.chains.createIndex({ nameKey: 1 }, { unique: true, name: "name_key_unique" });
+db.chains.createIndex({ alternateNames: 1 }, { name: "alternate_names" });
 
-db.menuItems.createIndex({ restaurantId: 1 }, { name: "by_restaurant" });
-db.menuItems.createIndex({ restaurantId: 1, name: 1 }, { unique: true, name: "restaurant_item_unique" });
+db.menuItems.createIndex({ chainId: 1, searchName: 1 }, { unique: true, name: "chain_item_unique" });
+// Search (#31): a regex on the normalized searchName scans this small index
+// instead of every document, and a "^prefix" regex gets tight index bounds.
+db.menuItems.createIndex({ searchName: 1 }, { name: "search_name" });
+// Recommendations (#32): "under N calories", ranked by protein or by carbs.
 db.menuItems.createIndex({ calories: 1, proteinG: -1 }, { name: "calories_protein" });
+db.menuItems.createIndex({ calories: 1, carbsG: -1 }, { name: "calories_carbs" });
+
+// One favorite per place per user; the userId prefix also serves "my favorites".
+db.favorites.createIndex({ userId: 1, placeId: 1 }, { unique: true, name: "user_place_unique" });
 
 print("schema.js done");
