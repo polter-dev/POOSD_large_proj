@@ -58,4 +58,5 @@ test("bad Overpass bodies throw 502, coordinate-less elements are dropped, no ch
   assert.deepStrictEqual(await findNearbyChainLocations(args), []);
   global.fetch = async () => assert.fail("fetch should not be called");
   assert.deepStrictEqual(await findNearbyChainLocations({ ...args, chainNames: [] }), []);
+  await assert.rejects(findNearbyChainLocations({ ...args, lat: "0);out;nwr(1" }), { status: 400 });
 });
