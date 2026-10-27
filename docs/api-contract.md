@@ -7,7 +7,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 
 | Topic | Rule |
 |---|---|
-| Base path | `/api`. Dev: `http://localhost:5000/api`. Prod: `https://<domain>/api` (never an IP in clients). |
+| Base path | `/api`. Dev: `http://localhost:5050/api`. Prod: `https://<domain>/api` (never an IP in clients). |
 | Bodies | JSON request and response bodies. `Content-Type: application/json`. |
 | Dates | ISO 8601 strings. `birthDate` is sent and returned as `YYYY-MM-DD`. |
 | IDs | Mongo `_id` is returned as `id` (24-hex string). Inputs that take an id (`chainIds`, `:id`) must be 24-hex, else 400 (404 for `:id`). |

@@ -10,7 +10,7 @@ servers:
       domain:
         default: example.com
         description: Set once #9/#19 pick the domain.
-  - url: http://localhost:5000/api
+  - url: http://localhost:5050/api
 tags:
   - name: Menu
     description: Menu item search.
