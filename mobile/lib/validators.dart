@@ -4,14 +4,14 @@
 final _username = RegExp(r'^[a-z0-9_.]{3,30}$');
 final _email = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-String? validateFirstName(String? v) {
-  final s = (v ?? '').trim();
-  return s.isEmpty || s.length > 50 ? 'First name is required' : null;
-}
+String? validateFirstName(String? v) => _name(v, 'First name');
 
-String? validateLastName(String? v) {
+String? validateLastName(String? v) => _name(v, 'Last name');
+
+String? _name(String? v, String label) {
   final s = (v ?? '').trim();
-  return s.isEmpty || s.length > 50 ? 'Last name is required' : null;
+  if (s.isEmpty) return '$label is required';
+  return s.length > 50 ? '$label: 50 characters max' : null;
 }
 
 String? validateUsername(String? v) =>
