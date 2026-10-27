@@ -16,4 +16,6 @@ test("verify and reset emails send CLIENT_URL links with the token via SendGrid"
   assert.match(sent[0].text, /http:\/\/app\/verify-email\?token=abc/);
   assert.strictEqual(sent[1].to, "b@x.com");
   assert.match(sent[1].text, /http:\/\/app\/reset-password\?token=def/);
+  process.env.EMAIL_FROM = "";
+  await assert.rejects(sendResetEmail({ to: "c@x.com", token: "ghi" }), { message: "EMAIL_FROM is not set" });
 });

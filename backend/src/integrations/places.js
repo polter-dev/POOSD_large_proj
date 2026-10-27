@@ -15,6 +15,10 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
 
 // Places within radiusMiles whose name contains one of chainNames, nearest first.
 async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
+  // These are interpolated into the Overpass query, so anything non-numeric could inject QL.
+  if (![lat, lng, radiusMiles].every(Number.isFinite)) {
+    throw Object.assign(new Error("lat, lng and radiusMiles must be numbers"), { status: 400 });
+  }
   // An empty pattern would match every restaurant in the radius.
   if (!chainNames.length) return [];
   const pattern = chainNames
