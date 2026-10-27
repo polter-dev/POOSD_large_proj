@@ -5,7 +5,7 @@ Flutter app, **Android only**. Same features and look as the web app: colors, ty
 
 ## Run it
 
-Needs Flutter 3.44+ and Android Studio (for the Android SDK and an emulator).
+Needs Flutter 3.47+ and Android Studio (for the Android SDK and an emulator).
 
 ```bash
 cd mobile
@@ -25,7 +25,7 @@ The API base URL is set at build time with `API_URL`. Clients use a domain name,
 Plain `http` is allowed in debug builds only (`android/app/src/debug/AndroidManifest.xml`); release builds need https.
 Port 5050, not 5000: macOS AirPlay Receiver takes 5000 (#66).
 
-Needs Flutter 3.44 or newer (the packages in `pubspec.lock` require it). Check with `flutter --version`.
+Needs Flutter 3.47 or newer: the packages in `pubspec.lock` need Dart 3.13, which Flutter 3.44 doesn't have (tested on 3.47.8). Check with `flutter --version`.
 
 ## Tests
 
