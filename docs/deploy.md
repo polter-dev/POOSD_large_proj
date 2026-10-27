@@ -34,6 +34,8 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
 4. **MongoDB** (pick one; the app only reads `MONGODB_URI`).
    - Atlas free tier: create a cluster and a database user, allow the
      droplet's IP under Network Access, copy the `mongodb+srv://...` string.
+     The seed step needs `mongosh`: install the `mongodb-mongosh` package from
+     MongoDB's apt repo, or run the seed from a laptop against the Atlas URI.
    - On the droplet: install `mongodb-org` following MongoDB's Ubuntu guide,
      `sudo systemctl enable --now mongod`, and use `mongodb://localhost:27017`.
 5. **Clone.**
@@ -82,6 +84,8 @@ curl -s https://<domain>/api/health        # from anywhere, through Cloudflare +
 pm2 logs api --lines 50                    # if either fails
 ```
 
-`"db":false` means the API is up but cannot reach MongoDB: check `MONGODB_URI`
-(and Atlas Network Access). A Cloudflare 52x error means nginx or the API is
-down: `sudo systemctl status nginx` and `pm2 status`.
+If MongoDB is unreachable at startup the API exits, so pm2 crash-loops and you
+get connection refused (Cloudflare 502). A `MongooseServerSelectionError` in
+`pm2 logs api` means check `MONGODB_URI` and Atlas Network Access. `"db":false`
+only appears if the database drops after a successful start. Any other
+Cloudflare 52x: `sudo systemctl status nginx` and `pm2 status`.
