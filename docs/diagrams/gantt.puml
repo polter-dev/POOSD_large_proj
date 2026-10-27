@@ -1,0 +1,72 @@
+@startgantt gantt
+' Menu Macro Fitter -- project schedule, Oct 12 to Nov 15 (issue #40)
+' One bar per GitHub issue. Start = previous milestone's due date (Oct 12 for M1),
+' end = the issue's milestone due date, or its closedAt date if closed.
+' Closed issues finished before their window opened start at their creation date (Oct 22).
+' Skipped: #3, #4 (admin), #49, #57 (decision/follow-up issues).
+
+skinparam defaultFontName Verdana
+scale 2
+title Menu Macro Fitter -- Gantt chart, Oct 12 to Nov 15
+
+Project starts 2026-10-12
+legend top right
+  Green = closed issue, lavender = open
+end legend
+
+-- M1: Database demo --
+[~#5 Users schema (Richard)] starts 2026-10-12 and ends 2026-10-22 and is colored in YellowGreen
+[~#6 Seed users (Richard)] starts 2026-10-12 and ends 2026-10-22 and is colored in YellowGreen
+[~#7 Draft ERD (Richard)] starts 2026-10-12 and ends 2026-10-27 and is colored in YellowGreen
+[~#8 Rehearse DB demo (Richard)] starts 2026-10-12 and ends 2026-10-26 and is colored in YellowGreen
+[M1 Database demo] happens at 2026-10-23
+
+-- M2: API and front-end demo --
+[~#9 Provision server (Marcus)] starts 2026-10-23 and ends 2026-10-30
+[~#10 Express skeleton (Marcus)] starts 2026-10-23 and ends 2026-10-27 and is colored in YellowGreen
+[~#11 Email service (Marcus)] starts 2026-10-23 and ends 2026-10-30
+[~#12 Register endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-30
+[~#13 Login endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-30
+[~#14 Postman collection (Monkly)] starts 2026-10-23 and ends 2026-10-30
+[~#15 React + TS project (Richard)] starts 2026-10-23 and ends 2026-10-30
+[~#16 Web API client (Marcus)] starts 2026-10-23 and ends 2026-10-27 and is colored in YellowGreen
+[~#17 Login/register pages (Richard)] starts 2026-10-23 and ends 2026-10-30
+[~#18 Figma prototypes (Alex, Richard)] starts 2026-10-23 and ends 2026-10-30
+[~#19 Deploy API + web (Marcus)] starts 2026-10-23 and ends 2026-10-30
+[M2 API and front-end demo] happens at 2026-10-30
+
+-- M3: Mobile demo --
+[~#20 Flutter login/register (Alex)] starts 2026-10-30 and ends 2026-11-06
+[~#21 Verify/reset endpoints (Monkly)] starts 2026-10-30 and ends 2026-11-06
+[~#22 Reset-password pages (Richard)] starts 2026-10-30 and ends 2026-11-06
+[~#23 Profile endpoints (Monkly)] starts 2026-10-30 and ends 2026-11-06
+[~#24 Calories endpoint (Monkly)] starts 2026-10-30 and ends 2026-11-06
+[~#25 Profile/calorie pages (Richard)] starts 2026-10-30 and ends 2026-11-06
+[~#26 Rehearse mobile demo (Alex)] starts 2026-10-30 and ends 2026-11-06
+[M3 Mobile demo] happens at 2026-11-06
+
+-- M4: Feature complete --
+[~#27 Places API decision (Marcus)] starts 2026-11-06 and ends 2026-11-10
+[~#28 Chain nutrition data (Richard)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
+[~#29 Menu collections (Richard)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
+[~#30 Nearby restaurants (Monkly)] starts 2026-11-06 and ends 2026-11-10
+[~#31 Menu search (Monkly)] starts 2026-11-06 and ends 2026-11-10
+[~#32 Recommendations (Monkly)] starts 2026-11-06 and ends 2026-11-10
+[~#33 Favorites endpoints (Monkly)] starts 2026-11-06 and ends 2026-11-10
+[~#34 Web feature screens (Richard)] starts 2026-11-06 and ends 2026-11-10
+[~#35 Mobile feature screens (Alex)] starts 2026-11-06 and ends 2026-11-10
+[M4 Feature complete] happens at 2026-11-10
+
+-- M5: Presentation --
+[~#36 SwaggerHub spec (Marcus)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
+[~#37 Use case/sequence diagrams (Marcus)] starts 2026-11-10 and ends 2026-11-15
+[~#38 Mobile class diagram (Alex)] starts 2026-11-10 and ends 2026-11-15
+[~#39 Final ERD (Richard)] starts 2026-11-10 and ends 2026-11-15
+[~#40 Gantt chart (Marcus)] starts 2026-11-10 and ends 2026-11-15
+[~#41 Integration tests (Monkly)] starts 2026-11-10 and ends 2026-11-15
+[~#42 Slides (Team)] starts 2026-11-10 and ends 2026-11-15
+[~#43 Campus network check (Marcus)] starts 2026-11-10 and ends 2026-11-15
+[~#44 Timed rehearsal (Team)] starts 2026-11-10 and ends 2026-11-15
+[~#45 Submit PowerPoint (Team)] starts 2026-11-10 and ends 2026-11-15
+[M5 Presentation] happens at 2026-11-15
+@endgantt
