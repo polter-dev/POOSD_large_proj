@@ -1,0 +1,39 @@
+@startuml sequence-recommendations
+' Menu Macro Fitter -- calorie target and meal recommendations
+' Messages, defaults and filter from docs/api-contract.md (paths under /api).
+
+!theme plain
+
+skinparam defaultFontName Verdana
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ArrowColor #333333
+
+title Menu Macro Fitter -- Calorie Target and Recommendations
+
+participant "Client (web/mobile)" as Client
+participant API
+database MongoDB
+
+Client -> API : GET /users/me/calories\nAuthorization: Bearer <JWT>
+API -> MongoDB : find users by JWT sub
+alt profile is null
+  API --> Client : 400 { error: "Set your profile first" }
+else profile set
+  API -> API : Mifflin-St Jeor + goal offset + floor
+  API --> Client : 200 { age, maintenance, target, perMeal }
+end
+
+Client -> API : POST /recommendations (JWT)\n{ chainIds?, mode?, mealCalorieLimit?, limit?, includeEstimates? }
+API -> MongoDB : find users by JWT sub
+API -> API : defaults: mode = preferences.recommendationMode,\nmealCalorieLimit = perMeal, limit = 10, includeEstimates = false
+alt no mealCalorieLimit in body, preference null, profile null
+  API --> Client : 400 { error: "Set your profile first" }
+else limit resolved
+  API -> MongoDB : find menuItems\n300 <= calories <= mealCalorieLimit,\nisEstimate: false (unless includeEstimates),\nproteinG or carbsG (by mode) not null,\nchainId in chainIds (if non-empty)
+  MongoDB --> API : MenuItem[]
+  API -> API : score = round(macroG / calories * 100, 1)\nsort score desc, calories asc; take limit
+  API --> Client : 200 { mode, mealCalorieLimit, items: RecommendedItem[] }
+end
+
+@enduml

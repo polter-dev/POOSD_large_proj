@@ -1,0 +1,49 @@
+@startuml sequence-auth
+' Menu Macro Fitter -- register, verify email, log in
+' Messages, fields and status codes from docs/api-contract.md (paths under /api).
+
+!theme plain
+
+skinparam defaultFontName Verdana
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ArrowColor #333333
+
+title Menu Macro Fitter -- Register, Verify Email, Log In
+
+participant "Client (web/mobile)" as Client
+participant API
+database MongoDB
+participant "Email service" as Email
+
+Client -> API : POST /auth/register\n{ firstName, lastName, username, email, password }
+API -> MongoDB : insert users { isVerified: false, profile: null,\ndefault preferences, passwordHash, verificationTokenHash }
+API -> Email : sendVerificationEmail({ to, token })
+note right of Email : stub: logs\n${CLIENT_URL}/verify-email?token=...
+API --> Client : 201 { message: "Verification email sent" }
+
+== Student opens the link ==
+
+Client -> API : GET /auth/verify-email?token=
+API -> MongoDB : find user by SHA-256(token), not expired
+alt token valid
+  API -> MongoDB : set isVerified: true, token hash + expiry null
+  API --> Client : 200 { message: "Email verified" }
+else invalid or expired
+  API --> Client : 400 { error }
+end
+
+== Log in ==
+
+Client -> API : POST /auth/login { email, password }
+API -> MongoDB : find user by lowercased email
+alt no user or bcrypt mismatch
+  API --> Client : 401 { error: "Invalid email or password" }
+else password ok, isVerified false
+  API --> Client : 403 { error: "Email not verified" }
+else password ok, verified
+  API --> Client : 200 { token, user: User }
+  note right of Client : JWT { sub: userId }, 7-day expiry\nsent as Authorization: Bearer <JWT>
+end
+
+@enduml

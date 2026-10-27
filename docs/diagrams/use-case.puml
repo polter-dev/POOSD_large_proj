@@ -1,0 +1,50 @@
+@startuml use-case
+' Menu Macro Fitter -- use case diagram
+' Use cases from README.md; includes only where docs/api-contract.md forces them.
+
+!theme plain
+
+skinparam defaultFontName Verdana
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ArrowColor #333333
+left to right direction
+
+title Menu Macro Fitter -- Use Cases
+
+actor Student
+actor "Email service" as Email
+
+rectangle "Menu Macro Fitter" {
+  usecase "Register" as UC_Register
+  usecase "Verify email" as UC_Verify
+  usecase "Log in" as UC_Login
+  usecase "Reset password" as UC_Reset
+  usecase "Set profile & goal" as UC_Profile
+  usecase "View calorie target" as UC_Calories
+  usecase "Search menu items" as UC_Search
+  usecase "Find nearby restaurants" as UC_Nearby
+  usecase "Get recommendations" as UC_Recs
+  usecase "Manage favorites" as UC_Favs
+}
+
+Student --> UC_Register
+Student --> UC_Verify
+Student --> UC_Login
+Student --> UC_Reset
+Student --> UC_Profile
+Student --> UC_Calories
+Student --> UC_Search
+Student --> UC_Nearby
+Student --> UC_Recs
+Student --> UC_Favs
+
+UC_Register --> Email
+UC_Reset --> Email
+
+' login returns 403 until the email is verified
+UC_Login ..> UC_Verify : <<include>>
+' recommendations return 400 "Set your profile first" without a profile
+UC_Recs ..> UC_Profile : <<include>>
+
+@enduml
