@@ -47,3 +47,15 @@ test("throws 502 Places lookup failed when Overpass errors", async () => {
     { status: 502, message: "Places lookup failed" },
   );
 });
+
+test("bad Overpass bodies throw 502, coordinate-less elements are dropped, no chains means no call", async () => {
+  const args = { lat: 0, lng: 0, radiusMiles: 5, chainNames: ["Subway"] };
+  for (const body of [{}, null]) {
+    global.fetch = async () => ({ ok: true, json: async () => body });
+    await assert.rejects(findNearbyChainLocations(args), { status: 502 });
+  }
+  global.fetch = async () => ({ ok: true, json: async () => ({ elements: [{ type: "way", id: 3, tags: { name: "Subway" } }] }) });
+  assert.deepStrictEqual(await findNearbyChainLocations(args), []);
+  global.fetch = async () => assert.fail("fetch should not be called");
+  assert.deepStrictEqual(await findNearbyChainLocations({ ...args, chainNames: [] }), []);
+});

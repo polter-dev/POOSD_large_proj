@@ -15,6 +15,8 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
 
 // Places within radiusMiles whose name contains one of chainNames, nearest first.
 async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
+  // An empty pattern would match every restaurant in the radius.
+  if (!chainNames.length) return [];
   const pattern = chainNames
     // Escape regex metacharacters; let an apostrophe also match ’ or nothing (McDonalds).
     .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/'/g, "['’]?"))
@@ -39,12 +41,14 @@ out center;`;
     throw placesError();
   }
   // Overpass reports a timeout as 200 with a remark and partial results.
+  if (!Array.isArray(data?.elements)) throw placesError();
   if (data.remark && /error/i.test(data.remark)) throw placesError();
 
   return data.elements
+    // Nodes carry lat/lon; ways and relations only have a center with "out center". Drop any with neither.
+    .filter((el) => el.lat != null || el.center)
     .map((el) => {
       const t = el.tags || {};
-      // Nodes carry lat/lon; ways and relations only have a center with "out center".
       const pLat = el.lat ?? el.center.lat;
       const pLng = el.lon ?? el.center.lon;
       const street = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
