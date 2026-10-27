@@ -1,7 +1,7 @@
 # Deploy runbook (#9, #19, #57)
 
 One Ubuntu LTS droplet runs everything: nginx serves the web build at `/` and
-proxies `/api/` to Express (pm2, port 5000). Cloudflare does DNS and HTTPS
+proxies `/api/` to Express (pm2, port 5050). Cloudflare does DNS and HTTPS
 (orange-cloud proxy), so nginx only listens on port 80.
 
 Nothing in this repo contains an IP address on purpose: clients reach the
@@ -30,7 +30,7 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    sudo npm install -g pm2
    sudo ufw allow OpenSSH && sudo ufw allow 'Nginx HTTP' && sudo ufw enable
    ```
-   The firewall keeps port 5000 private; only nginx reaches Express.
+   The firewall keeps port 5050 private; only nginx reaches Express.
 4. **MongoDB** (pick one; the app only reads `MONGODB_URI`).
    - Atlas free tier: create a cluster and a database user, allow the
      droplet's IP under Network Access, copy the `mongodb+srv://...` string.
@@ -49,7 +49,7 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    ```bash
    cd /var/www/POOSD_large_proj
    cp backend/.env.example backend/.env
-   nano backend/.env   # PORT=5000, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>
+   nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>
    echo 'VITE_API_URL=/api' > web/.env   # same-origin, so no domain or IP baked into the build
    ```
    Load the database once: see `backend/db/README.md`.
@@ -79,7 +79,7 @@ It pulls the current branch, installs backend deps, builds the web app (once
 ## Verify
 
 ```bash
-curl -s http://localhost:5000/api/health   # on the droplet: {"ok":true,"db":true}
+curl -s http://localhost:5050/api/health   # on the droplet: {"ok":true,"db":true}
 curl -s https://<domain>/api/health        # from anywhere, through Cloudflare + nginx
 pm2 logs api --lines 50                    # if either fails
 ```

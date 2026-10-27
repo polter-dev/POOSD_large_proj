@@ -70,7 +70,7 @@ export interface Favorite {
 export interface NearbyRestaurant {
   placeId: string;
   name: string;
-  address: string;
+  address: string | null;
   distanceMiles: number;
   chainId: string | null; // null = no nutrition data
 }
