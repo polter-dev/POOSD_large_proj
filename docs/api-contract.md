@@ -30,7 +30,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | `email` | after lowercasing: `^[^@\s]+@[^@\s]+\.[^@\s]+$`, max 254 chars |
 | `profile.heightIn` | number, 36-96 |
 | `profile.weightLb` | number, 50-700 |
-| `profile.birthDate` | `YYYY-MM-DD`; age 18-120 |
+| `profile.birthDate` | `YYYY-MM-DD`; age 18-119 (whole years) |
 | `profile.sex` | `"male"` \| `"female"` |
 | `profile.activityLevel` | `"sedentary"` \| `"light"` \| `"moderate"` \| `"active"` \| `"very_active"` |
 | `profile.goal` | `"lose"` \| `"maintain"` \| `"gain"` |
@@ -57,18 +57,21 @@ Height/weight are always imperial in the API; clients convert for display when `
 ```
 `category` is one of `"entree"`, `"side"`, `"breakfast"`, `"salad"`, `"drink"`, `"dessert"`. `proteinG`/`carbsG`/`fatG` may be `null` = unknown (never treat as 0).
 
+`RecommendedItem` = `MenuItem` + `score` (number, 1 decimal: ranking-macro grams per 100 kcal).
+
 `Favorite`: `{ id, placeId, label, createdAt }` (`label` is string or `null`).
 
-`Calories`: `{ age, bmr, maintenance, target, perMeal }`, all integers. Mifflin-St Jeor, exactly as `backend/db/queries.md` query 21:
+`Calories`: `{ age, maintenance, target, perMeal }`, all integers. Mifflin-St Jeor as `backend/db/queries.md` query 21, plus the #24 floor:
 
 | Step | Formula |
 |---|---|
 | `age` | whole years from `birthDate` to today (minus 1 if this year's birthday hasn't happened) |
 | kg, cm | `kg = weightLb * 0.453592`, `cm = heightIn * 2.54` |
-| `bmr` | `10*kg + 6.25*cm - 5*age + (sex === "male" ? 5 : -161)`, returned rounded |
-| `maintenance` | `round(bmr_unrounded * multiplier)`; sedentary 1.2, light 1.375, moderate 1.55, active 1.725, very_active 1.9 |
+| bmr (not returned) | `10*kg + 6.25*cm - 5*age + (sex === "male" ? 5 : -161)` |
+| `maintenance` | `round(bmr * multiplier)`; sedentary 1.2, light 1.375, moderate 1.55, active 1.725, very_active 1.9 |
 | `target` | `maintenance` - 500 (lose) / + 0 (maintain) / + 300 (gain) |
-| `perMeal` | `preferences.mealCalorieLimit` if not null, else `round(target / 3)` |
+| floor | `target = max(target, sex === "female" ? 1200 : 1500)` |
+| `perMeal` | `preferences.mealCalorieLimit` if not null, else `round(target / 3)` (floored target) |
 
 Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (October 2026; shifts on birthdays).
 
@@ -80,13 +83,13 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 |---|---|---|---|---|---|---|
 | POST | `/auth/register` | no | `{ firstName, lastName, username, email, password }` | 201 `{ message: "Verification email sent" }` | 400 invalid field; 409 email or username already taken | `register` |
 | POST | `/auth/login` | no | `{ email, password }` | 200 `{ token, user: User }` | 401 `"Invalid email or password"`; 403 `"Email not verified"` | `login` |
-| POST | `/auth/verify-email` | no | `{ token }` | 200 `{ message: "Email verified" }` | 400 invalid or expired token | `verifyEmail` |
+| GET | `/auth/verify-email?token=` | no | query: `token` required | 200 `{ message: "Email verified" }` | 400 invalid or expired token | `verifyEmail` |
 | POST | `/auth/resend-verification` | no | `{ email }` | 200 `{ message: "If that email exists, a verification link was sent" }` | 400 missing email | `resendVerification` |
 | POST | `/auth/forgot-password` | no | `{ email }` | 200 `{ message: "If that email exists, a reset link was sent" }` | 400 missing email | `forgotPassword` |
 | POST | `/auth/reset-password` | no | `{ token, password }` | 200 `{ message: "Password updated" }` | 400 invalid/expired token or bad password | `resetPassword` |
 
-- **register** creates the user with `isVerified: false`, `profile: null`, default preferences `{ units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null }`, and emails `${CLIENT_URL}/verify-email?token=...`.
-- **Tokens** (verify and reset): random token in the link; only its SHA-256 is stored (`verificationTokenHash` / `resetTokenHash`) with an expiry. Reset links expire in 1 hour. A used token is set to `null` (with its expiry).
+- **register** creates the user with `isVerified: false`, `profile: null`, default preferences `{ units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null }`, and emails `${CLIENT_URL}/verify-email?token=...`. That client page reads `token` and calls `GET /auth/verify-email?token=...`.
+- **Tokens** (verify and reset): random token in the link; only its SHA-256 is stored (`verificationTokenHash` / `resetTokenHash`) with an expiry. Verification links expire in 24 hours, reset links in 1 hour. A used token is set to `null` (with its expiry).
 - **resend-verification** does nothing (still 200) if the user is already verified.
 - **forgot-password** emails `${CLIENT_URL}/reset-password?token=...`.
 - **login** checks the password before `isVerified`, so 403 is only returned for correct credentials.
@@ -97,7 +100,7 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 |---|---|---|---|---|---|---|
 | GET | `/users/me` | yes | none | 200 `User` | 401; 404 user deleted | `getMe` |
 | PUT | `/users/me/profile` | yes | `{ heightIn, weightLb, birthDate, sex, activityLevel, goal }` (all required; replaces the profile) | 200 `User` | 400 any invalid field, under 18 or over 120 | `updateProfile` |
-| PATCH | `/users/me/goal` | yes | `{ goal }` | 200 `User` | 400 invalid goal; 400 `"Set your profile first"` if profile is null | `updateGoal` |
+| PUT | `/users/me/goal` | yes | `{ goal }` | 200 `User` | 400 invalid goal; 400 `"Set your profile first"` if profile is null | `updateGoal` |
 | PATCH | `/users/me/preferences` | yes | any subset of `{ units, searchRadius, recommendationMode, mealCalorieLimit }` (partial merge; `mealCalorieLimit: null` clears it) | 200 `User` | 400 invalid value or empty body | `updatePreferences` |
 | GET | `/users/me/calories` | yes | none | 200 `Calories` | 400 `"Set your profile first"` if profile is null | `getCalories` |
 
@@ -106,12 +109,12 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
 | GET | `/menu-items/search?q=&limit=&skip=` | no | query: `q` required (1-100 chars); `limit` int default 20, max 100; `skip` int default 0 | 200 `{ items: MenuItem[], total, limit, skip }` | 400 missing/invalid `q`, `limit` or `skip` | `searchMenuItems` |
-| POST | `/recommendations` | yes | all optional: `{ chainIds: string[], mode: "protein"\|"carb", mealCalorieLimit: number, limit: number }` | 200 `{ mode, mealCalorieLimit, items: MenuItem[] }` | 400 invalid field; 400 `"Set your profile first"` if no limit can be resolved | `recommendations` |
+| POST | `/recommendations` | yes | all optional: `{ chainIds: string[], mode: "protein"\|"carb", mealCalorieLimit: number, limit: number, includeEstimates: boolean }` | 200 `{ mode, mealCalorieLimit, items: RecommendedItem[] }` | 400 invalid field; 400 `"Set your profile first"` if no limit can be resolved | `recommendations` |
 
 **Search:**
 1. Normalize `q` exactly like `normalize()` in `backend/db/seed.js`: strip accents, lowercase, `&` -> ` and `, drop apostrophes (`'` and `’`), every run of other non-`[a-z0-9]` chars -> one space, trim. If the result is empty, 400.
-2. Regex-escape it; match as a partial (unanchored) case-insensitive regex against `menuItems.searchName`, OR return every item whose chain's `nameKey` or any `alternateNames` entry matches the same regex (so `"chick"` finds all Chick-fil-A items).
-3. Sort by `chainName` then `name`, ascending. `total` = count of all matches before `limit`/`skip`. No calorie floor, no `isEstimate` filter.
+2. Regex-escape it; match as a partial (unanchored) case-insensitive regex against `menuItems.searchName` only.
+3. Sort by `chainName` then `name`, ascending. `total` = `countDocuments` on `menuItems` with the same filter (before `limit`/`skip`). No calorie floor, no `isEstimate` filter.
 
 **Recommendations:**
 
@@ -121,8 +124,9 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 | `mealCalorieLimit` | `Calories.perMeal` (= `preferences.mealCalorieLimit`, else `round(target/3)`) | number 100-3000. 400 only if body omits it, `preferences.mealCalorieLimit` is null and profile is null |
 | `limit` | 10 | int 1-50 |
 | `chainIds` | omitted = all chains | array of 24-hex ids; empty array = all chains |
+| `includeEstimates` | `false` | boolean; when `false`, only items with `isEstimate: false` |
 
-Returns items with `calories <= mealCalorieLimit` and a non-null value for the ranking macro, sorted by that macro descending, then `calories` ascending. Response echoes the resolved `mode` and `mealCalorieLimit`.
+Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no tiny-portion winners and no divide by zero) and a non-null ranking macro. `score = round(macroG / calories * 100, 1)`; sorted by `score` descending, then `calories` ascending. Response echoes the resolved `mode` and `mealCalorieLimit`.
 
 ### Restaurants (blocked on issue #27, contract only)
 
@@ -145,7 +149,7 @@ Returns items with `calories <= mealCalorieLimit` and a non-null value for the r
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/health` | no | none | 200 `{ ok: true, db: true\|false }` (`db` = mongoose connected) | none | none |
+| GET | `/health` | no | none | 200 `{ ok: true, db: true\|false }` (`db` = mongoose connected) | none | none (Refs #10, #19) |
 
 ## 4. Backend conventions (for anyone implementing an endpoint)
 
