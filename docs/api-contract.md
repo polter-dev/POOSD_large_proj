@@ -132,7 +132,7 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/restaurants/nearby` | yes | `{ lat, lng, radiusMiles? }`; `lat` -90..90, `lng` -180..180, `radiusMiles` `5`\|`10`\|`15`\|`20` (default `preferences.searchRadius`) | 200 `{ restaurants: [{ placeId, name, address, distanceMiles, chainId: string\|null }] }` | 400 invalid coords/radius; 502 `"Places lookup failed"` | `nearby` |
+| POST | `/restaurants/nearby` | yes | `{ lat, lng, radiusMiles? }`; `lat` -90..90, `lng` -180..180, `radiusMiles` `5`\|`10`\|`15`\|`20` (default `preferences.searchRadius`) | 200 `{ restaurants: [{ placeId, name, address: string\|null, distanceMiles, chainId: string\|null }] }` | 400 invalid coords/radius; 502 `"Places lookup failed"` | `nearby` |
 
 - `chainId` is set when the normalized place name matches a chain's `nameKey` or `alternateNames` (exact lookup, then the prefix fallback in `backend/db/README.md` "For the API team"). `null` = no nutrition data.
 - Nothing about the location or the user's coordinates is stored (spec N4).
