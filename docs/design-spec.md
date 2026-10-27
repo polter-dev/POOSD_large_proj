@@ -18,7 +18,7 @@ colors have at least 3:1.
 | `bg` | `#FFFFFF` | Page / screen background |
 | `surface` | `#F5F6F8` | Section backgrounds, input fill on mobile |
 | `border` | `#E3E6EA` | Card and divider lines (decorative) |
-| `border-input` | `#8A939E` | Input outlines (3.1:1) |
+| `border-input` | `#858E99` | Input outlines (3.3:1 on `bg`, 3.1:1 on `surface`) |
 | `text` | `#1A1D21` | Body text, headings |
 | `text-muted` | `#5B6470` | Secondary text, captions, placeholders (6.0:1) |
 | `primary` | `#15803D` | Primary buttons, links, focus ring, selected states |
@@ -26,13 +26,13 @@ colors have at least 3:1.
 | `on-primary` | `#FFFFFF` | Text on primary buttons (5.0:1) |
 | `fit-great-bg` / `fit-great-text` | `#DCFCE7` / `#166534` | "Great fit" pill (6.5:1) |
 | `fit-ok-bg` / `fit-ok-text` | `#FEF3C7` / `#92400E` | "OK" pill (6.4:1) |
-| `fit-over-bg` / `fit-over-text` | `#FEE2E2` / `#B91C1C` | "Over budget" pill (reserved; can't happen yet) |
+| `fit-over-bg` / `fit-over-text` | `#FEE2E2` / `#B91C1C` | "Over budget" pill (reserved: recommendations never return over-limit items) |
 | `error` | `#B91C1C` | Error text and error input outline (6.5:1) |
 | `error-bg` | `#FEE2E2` | Error banner background |
 | `macro-protein` | `#2563EB` | Protein bar segment and dot |
 | `macro-carbs` | `#EA580C` | Carbs bar segment and dot (bars only, never text) |
 | `macro-fat` | `#A16207` | Fat bar segment and dot (darker gold, plain yellow is unreadable on white) |
-| `macro-unknown` | `#9CA3AF` | Hatched "unknown" part of a macro bar |
+| `macro-unknown` | `#808994` | Hatched "unknown" part of a macro bar (3.6:1 on `bg`, 3.3:1 on `surface`) |
 
 Fit colors are **never the only signal**: every fit pill also has its text ("Great fit", "OK") and an
 icon (check for Great fit, dash for OK).
@@ -83,9 +83,13 @@ inside (for example "Resend verification email").
 
 ### Fit pill
 `caption` text in a round pill: icon + label. "Great fit" (check, green), "OK" (dash, amber),
-"Over budget" (x, red; reserved). Proposed rule, needs team sign-off: every item that
-`POST /recommendations` returns already fits the calorie limit, so **Great fit = top third by
-`score`**, **OK = the rest**.
+"Over budget" (x, red; reserved). **Only on recommendation results**, because the rule needs
+`score`, which only `POST /recommendations` returns. Search results get no fit pill.
+
+Rule (needs team sign-off): every recommended item already fits the calorie limit, so the first
+`ceil(n / 3)` items by `score` are **Great fit** and the rest are **OK** (10 items: 4 and 6). The rule is
+relative: the best item in a weak list is still "Great fit". "Over budget" stays reserved, since
+recommendations never return items over the limit.
 
 ### Macro bar
 One horizontal bar, 8 tall, radius 4, showing how an item's calories split between protein, carbs and
@@ -102,11 +106,19 @@ it as 0.
 
 ### Menu item card
 Item name (`h2`), restaurant name (`small` muted), calories (`body` 600, tabular) on the right,
-macro bar, fit pill. In recommendations, also the score: "32.5 g protein per 100 cal".
+then the macro bar.
+- **In recommendations:** also the score and the fit pill. The score label follows the response's
+  `mode`: "8.5 g protein per 100 cal" for `protein`, "11.9 g carbs per 100 cal" for `carb`.
+- **In search results:** no score and no fit pill. Search isn't ranked by goal and has no calorie limit.
 
 ### Restaurant card
-Name (`h2`), distance ("0.4 mi", `small` muted), address if not null, and a badge:
+Name (`h2`), distance ("0.4 mi", `small` muted), address when there is one, and a badge:
 "5 options fit your goal" in `fit-great` colors.
+
+The count needs one extra call, not one per card: after `POST /restaurants/nearby`, send one
+`POST /recommendations` with `chainIds` = every non-null `chainId` in the results and `limit: 50`,
+then count the returned items per `chainId`. 50 is the contract's maximum, so a restaurant can be
+undercounted when many fit; see Open questions.
 
 **No nutrition data** (`chainId: null`): same card, but the badge is a neutral pill
 ("No nutrition data", `surface` fill, `text-muted`), there's no item count, and the card isn't
@@ -134,26 +146,34 @@ Login and register are the first screen (course requirement). Same fields, copy 
 
 | Field | Label | Client check (same as the server) | Message |
 |---|---|---|---|
-| `firstName` | First name | 1 to 50 characters | "First name is required" |
-| `lastName` | Last name | 1 to 50 characters | "Last name is required" |
+| `firstName` | First name | 1 to 50 characters | empty: "First name is required"; over 50: "First name: 50 characters max" |
+| `lastName` | Last name | 1 to 50 characters | empty: "Last name is required"; over 50: "Last name: 50 characters max" |
 | `username` | Username | lowercase as they type; `^[a-z0-9_.]{3,30}$` | "Username: 3 to 30 letters, numbers, _ or ." |
 | `email` | Email | lowercase; `^[^@\s]+@[^@\s]+\.[^@\s]+$`, max 254 | "Email: enter a valid address" |
 | `password` | Password | at least 8 characters | "Password: at least 8 characters" |
 
 - Primary button "Create account". Link: "Have an account? Log in".
 - Validate on blur and on submit, not on every keystroke.
-- 409 shows the server's message in the banner (email or username already taken).
+- 400 (a field the server rejected) and 409 (email or username already taken) show the server's
+  message in the banner.
 - On 201: go to **Check your email**. Register does not log the user in.
 
 ### Check your email
-- Title "Check your email". Body: "We sent a verification link to **{email}**. Open it, then log in."
-- Primary button "Back to log in". Secondary button "Resend email" (`POST /auth/resend-verification`).
-- The verification link opens the **web** page `/verify-email?token=` (#22), on both web and mobile.
+Two versions of the same layout: title "Check your email", primary button "Back to log in",
+secondary button "Resend email".
+
+| | After sign up | After forgot password |
+|---|---|---|
+| Body | "We sent a verification link to **{email}**. Open it, then log in." | The server's message, then: "If that email exists, a reset link was sent. Check **{email}** and open the link to choose a new password." |
+| Resend email calls | `POST /auth/resend-verification` | `POST /auth/forgot-password` |
+| The emailed link opens | web page `/verify-email?token=` (#22) | web page `/reset-password?token=` (#22) |
+
+Forgot password never says whether the email exists, so the body shows the contract's message rather
+than "we sent". Both links open the **web** site, on web and mobile.
 
 ### Forgot password
-- Mobile and web: one Email field and a "Send reset link" button (`POST /auth/forgot-password`),
-  then the same "Check your email" layout with the contract's message.
-- The reset itself happens on the web page `/reset-password?token=` (#22).
+- Mobile and web: title "Reset your password", one Email field and a "Send reset link" button
+  (`POST /auth/forgot-password`), then the forgot-password version of **Check your email**.
 
 ## 6. Using the tokens in code
 
@@ -161,14 +181,14 @@ React (`web/src/styles/tokens.css`, once #15 sets up the project):
 
 ```css
 :root {
-  --bg: #FFFFFF; --surface: #F5F6F8; --border: #E3E6EA; --border-input: #8A939E;
+  --bg: #FFFFFF; --surface: #F5F6F8; --border: #E3E6EA; --border-input: #858E99;
   --text: #1A1D21; --text-muted: #5B6470;
   --primary: #15803D; --primary-hover: #166534; --on-primary: #FFFFFF;
   --fit-great-bg: #DCFCE7; --fit-great-text: #166534;
   --fit-ok-bg: #FEF3C7; --fit-ok-text: #92400E;
   --fit-over-bg: #FEE2E2; --fit-over-text: #B91C1C;
   --error: #B91C1C; --error-bg: #FEE2E2;
-  --macro-protein: #2563EB; --macro-carbs: #EA580C; --macro-fat: #A16207; --macro-unknown: #9CA3AF;
+  --macro-protein: #2563EB; --macro-carbs: #EA580C; --macro-fat: #A16207; --macro-unknown: #808994;
   --radius-input: 8px; --radius-card: 12px;
   --font: "Manrope", system-ui, sans-serif;
 }
@@ -179,14 +199,25 @@ Flutter (`mobile/lib/theme.dart`, once #20 sets up the project):
 ```dart
 class AppColors {
   static const bg = Color(0xFFFFFFFF), surface = Color(0xFFF5F6F8);
-  static const border = Color(0xFFE3E6EA), borderInput = Color(0xFF8A939E);
+  static const border = Color(0xFFE3E6EA), borderInput = Color(0xFF858E99);
   static const text = Color(0xFF1A1D21), textMuted = Color(0xFF5B6470);
   static const primary = Color(0xFF15803D), primaryHover = Color(0xFF166534);
+  static const onPrimary = Color(0xFFFFFFFF);
   static const fitGreatBg = Color(0xFFDCFCE7), fitGreatText = Color(0xFF166534);
   static const fitOkBg = Color(0xFFFEF3C7), fitOkText = Color(0xFF92400E);
   static const fitOverBg = Color(0xFFFEE2E2), fitOverText = Color(0xFFB91C1C);
   static const error = Color(0xFFB91C1C), errorBg = Color(0xFFFEE2E2);
   static const macroProtein = Color(0xFF2563EB), macroCarbs = Color(0xFFEA580C);
-  static const macroFat = Color(0xFFA16207), macroUnknown = Color(0xFF9CA3AF);
+  static const macroFat = Color(0xFFA16207), macroUnknown = Color(0xFF808994);
 }
 ```
+
+## 7. Open questions
+
+- **Fit rule** (section 4, Fit pill): top `ceil(n / 3)` by `score` = Great fit. Needs team sign-off.
+- **"N options fit your goal" count** (section 4, Restaurant card): one recommendations call with
+  `limit: 50` can undercount when many items fit. Fine for the demo; a per-chain count from the
+  API would be exact.
+- **Restaurant `address`**: the contract and `web/src/types/api.ts` say string, but the Overpass
+  client (#61) returns `null` when OpenStreetMap has no address (17 of 121 in its live check). The
+  card handles a missing address; the contract should say `string | null`.

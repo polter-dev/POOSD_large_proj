@@ -6,7 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   static const bg = Color(0xFFFFFFFF), surface = Color(0xFFF5F6F8);
-  static const border = Color(0xFFE3E6EA), borderInput = Color(0xFF8A939E);
+  static const border = Color(0xFFE3E6EA), borderInput = Color(0xFF858E99);
   static const text = Color(0xFF1A1D21), textMuted = Color(0xFF5B6470);
   static const primary = Color(0xFF15803D), primaryHover = Color(0xFF166534);
   static const onPrimary = Color(0xFFFFFFFF);
@@ -15,7 +15,7 @@ class AppColors {
   static const fitOverBg = Color(0xFFFEE2E2), fitOverText = Color(0xFFB91C1C);
   static const error = Color(0xFFB91C1C), errorBg = Color(0xFFFEE2E2);
   static const macroProtein = Color(0xFF2563EB), macroCarbs = Color(0xFFEA580C);
-  static const macroFat = Color(0xFFA16207), macroUnknown = Color(0xFF9CA3AF);
+  static const macroFat = Color(0xFFA16207), macroUnknown = Color(0xFF808994);
 }
 
 class AppSpace {

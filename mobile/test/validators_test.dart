@@ -25,7 +25,8 @@ void main() {
 
   test('names are 1 to 50 characters', () {
     expect(validateFirstName('Jane'), isNull);
-    expect(validateFirstName('   '), isNotNull);
-    expect(validateLastName('a' * 51), isNotNull);
+    expect(validateFirstName('   '), 'First name is required');
+    expect(validateFirstName('a' * 50), isNull);
+    expect(validateLastName('a' * 51), 'Last name: 50 characters max');
   });
 }
