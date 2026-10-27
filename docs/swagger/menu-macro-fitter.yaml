@@ -1,0 +1,133 @@
+openapi: 3.0.3
+info:
+  title: Menu Macro Fitter API
+  version: 1.0.0
+  license: { name: MIT, url: https://opensource.org/licenses/MIT }
+  description: Menu search and calorie targets. Source of truth is docs/api-contract.md.
+servers:
+  - url: https://{domain}/api
+    variables:
+      domain:
+        default: example.com
+        description: Set once #9/#19 pick the domain.
+  - url: http://localhost:5000/api
+tags:
+  - name: Menu
+    description: Menu item search.
+  - name: Users
+    description: Signed-in user data.
+paths:
+  /menu-items/search:
+    get:
+      tags: [Menu]
+      operationId: searchMenuItems
+      summary: Search menu items by name
+      description: Partial, case-insensitive match on the normalized item name. Sorted by chainName, then name.
+      security: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema: { type: string, minLength: 1, maxLength: 100 }
+          example: grilled nuggets 8
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: skip
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: Matching items and the total before limit/skip.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, limit, skip]
+                properties:
+                  items: { type: array, items: { $ref: "#/components/schemas/MenuItem" } }
+                  total: { type: integer }
+                  limit: { type: integer }
+                  skip: { type: integer }
+              example:
+                items:
+                  - id: 66f1a2b3c4d5e6f708192a3b
+                    chainId: 66f1a2b3c4d5e6f708192a01
+                    chainName: Chick-fil-A
+                    name: Grilled Nuggets (8 ct)
+                    category: entree
+                    calories: 130
+                    proteinG: 25
+                    carbsG: 1
+                    fatG: 3
+                    isEstimate: false
+                total: 1
+                limit: 20
+                skip: 0
+        "400":
+          description: Missing or invalid q, limit or skip.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "q is required" }
+  /users/me/calories:
+    get:
+      tags: [Users]
+      operationId: getCalories
+      summary: Get the user's daily and per-meal calorie targets
+      description: Mifflin-St Jeor maintenance, goal-adjusted target (floored at 1200 female / 1500 male) and per-meal limit.
+      responses:
+        "200":
+          description: Calorie targets (example is seed user janedoe, October 2026).
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Calories" }
+              example: { age: 20, maintenance: 2058, target: 1558, perMeal: 519 }
+        "400":
+          description: The user has no profile yet.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "Set your profile first" }
+        "401":
+          description: Missing or invalid token.
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+              example: { error: "Unauthorized" }
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    MenuItem:
+      type: object
+      required: [id, chainId, chainName, name, category, calories, proteinG, carbsG, fatG, isEstimate]
+      properties:
+        id: { type: string, pattern: "^[0-9a-f]{24}$" }
+        chainId: { type: string, pattern: "^[0-9a-f]{24}$" }
+        chainName: { type: string }
+        name: { type: string }
+        category: { type: string, enum: [entree, side, breakfast, salad, drink, dessert] }
+        calories: { type: number }
+        proteinG: { type: number, nullable: true, description: "null means unknown, never 0." }
+        carbsG: { type: number, nullable: true, description: "null means unknown, never 0." }
+        fatG: { type: number, nullable: true, description: "null means unknown, never 0." }
+        isEstimate: { type: boolean }
+    Calories:
+      type: object
+      required: [age, maintenance, target, perMeal]
+      properties:
+        age: { type: integer }
+        maintenance: { type: integer }
+        target: { type: integer }
+        perMeal: { type: integer }
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string }
