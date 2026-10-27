@@ -34,3 +34,21 @@ test("bad JSON body returns 400 Invalid JSON", async () => {
   assert.strictEqual(res.status, 400);
   assert.deepStrictEqual(await res.json(), { error: "Invalid JSON" });
 });
+
+test("Mongo duplicate key error returns 409 Already exists", async () => {
+  // The exported app already ends in the 404 handler, so use a throwaway app with the same error handler.
+  const express = require("express");
+  const errorHandler = require("../../src/middleware/error");
+  const dupApp = express();
+  dupApp.get("/dup", (req, res, next) => next(Object.assign(new Error("dup"), { code: 11000 })));
+  dupApp.use(errorHandler);
+  const dupServer = dupApp.listen(0);
+  await new Promise((resolve) => dupServer.once("listening", resolve));
+  try {
+    const res = await fetch(`http://localhost:${dupServer.address().port}/dup`);
+    assert.strictEqual(res.status, 409);
+    assert.deepStrictEqual(await res.json(), { error: "Already exists" });
+  } finally {
+    dupServer.close();
+  }
+});
