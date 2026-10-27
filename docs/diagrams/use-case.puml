@@ -44,7 +44,5 @@ UC_Reset --> Email
 
 ' login returns 403 until the email is verified
 UC_Login ..> UC_Verify : <<include>>
-' recommendations return 400 "Set your profile first" without a profile
-UC_Recs ..> UC_Profile : <<include>>
 
 @enduml

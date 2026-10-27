@@ -17,7 +17,7 @@ database MongoDB
 participant "Email service" as Email
 
 Client -> API : POST /auth/register\n{ firstName, lastName, username, email, password }
-API -> MongoDB : insert users { isVerified: false, profile: null,\ndefault preferences, passwordHash, verificationTokenHash }
+API -> MongoDB : insert users { isVerified: false, profile: null,\ndefault preferences, passwordHash, verificationTokenHash, verificationTokenExpires }
 API -> Email : sendVerificationEmail({ to, token })
 note right of Email : stub: logs\n${CLIENT_URL}/verify-email?token=...
 API --> Client : 201 { message: "Verification email sent" }
