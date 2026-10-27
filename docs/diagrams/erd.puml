@@ -1,0 +1,103 @@
+@startuml erd
+' Menu Macro Fitter -- entity relationship diagram (MongoDB)
+' Traced from backend/db/schema.js. Embedded sub-documents (profile,
+' preferences) are drawn inside users because they are not collections.
+
+!theme plain
+
+skinparam defaultFontName Verdana
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam linetype ortho
+skinparam ClassBackgroundColor White
+skinparam ClassBorderColor #333333
+skinparam ArrowColor #333333
+hide circle
+hide methods
+
+title Menu Macro Fitter -- Database (MenuMacroFitter)
+
+entity "users" as users {
+  * _id : ObjectId <<PK>>
+  --
+  * firstName : string
+  * lastName : string
+  * username : string <<unique, lowercase>>
+  * email : string <<unique, lowercase>>
+  * passwordHash : string (bcrypt)
+  * isVerified : bool
+  verificationTokenHash : string? (SHA-256)
+  verificationTokenExpires : date?
+  resetTokenHash : string? (SHA-256)
+  resetTokenExpires : date?
+  * createdAt : date
+  * updatedAt : date
+  ..profile (embedded, null until filled in)..
+  heightIn : number (36-96)
+  weightLb : number (50-700)
+  birthDate : date (age 18-120)
+  sex : male | female
+  activityLevel : sedentary | light | moderate | active | very_active
+  goal : lose | maintain | gain
+  ..preferences (embedded, defaults at registration)..
+  * units : imperial | metric
+  * searchRadius : 5 | 10 | 15 | 20
+  * recommendationMode : protein | carb
+  * mealCalorieLimit : number? (100-3000)
+}
+
+entity "favorites" as favorites {
+  * _id : ObjectId <<PK>>
+  --
+  * userId : ObjectId <<FK users>>
+  * placeId : string (Google place ID)
+  label : string? (max 50)
+  * createdAt : date
+  --
+  unique (userId, placeId)
+}
+
+entity "chains" as chains {
+  * _id : ObjectId <<PK>>
+  --
+  * name : string
+  * nameKey : string <<unique, normalized>>
+  * alternateNames : string[] (normalized)
+  * nutritionSourceUrl : string (https)
+  * createdAt : date
+  * updatedAt : date
+}
+
+entity "menuItems" as menuItems {
+  * _id : ObjectId <<PK>>
+  --
+  * chainId : ObjectId <<FK chains>>
+  * chainName : string (copy of chains.name)
+  * name : string
+  * searchName : string (normalized)
+  * category : entree | side | breakfast | salad | drink | dessert
+  * calories : number
+  proteinG : number? (null = unknown)
+  carbsG : number? (null = unknown)
+  fatG : number? (null = unknown)
+  * isEstimate : bool
+  * source : string
+  lastVerified : date? (required when isEstimate = false)
+  --
+  unique (chainId, searchName)
+}
+
+users ||--o{ favorites : saves
+chains ||--o{ menuItems : serves
+
+note bottom of favorites
+  Spec N4: only user + place ID + label.
+  No address or coordinates are stored.
+end note
+
+note bottom of menuItems
+  No link to users: the app
+  does not log meals.
+end note
+
+@enduml
