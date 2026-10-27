@@ -25,7 +25,7 @@
 // "demo-reset-token" (the raw token is what the email link would contain).
 
 db = db.getSiblingDB("MenuMacroFitter");
-load("menu-data/chains.js"); // defines CHAINS
+load(__dirname + "/menu-data/chains.js"); // defines CHAINS; __dirname so seed.js runs from any folder
 
 const PASSWORD_HASH = "$2b$10$fYkTDYUE26dcsyJDdm8T2.ePWbXs35ePgSzevHC1y6fEpOm85Py/u";
 const now = new Date();
