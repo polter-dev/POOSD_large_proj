@@ -25,6 +25,7 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _loading = false;
   String? _error;
   bool _notVerified = false; // 403: offer "Resend verification email"
+  bool _resending = false;
   String? _info;
 
   @override
@@ -47,6 +48,7 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => HomeScreen(user: res.user)));
     } on ApiError catch (e) {
+      if (!mounted) return;
       setState(() {
         _error = e.message;
         _notVerified = e.status == 403 && e.fromApi; // not some other server's 403
@@ -57,15 +59,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _resend() async {
+    if (_resending) return; // ignore double taps
+    setState(() => _resending = true);
     try {
       final msg = await ApiScope.of(context).resendVerification(normalizeLower(_email.text));
+      if (!mounted) return;
       setState(() {
         _error = null;
         _notVerified = false;
         _info = msg;
       });
     } on ApiError catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _resending = false);
     }
   }
 
@@ -78,7 +85,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ErrorBanner(
             message: _error!,
             actionLabel: _notVerified ? 'Resend verification email' : null,
-            onAction: _notVerified ? _resend : null,
+            onAction: _notVerified && !_resending ? _resend : null,
           ),
         if (_info != null) ErrorBanner(message: _info!, info: true),
         Form(

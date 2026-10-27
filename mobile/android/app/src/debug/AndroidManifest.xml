@@ -4,7 +4,7 @@
          to allow setting breakpoints, to provide hot reload, etc.
     -->
     <uses-permission android:name="android.permission.INTERNET"/>
-    <!-- Debug only: lets the emulator call a local API over plain http
-         (http://10.0.2.2:5050/api). Release builds use the https domain. -->
+    <!-- Debug only: lets the app call the dev API on this computer over plain http
+         (localhost:5050 through `adb reverse`). Release builds use the https domain. -->
     <application android:usesCleartextTraffic="true"/>
 </manifest>

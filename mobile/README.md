@@ -5,7 +5,7 @@ Flutter app, **Android only**. Same features and look as the web app: colors, ty
 
 ## Run it
 
-Needs Flutter 3.47+ and Android Studio (for the Android SDK and an emulator).
+Needs Flutter 3.44+ and Android Studio (for the Android SDK and an emulator).
 
 ```bash
 cd mobile
@@ -14,14 +14,18 @@ flutter emulators --launch Medium_Phone_API_37.0   # or any Android emulator / p
 flutter run
 ```
 
-The API base URL is set at build time with `API_URL`:
+The API base URL is set at build time with `API_URL`. Clients use a domain name, never an IP (#19).
 
 | Where the API runs | Command |
 |---|---|
-| Local backend on this computer (default) | `flutter run` (uses `http://10.0.2.2:5050/api`, the emulator's name for the host's localhost) |
+| Local backend on this computer (debug default) | `adb reverse tcp:5050 tcp:5050` once per emulator boot, then `flutter run`. The app calls `http://localhost:5050/api`, which `adb reverse` forwards to this computer. |
 | Live server | `flutter run --dart-define=API_URL=https://<domain>/api` |
+| Release build | `flutter build apk --dart-define=API_URL=https://<domain>/api`. Without it, release builds use `productionApiUrl` in `lib/services/api_client.dart` (`https://DOMAIN_PLACEHOLDER/api` until #57 picks the domain). |
 
 Plain `http` is allowed in debug builds only (`android/app/src/debug/AndroidManifest.xml`); release builds need https.
+Port 5050, not 5000: macOS AirPlay Receiver takes 5000 (#66).
+
+Needs Flutter 3.44 or newer (the packages in `pubspec.lock` require it). Check with `flutter --version`.
 
 ## Tests
 

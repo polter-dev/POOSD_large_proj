@@ -35,11 +35,15 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     });
     final email = normalizeLower(_email.text);
     try {
-      await ApiScope.of(context).forgotPassword(email);
+      final message = await ApiScope.of(context).forgotPassword(email);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => CheckEmailScreen.reset(email: email)));
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => CheckEmailScreen.reset(email: email, message: message),
+        ),
+      );
     } on ApiError catch (e) {
-      setState(() => _error = e.message);
+      if (mounted) setState(() => _error = e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

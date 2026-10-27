@@ -49,7 +49,7 @@ ThemeData buildTheme() {
     titleLarge: TextStyle(fontSize: 20, height: 26 / 20, fontWeight: FontWeight.w600), // h2
     bodyLarge: TextStyle(fontSize: 16, height: 1.5), // body
     bodyMedium: TextStyle(fontSize: 14, height: 20 / 14), // small
-    labelSmall: TextStyle(fontSize: 12, height: 16 / 12, fontWeight: FontWeight.w600), // caption
+    labelSmall: TextStyle(fontSize: 12, height: 16 / 12, fontWeight: FontWeight.w500), // caption
     labelLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w600), // buttons
   );
   final themedText = textTheme.apply(bodyColor: AppColors.text, displayColor: AppColors.text);
@@ -65,6 +65,8 @@ ThemeData buildTheme() {
   return base.copyWith(
     textTheme: useGoogleFonts ? GoogleFonts.manropeTextTheme(themedText) : themedText,
     inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: AppColors.surface, // spec: surface is the input fill on mobile
       contentPadding: const EdgeInsets.symmetric(horizontal: AppSpace.s4, vertical: 14),
       hintStyle: const TextStyle(color: AppColors.textMuted),
       enabledBorder: outline(AppColors.borderInput, 1),

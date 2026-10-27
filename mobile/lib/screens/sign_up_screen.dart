@@ -52,7 +52,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => CheckEmailScreen.verify(email: email)));
     } on ApiError catch (e) {
-      setState(() => _error = e.message); // 409: email or username already taken
+      if (mounted) setState(() => _error = e.message); // 409: email or username already taken
     } finally {
       if (mounted) setState(() => _loading = false);
     }

@@ -1,14 +1,22 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Same idea as web/src/api/client.ts: the only place in mobile/ that makes HTTP calls.
 // It attaches the stored JWT and turns the API's { error } into ApiError.
 
-// Default is the dev API on this machine as the Android emulator sees it (10.0.2.2 = the host's localhost).
-// Production: flutter run --dart-define=API_URL=https://<domain>/api (never an IP, #19).
-const apiBaseUrl = String.fromEnvironment('API_URL', defaultValue: 'http://10.0.2.2:5050/api');
+// Where the API is. Clients use a domain name, never an IP (#19).
+// - Pass it at build time: --dart-define=API_URL=https://<domain>/api
+// - Release builds without it use productionApiUrl. DOMAIN_PLACEHOLDER is the same placeholder as
+//   deploy/nginx.conf; replace it here once #57 picks the domain.
+// - Debug builds without it use the dev API on this computer, which the emulator reaches as localhost
+//   after `adb reverse tcp:5050 tcp:5050` (see mobile/README.md).
+const productionApiUrl = 'https://DOMAIN_PLACEHOLDER/api';
+const devApiUrl = 'http://localhost:5050/api';
+const _apiUrlOverride = String.fromEnvironment('API_URL');
+const apiBaseUrl = _apiUrlOverride != '' ? _apiUrlOverride : (kReleaseMode ? productionApiUrl : devApiUrl);
 
 const networkErrorMessage = "Can't reach the server. Check your connection and try again.";
 
