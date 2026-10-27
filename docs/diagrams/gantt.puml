@@ -64,9 +64,9 @@ end legend
 [~#39 Final ERD (Richard)] starts 2026-11-10 and ends 2026-11-15
 [~#40 Gantt chart (Marcus)] starts 2026-11-10 and ends 2026-11-15
 [~#41 Integration tests (Monkly)] starts 2026-11-10 and ends 2026-11-15
-[~#42 Slides (Team)] starts 2026-11-10 and ends 2026-11-15
+[~#42 Slides (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
 [~#43 Campus network check (Marcus)] starts 2026-11-10 and ends 2026-11-15
-[~#44 Timed rehearsal (Team)] starts 2026-11-10 and ends 2026-11-15
-[~#45 Submit PowerPoint (Team)] starts 2026-11-10 and ends 2026-11-15
+[~#44 Timed rehearsal (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
+[~#45 Submit PowerPoint (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
 [M5 Presentation] happens at 2026-11-15
 @endgantt
