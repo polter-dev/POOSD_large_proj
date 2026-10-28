@@ -1,34 +1,34 @@
 # Deploy runbook (#9, #19, #57)
 
 One Ubuntu LTS droplet runs everything: nginx serves the web build at `/` and
-proxies `/api/` to Express (pm2, port 5050). Cloudflare does DNS and HTTPS
-(orange-cloud proxy), so nginx only listens on port 80.
+proxies `/api/` to Express (pm2, port 5050). nginx terminates HTTPS itself
+with a Let's Encrypt certificate from certbot.
 
 Nothing in this repo contains an IP address on purpose: clients reach the
-server by domain name only (#19). The droplet IP lives in Cloudflare DNS and
-nowhere else. Secrets live only in `.env` files on the droplet.
+server by domain name only (#19). The droplet IP lives in the registrar's DNS
+(GoDaddy) and nowhere else. Secrets live only in `.env` files on the droplet.
 
 Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
 
 ## One-time setup
 
 1. **Droplet.** DigitalOcean: Ubuntu LTS, smallest size, add the team's SSH
-   keys. Log in as a sudo user (not root) for every step below.
-2. **DNS through Cloudflare.** Add the domain to Cloudflare and switch the
-   registrar's nameservers to the two Cloudflare gives you. Add `A` records for
-   `@` and `www` pointing at the droplet, proxied (orange cloud). In
-   SSL/TLS, set the mode to **Flexible** (nginx is HTTP-only) and turn on
-   **Always Use HTTPS**.
-   - Alternative without the Cloudflare proxy (grey cloud): run
-     `sudo apt install -y certbot python3-certbot-nginx && sudo certbot --nginx`
-     after step 7. Not configured here.
+   keys. Log in as a sudo user (not root) for every step below. Create it
+   once, as root:
+   ```bash
+   adduser --disabled-password --gecos '' deploy && usermod -aG sudo deploy && rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
+   echo 'deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/deploy   # no password exists, so sudo must not ask
+   ```
+2. **DNS at the registrar (GoDaddy).** Add `A` records for `@` and `www`
+   pointing at the droplet IP, TTL 600, with domain forwarding off. Wait until
+   `dig +short <domain>` returns the droplet IP before the HTTPS step.
 3. **Packages.**
    ```bash
    sudo apt update && sudo apt install -y nginx git
    curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
    sudo apt install -y nodejs
    sudo npm install -g pm2
-   sudo ufw allow OpenSSH && sudo ufw allow 'Nginx HTTP' && sudo ufw enable
+   sudo ufw allow OpenSSH && sudo ufw allow 'Nginx Full' && sudo ufw enable
    ```
    The firewall keeps port 5050 private; only nginx reaches Express.
 4. **MongoDB** (pick one; the app only reads `MONGODB_URI`).
@@ -36,8 +36,15 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
      droplet's IP under Network Access, copy the `mongodb+srv://...` string.
      The seed step needs `mongosh`: install the `mongodb-mongosh` package from
      MongoDB's apt repo, or run the seed from a laptop against the Atlas URI.
-   - On the droplet: install `mongodb-org` following MongoDB's Ubuntu guide,
-     `sudo systemctl enable --now mongod`, and use `mongodb://localhost:27017`.
+   - On the droplet (MongoDB 8.0, Ubuntu 24.04), then use
+     `mongodb://localhost:27017`:
+     ```bash
+     curl -fsSL https://www.mongodb.org/static/pgp/server-8.0.asc | sudo gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor
+     echo "deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-8.0.list
+     sudo apt update && sudo apt install -y mongodb-org
+     sudo systemctl enable --now mongod
+     ```
+     `mongodb-org` includes `mongosh`, and `mongod` listens on 127.0.0.1 only.
 5. **Clone.**
    ```bash
    sudo mkdir -p /var/www && sudo chown "$USER" /var/www
@@ -50,8 +57,10 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    cd /var/www/POOSD_large_proj
    cp backend/.env.example backend/.env
    nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>, JWT_SECRET=<random, see .env.example>
+   chmod 600 backend/.env
    echo 'VITE_API_URL=/api' > web/.env   # same-origin, so no domain or IP baked into the build
    ```
+   `CLIENT_URL` must be `https://<domain>` (the HTTPS origin browsers use).
    Load the database once: see `backend/db/README.md`.
 7. **nginx site.**
    ```bash
@@ -60,7 +69,16 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    sudo rm -f /etc/nginx/sites-enabled/default
    sudo nginx -t && sudo systemctl reload nginx
    ```
-8. **First deploy and boot persistence.**
+   Re-running this `sed` overwrites the HTTPS block certbot adds; after
+   re-running it, re-run the certbot command from step 8.
+8. **HTTPS.**
+   ```bash
+   sudo apt install -y certbot python3-certbot-nginx
+   sudo certbot --nginx -d <domain> -d www.<domain> --non-interactive --agree-tos --redirect -m <email>
+   ```
+   Renewal is automatic: `systemctl list-timers | grep certbot` shows the
+   timer, and `sudo certbot renew --dry-run` tests it.
+9. **First deploy and boot persistence.**
    ```bash
    bash deploy/deploy.sh
    pm2 startup   # prints one sudo command; run it so the API restarts after a reboot
@@ -81,12 +99,12 @@ re-run the script: Vite bakes `VITE_API_URL` into the build.
 
 ```bash
 curl -s http://localhost:5050/api/health   # on the droplet: {"ok":true,"db":true}
-curl -s https://<domain>/api/health        # from anywhere, through Cloudflare + nginx
+curl -s https://<domain>/api/health        # from anywhere, through nginx
 pm2 logs api --lines 50                    # if either fails
 ```
 
 If MongoDB is unreachable at startup the API exits, so pm2 crash-loops and you
-get connection refused (Cloudflare 502). A `MongooseServerSelectionError` in
-`pm2 logs api` means check `MONGODB_URI` and Atlas Network Access. `"db":false`
-only appears if the database drops after a successful start. Any other
-Cloudflare 52x: `sudo systemctl status nginx` and `pm2 status`.
+get connection refused on port 5050 (a 502 from nginx). Either one means the
+API is down: `pm2 status`, `pm2 logs api`. A `MongooseServerSelectionError` in
+`pm2 logs api` means check `MONGODB_URI` (and Atlas Network Access, if used).
+`"db":false` only appears if the database drops after a successful start.
