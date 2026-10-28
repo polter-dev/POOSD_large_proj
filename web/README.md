@@ -29,7 +29,7 @@ droplet uses `VITE_API_URL=/api` (see `docs/deploy.md`).
 | `src/context/AuthContext.tsx` | The logged-in user (`useAuth()`). On reload it checks the stored token with `GET /users/me`. |
 | `src/styles/tokens.css` | Design tokens from the spec, section 6. `index.css` maps them into Tailwind (`bg-primary`, `text-text-muted`, ...). |
 | `src/components/` | `TextField`, `Button`, `Banner`, `AuthLayout` (spec section 4). |
-| `src/pages/` | Log in (`/`), sign up, forgot password, check your email, and placeholders for `/onboarding` (#25) and `/home` (#34). |
+| `src/pages/` | Log in (`/`), sign up, forgot password, check your email, the emailed-link pages `/verify-email` and `/reset-password` (#22), and placeholders for `/onboarding` (#25) and `/home` (#34). |
 | `src/validators.ts` | Client checks and messages, same rules as the server and `mobile/lib/validators.dart`. |
 
 After login, a user with no `profile` goes to `/onboarding`, everyone else to `/home`.
