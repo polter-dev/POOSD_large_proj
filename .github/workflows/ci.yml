@@ -50,11 +50,11 @@ jobs:
   backend-mongodb:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    # shortcut: MongoDB 8 refuses to start on ubuntu-latest (26.04, kernel 7.0; SERVER-136848); back to ubuntu-latest once a mongo:8 release runs there
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     services:
       mongo:
-        image: mongo:8
+        # shortcut: mongo:8 exits at startup on the runner's Ubuntu 7.0 kernel (SERVER-136848); switch to mongo:8 (prod is 8.0) once that is fixed
+        image: mongo:7
         ports: ["27017:27017"]
         options: >-
           --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\")'"
