@@ -49,7 +49,7 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    ```bash
    cd /var/www/POOSD_large_proj
    cp backend/.env.example backend/.env
-   nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>
+   nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>, JWT_SECRET=<random, see .env.example>
    echo 'VITE_API_URL=/api' > web/.env   # same-origin, so no domain or IP baked into the build
    ```
    Load the database once: see `backend/db/README.md`.
