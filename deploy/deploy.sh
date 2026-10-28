@@ -7,10 +7,9 @@ git pull --ff-only
 
 (cd backend && npm ci --omit=dev)
 
-# web/ is not scaffolded yet (#15); skip it until it has a package.json.
-if [ -f web/package.json ]; then
-  (cd web && npm ci && npm run build)
-fi
+# nginx serves web/dist. Without web/.env, Vite would bake "undefined/api" into the build.
+[ -f web/.env ] || { echo "missing web/.env: echo 'VITE_API_URL=/api' > web/.env (docs/deploy.md step 6)" >&2; exit 1; }
+(cd web && npm ci && npm run build)
 
 # Starts the API on first run, zero-downtime reload after that.
 pm2 startOrReload deploy/ecosystem.config.js

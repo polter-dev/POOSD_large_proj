@@ -20,7 +20,7 @@ mobile client. Calorie targets are general estimates, not medical advice.
 | `backend/src/integrations/` | Maps/places API client for the nearby-restaurant search | — (new) |
 | `backend/db/` | Seed script and example queries | `API/sql/` |
 | `backend/db/menu-data/` | Menu nutrition data entered from chain sources (estimates labeled) | — (new) |
-| `web/` | React + TypeScript web client (Bootstrap or Tailwind) | `frontend/` |
+| `web/` | React + TypeScript web client (Vite, Tailwind) | `frontend/` |
 | `mobile/` | Flutter app that calls the same API | — (new) |
 | `docs/` | API contract, SwaggerHub spec, PlantUML diagrams, Gantt, wireframes, test results, slides | `docs/` |
 
@@ -43,13 +43,22 @@ mobile client. Calorie targets are general estimates, not medical advice.
 
 ## Getting started
 
-- **Backend:** see [`backend/README.md`](backend/README.md) (`npm install`, fill in `.env`, `npm run dev`).
-- **Mobile:** see [`mobile/README.md`](mobile/README.md).
-- **Web:** generate the toolchain files into the existing folder, keeping the stubs:
+All three apps are set up; install and run each one locally.
 
-  ```bash
-  cd web && npm create vite@latest . -- --template react-ts
-  ```
+**Backend** (API on http://localhost:5050/api), see [`backend/README.md`](backend/README.md). Needs a MongoDB
+loaded once with `backend/db/schema.js` and `seed.js` ([`backend/db/README.md`](backend/db/README.md)).
+
+**Web** (http://localhost:5173), see [`web/README.md`](web/README.md):
+
+```bash
+cd web && npm install
+cp .env.example .env   # VITE_API_URL=http://localhost:5050/api
+npm run dev
+```
+
+**Mobile** (Android), see [`mobile/README.md`](mobile/README.md).
+
+Deploying to the droplet: [`docs/deploy.md`](docs/deploy.md).
 
 ## AI Assistance Disclosure
 
