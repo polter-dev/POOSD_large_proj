@@ -1,4 +1,5 @@
 # POOSD_large_proj
+[![CI](https://github.com/polter-dev/POOSD_large_proj/actions/workflows/ci.yml/badge.svg)](https://github.com/polter-dev/POOSD_large_proj/actions/workflows/ci.yml)
 Team 6 | Large Project POOSD UCF
 
 **Menu Macro Fitter**: a web + mobile app for students who want to lose,
