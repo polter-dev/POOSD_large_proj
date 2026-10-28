@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Menu Macro Fitter prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<!--
+  Prototype for #18: every screen for web (1280 x 832) and mobile (Android, 412 x 917), built from
+  docs/design-spec.md. Open it in a browser:
+    prototype.html                     all frames on one canvas (import this into Figma, see README.md)
+    prototype.html?frame=web-login     one frame at its exact size; buttons click through to the next frame
+  Data is real: menu items from backend/db/menu-data/chains.js, calories for seed user janedoe
+  (docs/api-contract.md: maintenance 2058, target 1558, perMeal 519).
+-->
+<style>
+/* docs/design-spec.md section 6 (same as web/src/styles/tokens.css) */
+:root {
+  --bg: #FFFFFF; --surface: #F5F6F8; --border: #E3E6EA; --border-input: #858E99;
+  --text: #1A1D21; --text-muted: #5B6470;
+  --primary: #15803D; --primary-hover: #166534; --on-primary: #FFFFFF;
+  --fit-great-bg: #DCFCE7; --fit-great-text: #166534;
+  --fit-ok-bg: #FEF3C7; --fit-ok-text: #92400E;
+  --fit-over-bg: #FEE2E2; --fit-over-text: #B91C1C;
+  --error: #B91C1C; --error-bg: #FEE2E2;
+  --macro-protein: #2563EB; --macro-carbs: #EA580C; --macro-fat: #A16207; --macro-unknown: #808994;
+  --radius-input: 8px; --radius-card: 12px;
+  --font: "Manrope", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); color: var(--text); background: #E9EBEF; -webkit-font-smoothing: antialiased; }
+body.single { background: var(--bg); }
+button, input, select { font: inherit; color: inherit; }
+
+/* Canvas: every frame with its label, grouped by platform */
+.canvas { padding: 48px; display: flex; flex-direction: column; gap: 64px; }
+.canvas h2.group { font-size: 32px; font-weight: 700; color: #3B4048; }
+.row { display: flex; flex-wrap: wrap; gap: 48px; align-items: flex-start; }
+.slot { display: flex; flex-direction: column; gap: 12px; }
+.slot > .label { font-size: 15px; font-weight: 600; color: #5B6470; }
+
+.frame { background: var(--bg); position: relative; overflow: hidden; display: flex; flex-direction: column; }
+.frame.web { width: 1280px; height: 832px; }
+.frame.mobile { width: 412px; height: 917px; }
+.canvas .frame { box-shadow: 0 1px 3px rgba(0,0,0,.12), 0 8px 24px rgba(0,0,0,.06); }
+
+/* Type (spec section 2) */
+.display { font-size: 40px; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.h1 { font-size: 28px; font-weight: 700; line-height: 1.2; }
+.h2 { font-size: 20px; font-weight: 600; line-height: 1.3; }
+.body { font-size: 16px; line-height: 1.5; }
+.small { font-size: 14px; line-height: 1.4; }
+.caption { font-size: 12px; font-weight: 500; line-height: 1.3; }
+.muted { color: var(--text-muted); }
+.num { font-variant-numeric: tabular-nums; }
+
+/* Components (spec section 4) */
+.btn { height: 48px; border-radius: var(--radius-input); font-size: 16px; font-weight: 600; display: flex;
+  align-items: center; justify-content: center; width: 100%; border: 0; cursor: pointer; }
+.btn.primary { background: var(--primary); color: var(--on-primary); }
+.btn.secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border-input); }
+.link { color: var(--primary); font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer; }
+.field { display: flex; flex-direction: column; gap: 4px; }
+.field label { font-size: 14px; font-weight: 600; }
+.input { height: 48px; border: 1px solid var(--border-input); border-radius: var(--radius-input); padding: 0 12px;
+  display: flex; align-items: center; justify-content: space-between; font-size: 16px; background: var(--bg); }
+.input.focus { border-color: var(--primary); outline: 1px solid var(--primary); }
+.input.error { border-color: var(--error); }
+.input .ph { color: var(--text-muted); }
+.input .toggle { color: var(--primary); font-size: 14px; font-weight: 600; }
+.field .err { color: var(--error); font-size: 14px; }
+.banner { display: flex; gap: 12px; padding: 12px; border-radius: var(--radius-input); font-size: 14px; }
+.banner.error { background: var(--error-bg); color: var(--error); }
+.banner.info { background: var(--fit-great-bg); color: var(--fit-great-text); }
+.banner b { font-weight: 600; text-decoration: underline; }
+.seg { display: flex; border: 1px solid var(--border-input); border-radius: var(--radius-input); overflow: hidden; height: 48px; }
+.seg span { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 600;
+  border-left: 1px solid var(--border-input); }
+.seg span:first-child { border-left: 0; }
+.seg span.on { background: var(--primary); color: var(--on-primary); }
+.chips { display: flex; gap: 8px; }
+.chip { height: 36px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--border-input); display: flex;
+  align-items: center; font-size: 14px; font-weight: 600; }
+.chip.on { background: var(--primary); border-color: var(--primary); color: var(--on-primary); }
+.card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px rgba(0,0,0,.06); padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.card.tap { cursor: pointer; }
+.pill { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 10px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; white-space: nowrap; }
+.pill.great { background: var(--fit-great-bg); color: var(--fit-great-text); }
+.pill.ok { background: var(--fit-ok-bg); color: var(--fit-ok-text); }
+.pill.none { background: var(--surface); color: var(--text-muted); }
+.bar { display: flex; height: 8px; border-radius: 4px; overflow: hidden; gap: 2px; }
+.bar i { display: block; height: 100%; }
+.legend { display: flex; gap: 14px; font-size: 14px; color: var(--text-muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.dot { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+.between { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.stack { display: flex; flex-direction: column; }
+
+/* App chrome */
+.topbar { height: 64px; border-bottom: 1px solid var(--border); display: flex; align-items: center; flex-shrink: 0; }
+.topbar .inner { width: 100%; max-width: 1040px; margin: 0 auto; padding: 0 24px; display: flex; align-items: center; gap: 32px; }
+.brand { font-size: 18px; font-weight: 700; }
+.brand.green { color: var(--primary); font-size: 16px; }
+.nav { display: flex; gap: 24px; flex: 1; }
+.nav a { font-size: 15px; font-weight: 600; color: var(--text-muted); text-decoration: none; padding: 21px 0;
+  border-bottom: 2px solid transparent; cursor: pointer; }
+.nav a.on { color: var(--text); border-color: var(--primary); }
+.avatar { width: 36px; height: 36px; border-radius: 999px; background: var(--surface); border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; }
+.page { flex: 1; overflow: hidden; }
+.page .inner { max-width: 1040px; margin: 0 auto; padding: 32px 24px; }
+.mtop { height: 56px; padding: 0 16px; display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.mpage { flex: 1; overflow: hidden; padding: 20px 16px; display: flex; flex-direction: column; gap: 16px; }
+.tabs { height: 72px; border-top: 1px solid var(--border); display: flex; flex-shrink: 0; background: var(--bg); }
+.tabs a { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  font-size: 12px; font-weight: 600; color: var(--text-muted); text-decoration: none; cursor: pointer; }
+.tabs a.on { color: var(--primary); }
+.tabs svg { width: 24px; height: 24px; }
+
+/* Auth layout: 400 wide on web, 16 side padding on mobile */
+.auth { flex: 1; display: flex; flex-direction: column; justify-content: center; width: 448px; margin: 0 auto; padding: 0 24px; gap: 16px; }
+.frame.mobile .auth { width: 100%; padding: 0 16px; justify-content: flex-start; padding-top: 96px; }
+.auth .brand { margin-bottom: 16px; }
+.auth .h1 { margin-bottom: 8px; }
+.center { text-align: center; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+// ---------- data ----------
+const USER = { first: 'Jane', last: 'Doe', username: 'janedoe', email: 'jane.doe@example.com' };
+const CAL = { maintenance: 2058, target: 1558, perMeal: 519 };
+const RESTAURANTS = [
+  // fits = the chain's items from 300 to 519 cal in chains.js; null = no nutrition data (chainId null)
+  { name: 'Chick-fil-A', dist: '0.4 mi', addr: '12100 Collegiate Way, Orlando', fits: 5 },
+  { name: 'Chipotle - University Blvd', dist: '0.6 mi', addr: null, fits: 2 },
+  { name: 'Subway', dist: '0.9 mi', addr: '3402 Technological Ave, Orlando', fits: 3 },
+  { name: 'Lazy Moon Pizza', dist: '1.1 mi', addr: '11551 University Blvd, Orlando', fits: null },
+  { name: "Wendy's", dist: '1.3 mi', addr: '11950 E Colonial Dr, Orlando', fits: 3 },
+  { name: 'Popeyes', dist: '2.1 mi', addr: '10039 E Colonial Dr, Orlando', fits: 1 },
+];
+// Top picks by protein per 100 kcal, all under the 519 kcal per-meal limit (chains.js).
+const PICKS = [
+  { name: 'Chicken Tenders (3 pc)', chain: 'Popeyes', cal: 390, p: 35, c: 25, f: 19, score: 9.0 },
+  { name: 'Cobb Salad (no dressing)', chain: "Wendy's", cal: 410, p: 37, c: 16, f: 23, score: 9.0 },
+  { name: '6-inch Grilled Chicken (Fresh Fit)', chain: 'Subway', cal: 300, p: 26, c: 40, f: 5, score: 8.7 },
+  { name: 'Vanilla Protein Latte (Grande)', chain: 'Starbucks', cal: 310, p: 27, c: 36, f: 6, score: 8.7 },
+  { name: 'McCrispy Strips (3 pc)', chain: "McDonald's", cal: 400, p: 31, c: 24, f: 20, score: 7.8 },
+  { name: 'Grilled Chicken Sandwich', chain: 'Chick-fil-A', cal: 390, p: 28, c: 45, f: 11, score: 7.2 },
+];
+const GREAT = Math.ceil(PICKS.length / 3); // spec section 4, Fit pill: first ceil(n/3) by score
+
+// ---------- icons ----------
+const I = {
+  alert: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;margin-top:2px"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm0 3.5a.9.9 0 0 0-.9.95l.2 4.3a.7.7 0 0 0 1.4 0l.2-4.3A.9.9 0 0 0 8 3.5Zm0 7.25a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg>',
+  check: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 6.5 5 9l4.5-5.5"/></svg>',
+  dash: '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h6"/></svg>',
+  pin: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  back: '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  nearby: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>',
+  picks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.5-4 6-.6Z"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+};
+
+// ---------- building blocks ----------
+const go = (target) => `data-go="${target}"`;
+const field = (label, value, opts = {}) => `
+  <div class="field"><label>${label}</label>
+    <div class="input ${opts.state || ''}">${value ? `<span>${value}</span>` : `<span class="ph">${opts.ph || ''}</span>`}${opts.pw ? '<span class="toggle">Show</span>' : ''}${opts.suffix ? `<span class="muted">${opts.suffix}</span>` : ''}</div>
+    ${opts.err ? `<span class="err">${opts.err}</span>` : ''}</div>`;
+const seg = (opts, on) => `<div class="seg">${opts.map((o) => `<span class="${o === on ? 'on' : ''}">${o}</span>`).join('')}</div>`;
+const fit = (i) => i < GREAT ? `<span class="pill great">${I.check} Great fit</span>` : `<span class="pill ok">${I.dash} OK</span>`;
+function macroBar(it) {
+  const kp = it.p * 4, kc = it.c * 4, kf = it.f * 9, t = kp + kc + kf;
+  return `<div class="bar"><i style="width:${kp / t * 100}%;background:var(--macro-protein)"></i><i style="width:${kc / t * 100}%;background:var(--macro-carbs)"></i><i style="width:${kf / t * 100}%;background:var(--macro-fat)"></i></div>
+  <div class="legend"><span><i class="dot" style="background:var(--macro-protein)"></i>P ${it.p}g</span><span><i class="dot" style="background:var(--macro-carbs)"></i>C ${it.c}g</span><span><i class="dot" style="background:var(--macro-fat)"></i>F ${it.f}g</span></div>`;
+}
+const itemCard = (it, i) => `
+  <div class="card">
+    <div class="between"><div class="stack"><span class="h2">${it.name}</span><span class="small muted">${it.chain}</span></div>
+      <span class="body num" style="font-weight:600;white-space:nowrap">${it.cal} cal</span></div>
+    ${macroBar(it)}
+    <div class="between" style="align-items:center"><span class="small muted num">${it.score.toFixed(1)} g protein per 100 cal</span>${fit(i)}</div>
+  </div>`;
+const restaurantCard = (r) => `
+  <div class="card ${r.fits != null ? 'tap' : ''}" ${r.fits != null ? go('picks') : ''}>
+    <div class="between"><span class="h2">${r.name}</span><span class="small muted num" style="white-space:nowrap">${r.dist}</span></div>
+    ${r.addr ? `<span class="small muted" style="display:flex;gap:6px;align-items:center">${I.pin}${r.addr}</span>` : ''}
+    <div>${r.fits != null ? `<span class="pill great">${I.check} ${r.fits} option${r.fits === 1 ? '' : 's'} fit your goal</span>` : '<span class="pill none">No nutrition data</span>'}</div>
+  </div>`;
+
+function webShell(active, content) {
+  const nav = [['nearby', 'Nearby'], ['picks', 'Best picks'], ['search', 'Search'], ['targets', 'Profile']];
+  return `<div class="topbar"><div class="inner"><span class="brand">Menu Macro Fitter</span>
+    <nav class="nav">${nav.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${l}</a>`).join('')}</nav>
+    <span class="avatar">JD</span></div></div>
+    <div class="page"><div class="inner">${content}</div></div>`;
+}
+function mobileShell(title, active, content, back) {
+  const tabs = [['nearby', 'Nearby'], ['picks', 'Picks'], ['search', 'Search'], ['targets', 'Profile']];
+  return `<div class="mtop">${back ? `<span ${go(back)} style="cursor:pointer;display:flex">${I.back}</span>` : '<span style="width:24px"></span>'}<span class="brand">${title}</span><span style="width:24px"></span></div>
+    <div class="mpage">${content}</div>
+    ${active ? `<div class="tabs">${tabs.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${I[k === 'targets' ? 'profile' : k]}${l}</a>`).join('')}</div>` : ''}`;
+}
+
+// ---------- screens: each returns the frame's inner HTML for 'web' or 'mobile' ----------
+const SCREENS = {
+  login: { label: '1. Log in', render: (p) => `
+    <div class="auth"><span class="brand green">Menu Macro Fitter</span><span class="h1">Log in</span>
+      ${field('Email', USER.email)}
+      ${field('Password', '••••••••••••', { pw: true })}
+      <button class="btn primary" ${go('targets')}>Log in</button>
+      <a class="link">Forgot password?</a>
+      <p class="small muted center">No account? <a class="link" ${go('signup')}>Sign up</a></p></div>` },
+
+  loginError: { label: '1b. Log in: email not verified', render: (p) => `
+    <div class="auth"><span class="brand green">Menu Macro Fitter</span><span class="h1">Log in</span>
+      <div class="banner error">${I.alert}<div class="stack" style="gap:8px"><span>Email not verified</span><b>Resend verification email</b></div></div>
+      ${field('Email', 'alex.kim@example.com')}
+      ${field('Password', '••••••••••••', { pw: true })}
+      <button class="btn primary">Log in</button>
+      <a class="link">Forgot password?</a>
+      <p class="small muted center">No account? <a class="link" ${go('signup')}>Sign up</a></p></div>` },
+
+  signup: { label: '2. Create account', render: (p) => `
+    <div class="auth"><span class="brand green">Menu Macro Fitter</span><span class="h1">Create account</span>
+      <div class="${p === 'web' ? 'grid2' : 'stack'}" style="gap:${p === 'web' ? 12 : 16}px">${field('First name', 'Jane')}${field('Last name', 'Doe')}</div>
+      ${field('Username', 'jd', { state: 'error', err: 'Username: 3 to 30 letters, numbers, _ or .' })}
+      ${field('Email', USER.email)}
+      ${field('Password', '', { pw: true, state: 'focus', ph: 'At least 8 characters' })}
+      <button class="btn primary" ${go('checkEmail')}>Create account</button>
+      <p class="small muted center">Have an account? <a class="link" ${go('login')}>Log in</a></p></div>` },
+
+  checkEmail: { label: '3. Check your email', render: (p) => `
+    <div class="auth"><span class="brand green">Menu Macro Fitter</span><span class="h1">Check your email</span>
+      <p class="body muted">We sent a verification link to <b style="color:var(--text)">${USER.email}</b>. Open it, then log in.</p>
+      <button class="btn primary" ${go('login')}>Back to log in</button>
+      <button class="btn secondary">Resend email</button></div>` },
+
+  profile: { label: '4. Set up your profile', render: (p) => {
+    const form = `
+      <div class="${p === 'web' ? 'grid2' : 'stack'}" style="gap:16px">
+        <div class="field"><label>Height</label><div class="grid2">${field('', '5', { suffix: 'ft' }).replace('<label></label>', '')}${field('', '5', { suffix: 'in' }).replace('<label></label>', '')}</div></div>
+        ${field('Weight', '160', { suffix: 'lb' })}
+        ${field('Birth date', '03/14/2006')}
+        <div class="field"><label>Sex</label>${seg(['Female', 'Male'], 'Female')}</div>
+      </div>
+      <div class="field"><label>Activity level</label><div class="input"><span>Light: exercise 1 to 3 days a week</span><span class="muted">▾</span></div></div>
+      <div class="field"><label>Goal</label>${seg(['Lose', 'Maintain', 'Gain'], 'Lose')}</div>
+      <button class="btn primary" ${go('targets')}>See my targets</button>`;
+    return p === 'web'
+      ? `<div class="topbar"><div class="inner"><span class="brand">Menu Macro Fitter</span></div></div>
+         <div class="page"><div class="inner" style="max-width:640px;display:flex;flex-direction:column;gap:20px">
+           <div><span class="h1">Set up your profile</span><p class="body muted" style="margin-top:8px">We use this to estimate your daily calories. You can change it any time.</p></div>${form}</div></div>`
+      : mobileShell('Your profile', null, `<div><span class="h1">Set up your profile</span><p class="body muted" style="margin-top:8px">We use this to estimate your daily calories.</p></div>${form}`);
+  } },
+
+  targets: { label: '5. Your targets (calorie results)', render: (p) => {
+    const tile = (label, value, note, strong) => `
+      <div class="card" style="${strong ? 'border-color:var(--primary);background:var(--fit-great-bg)' : ''}">
+        <span class="small muted" style="${strong ? 'color:var(--fit-great-text)' : ''}">${label}</span>
+        <span class="display" style="${strong ? 'color:var(--fit-great-text)' : ''}">${value.toLocaleString()}</span>
+        <span class="small muted" style="${strong ? 'color:var(--fit-great-text)' : ''}">${note}</span></div>`;
+    const tiles = `<div style="display:grid;grid-template-columns:${p === 'web' ? '1fr 1fr 1fr' : '1fr'};gap:12px">
+      ${tile('Maintenance', CAL.maintenance, 'cal a day to stay at 160 lb')}
+      ${tile('Daily target', CAL.target, 'cal a day to lose about 1 lb a week', true)}
+      ${tile('Per meal', CAL.perMeal, 'cal, your target split over 3 meals')}</div>`;
+    const entered = `<div class="card"><div class="between" style="align-items:center"><span class="h2">What you entered</span><a class="link" ${go('profile')}>Edit</a></div>
+      <div style="display:grid;grid-template-columns:${p === 'web' ? 'repeat(6,1fr)' : '1fr 1fr'};gap:12px">
+      ${[['Height', '5 ft 5 in'], ['Weight', '160 lb'], ['Age', '20'], ['Sex', 'Female'], ['Activity', 'Light'], ['Goal', 'Lose']].map(([k, v]) => `<div class="stack"><span class="small muted">${k}</span><span class="body" style="font-weight:600">${v}</span></div>`).join('')}</div></div>`;
+    const cta = `<button class="btn primary" ${go('nearby')} style="${p === 'web' ? 'width:280px' : ''}">Find food near me</button>`;
+    const note = `<p class="small muted">Estimates from the Mifflin-St Jeor formula, not medical advice.</p>`;
+    return p === 'web'
+      ? webShell('targets', `<div style="display:flex;flex-direction:column;gap:24px"><div><span class="h1">Your targets</span><p class="body muted" style="margin-top:8px">Hi ${USER.first}. Here's what fits your goal.</p></div>${tiles}${entered}${cta}${note}</div>`)
+      : mobileShell('Your targets', 'targets', `${tiles}${entered}${cta}`);
+  } },
+
+  nearby: { label: '6. Restaurants near you', render: (p) => {
+    const head = `<div class="between" style="align-items:center;flex-wrap:wrap;gap:12px">
+      ${p === 'web' ? `<div><span class="h1">Restaurants near you</span><p class="body muted" style="margin-top:8px">Within 10 miles of UCF. Up to ${CAL.perMeal} cal per meal.</p></div>` : ''}
+      <div class="chips">${[5, 10, 15, 20].map((m) => `<span class="chip ${m === 10 ? 'on' : ''}">${m} mi</span>`).join('')}</div></div>`;
+    const list = RESTAURANTS.slice(0, p === 'web' ? 6 : 4).map(restaurantCard).join('');
+    return p === 'web'
+      ? webShell('nearby', `<div style="display:flex;flex-direction:column;gap:24px">${head}<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${list}</div></div>`)
+      : mobileShell('Nearby', 'nearby', `${head}${list}`);
+  } },
+
+  picks: { label: '7. Best picks (recommendations)', render: (p) => {
+    const head = `<div class="stack" style="gap:12px">${p === 'web' ? `<div><span class="h1">Best picks near you</span><p class="body muted" style="margin-top:8px">Ranked by protein per calorie, each under ${CAL.perMeal} cal.</p></div>` : `<p class="small muted">Each under ${CAL.perMeal} cal, ranked by protein per calorie.</p>`}
+      <div style="${p === 'web' ? 'width:360px' : ''}">${seg(['High protein', 'High carb'], 'High protein')}</div></div>`;
+    const list = PICKS.slice(0, p === 'web' ? 6 : 4).map(itemCard).join('');
+    return p === 'web'
+      ? webShell('picks', `<div style="display:flex;flex-direction:column;gap:24px">${head}<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${list}</div></div>`)
+      : mobileShell('Best picks', 'picks', `${head}${list}`, 'nearby');
+  } },
+};
+
+// ---------- render ----------
+const ORDER = ['login', 'loginError', 'signup', 'checkEmail', 'profile', 'targets', 'nearby', 'picks'];
+const frameHTML = (p, key) => `<div class="frame ${p}" id="${p}-${key}">${SCREENS[key].render(p)}</div>`;
+const root = document.getElementById('root');
+const single = new URLSearchParams(location.search).get('frame');
+
+if (single) {
+  const [p, key] = single.split('-');
+  document.body.classList.add('single');
+  root.innerHTML = frameHTML(p, key);
+  document.title = `${p === 'web' ? 'Web' : 'Mobile'}: ${SCREENS[key].label}`;
+} else {
+  root.innerHTML = `<div class="canvas">${['web', 'mobile'].map((p) => `
+    <h2 class="group">${p === 'web' ? 'Web (1280 x 832)' : 'Mobile, Android (412 x 917)'}</h2>
+    <div class="row">${ORDER.map((k) => `<div class="slot"><span class="label">${SCREENS[k].label}</span>${frameHTML(p, k)}</div>`).join('')}</div>`).join('')}</div>`;
+}
+
+// Click-through: buttons and links with data-go open the next screen on the same platform.
+root.addEventListener('click', (e) => {
+  const el = e.target.closest('[data-go]');
+  if (!el) return;
+  const frame = el.closest('.frame');
+  const p = frame.classList.contains('web') ? 'web' : 'mobile';
+  const target = `${p}-${el.dataset.go}`;
+  if (single) location.search = `?frame=${target}`;
+  else document.getElementById(target)?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+});
+</script>
+</body>
+</html>
