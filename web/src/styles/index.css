@@ -1,0 +1,44 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Tailwind reads the tokens instead of copying them, so tokens.css stays the one source.
+   Colors become bg-primary, text-text-muted, border-border-input, etc. Radii are used as
+   rounded-(--radius-input) and rounded-(--radius-card). */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-border: var(--border);
+  --color-border-input: var(--border-input);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-fit-great-bg: var(--fit-great-bg);
+  --color-fit-great-text: var(--fit-great-text);
+  --color-fit-ok-bg: var(--fit-ok-bg);
+  --color-fit-ok-text: var(--fit-ok-text);
+  --color-fit-over-bg: var(--fit-over-bg);
+  --color-fit-over-text: var(--fit-over-text);
+  --color-error: var(--error);
+  --color-error-bg: var(--error-bg);
+  --color-macro-protein: var(--macro-protein);
+  --color-macro-carbs: var(--macro-carbs);
+  --color-macro-fat: var(--macro-fat);
+  --color-macro-unknown: var(--macro-unknown);
+  --font-sans: var(--font);
+}
+
+/* In the base layer so a component's own focus style (inputs) can override the ring. */
+@layer base {
+  body {
+    background: var(--bg);
+    color: var(--text);
+  }
+
+  /* Spec section 3: 2px primary ring with 2px offset on every focusable element. */
+  :focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
