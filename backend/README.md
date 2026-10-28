@@ -33,6 +33,18 @@ npm test
 Runs the unit and integration tests (`node:test`, in `tests/`). They need no MongoDB, SendGrid account or
 internet: the models, `sgMail.send` and the Overpass client are stubbed.
 
+`tests/db/` runs the API end to end against a real MongoDB loaded with `db/schema.js` and `db/seed.js`, so every
+write must also pass the collection validators. It writes data (and puts it back), so it is skipped unless
+`TEST_MONGODB_URI` is set. Never point it at the production database. CI runs it on every backend PR.
+
+```bash
+mongosh "mongodb://localhost:27017" db/schema.js db/seed.js
+TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
+```
+
+Saved results for the slides are in [`docs/test-results/`](../docs/test-results/). A Postman collection covering
+every endpoint is in [`docs/postman/`](../docs/postman/).
+
 ### Trying it by hand
 
 With the seed data loaded and `npm run dev` running (every seed password is `Password123!`):
@@ -45,6 +57,9 @@ With the seed data loaded and `npm run dev` running (every seed password is `Pas
 | Reset a password | `POST /api/auth/reset-password` `{ "token": "demo-reset-token", "password": "NewPassword1" }` | 200; `chrisb` logs in with the new password |
 | New account | `POST /api/auth/register`, then copy the token from the `[email] Verify your email ...` line in the server console into `verify-email` | 201, then 200 |
 | Nearby | `POST /api/restaurants/nearby` with `Authorization: Bearer <token>` and `{ "lat": 28.6024, "lng": -81.2001 }` | 200 `{ restaurants }` within the user's saved radius |
+| Calories | `GET /api/users/me/calories` as `janedoe` | 200 `{ age: 20, maintenance: 2058, target: 1558, perMeal: 519 }` (October 2026) |
+| Search | `GET /api/menu-items/search?q=grilled nuggets` (no login) | 200 `{ items, total, limit, skip }` |
+| Recommendations | `POST /api/recommendations` `{}` as `janedoe` | 200, carb mode, items 300-519 kcal, best `score` first |
 
 The demo tokens are single use and expire relative to when `seed.js` ran: **`demo-reset-token` after 1 hour**,
 `demo-verify-token` after 24 hours. Re-run `seed.js` shortly before a demo.
@@ -57,10 +72,10 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `POST /auth/register`, `POST /auth/login` | #12, #13 | done |
 | `GET /auth/verify-email`, `POST /auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password` | #21 | done |
 | `POST /restaurants/nearby` | #30 | done |
-| `/users/me`, profile, goal, preferences, calories | #23, #24 | to do |
-| `GET /menu-items/search` | #31 | to do |
-| `POST /recommendations` | #32 | to do |
-| `/favorites` | #33 | to do |
+| `/users/me`, profile, goal, preferences, calories | #23, #24 | done |
+| `GET /menu-items/search` | #31 | done |
+| `POST /recommendations` | #32 | done |
+| `/favorites` | #33 | done |
 
 Update this table when you add an endpoint.
 
@@ -73,16 +88,16 @@ src/
   routes/          one router per group (auth, restaurants, ...)
   controllers/     request handling and input checks
   middleware/      auth.js (JWT -> req.userId), error.js (the only place that shapes errors)
-  models/          User, Chain; mirror db/schema.js, which rejects any extra field
-  services/        email, tokens (JWTs and emailed tokens), chainMatch
+  models/          User, Chain, MenuItem, Favorite; mirror db/schema.js, which rejects any extra field
+  services/        email, tokens (JWTs and emailed tokens), chainMatch, calories, recommendations
   integrations/    places.js (Overpass client)
-  utils/           httpError, readBody, toUserJSON, normalize
-tests/unit/, tests/integration/
+  utils/           httpError, readBody, toUserJSON, toMenuItemJSON, normalize
+tests/unit/, tests/integration/, tests/db/ (real MongoDB)
 ```
 
 ## Adding an endpoint
 
-The remaining endpoints (#23, #24, #31-#33) can follow the auth and nearby code:
+Follow the existing routes and controllers:
 
 - **Route:** add or extend a router in `src/routes` and mount it in `app.js` under `/api`.
 - **Protected route:** put `requireAuth` (`src/middleware/auth.js`) before the handler; it sets `req.userId` or answers 401.
@@ -111,6 +126,14 @@ The remaining endpoints (#23, #24, #31-#33) can follow the auth and nearby code:
   - `lat`/`lng`/`radiusMiles` must be JSON numbers; strings are rejected, not converted, because they go into the Overpass query.
   - With no `radiusMiles`, it uses the user's `preferences.searchRadius`.
   - Places that match no chain come back with `chainId: null` (no nutrition data). Nothing about the location is stored.
+  - `placeId` is `osm-node-123...` (no `/`), so a result can be saved as a favorite unchanged.
+- **Users:** profile values must be JSON numbers and strings of the right type (`"65"` is rejected). `PUT /me/profile`
+  replaces the whole profile; `PUT /me/goal` needs a profile first. Age must be 18-119 on the server's UTC date.
+- **Search:** `q` is normalized like the stored `searchName` (lowercase, `&` -> `and`, punctuation -> space), so
+  `CHICK-FIL-A nuggets` and `chick fil a nuggets` match the same items. Not logged in is fine.
+- **Recommendations:** 300 kcal floor (no tiny sides on top), unknown macros never ranked, estimates hidden unless
+  `includeEstimates: true`. With no body values it uses the saved mode and `perMeal`.
+- **Favorites:** someone else's favorite id answers 404, the same as a missing one.
 - **Known limits:**
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.

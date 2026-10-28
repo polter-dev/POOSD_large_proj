@@ -1,0 +1,32 @@
+▶ API against a seeded MongoDB
+  ▶ auth
+    ✔ wrong password is 401, unverified account is 403
+    ✔ register stores a user the users validator accepts, and a taken email is 409
+    ✔ protected routes need a valid token
+  ✔ auth
+  ▶ users
+    ✔ GET /users/me returns the seed user
+    ✔ GET /users/me/calories follows the contract formula
+    ✔ a new user sets a profile, a goal and preferences, and the validator accepts each write
+  ✔ users
+  ▶ menu search
+    ✔ partial, case- and punctuation-insensitive match, sorted by chain then name
+    ✔ pages with limit and skip; total counts every match
+    ✔ punctuation in the query matches the stored normalized name
+  ✔ menu search
+  ▶ recommendations
+    ✔ default uses the saved mode and perMeal, best score first, all within the limit
+    ✔ chainIds limits the results to those chains
+  ✔ recommendations
+  ▶ favorites
+    ✔ add, list, reject a duplicate, and remove
+  ✔ favorites
+✔ API against a seeded MongoDB
+ℹ tests 12
+ℹ suites 6
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+

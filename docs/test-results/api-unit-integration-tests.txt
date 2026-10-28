@@ -1,0 +1,187 @@
+﹣ API against a seeded MongoDB # set TEST_MONGODB_URI to run
+✔ register saves an unverified user with defaults and emails a link whose token matches the stored hash
+✔ register 400 for missing first name, nothing saved
+✔ register 400 for blank first name, nothing saved
+✔ register 400 for 51-char last name, nothing saved
+✔ register 400 for short username, nothing saved
+✔ register 400 for username with a space, nothing saved
+✔ register 400 for bad email, nothing saved
+✔ register 400 for email as an object, nothing saved
+✔ register 400 for 7-char password, nothing saved
+✔ register 400 for unknown field, nothing saved
+✔ register 409 when the email is taken
+✔ register 409 when the username is taken
+✔ register still returns 201 and keeps the user when SendGrid rejects
+✔ register still returns 201 when EMAIL_FROM is missing
+✔ login returns a 7-day JWT for the user and the User object without secrets
+✔ login returns birthDate as YYYY-MM-DD
+✔ login 401 for a wrong password
+✔ login 401 for an unknown email
+✔ login 403 for an unverified user, but only with the right password
+✔ login 400 for missing password, without a lookup
+✔ login 400 for no body, without a lookup
+✔ login 400 for email as a Mongo operator, without a lookup
+✔ login 500 Server error when JWT_SECRET is not set
+✔ verify-email marks the user verified and clears the token in one update
+✔ verify-email 400 for an unknown, used or expired token
+✔ verify-email 400 for missing token
+✔ verify-email 400 for repeated token
+✔ resend-verification gives an unverified user a new 24h token and emails it
+✔ forgot-password sets a 1h reset token and emails the reset link
+✔ /resend-verification gives the same reply and sends nothing for an unknown (or verified) email
+✔ /resend-verification gives the same 200 when SendGrid rejects
+✔ /resend-verification 400 for a missing email
+✔ /forgot-password gives the same reply and sends nothing for an unknown (or verified) email
+✔ /forgot-password gives the same 200 when SendGrid rejects
+✔ /forgot-password 400 for a missing email
+✔ reset-password stores the new hash and clears the reset token in one update
+✔ reset-password 400 for an unknown, used or expired token
+✔ reset-password 400 for short password, without an update
+✔ reset-password 400 for missing token, without an update
+✔ every favorites route needs a token
+✔ GET lists only the caller's favorites, newest first, without userId
+✔ POST stores only the user, place ID and label and answers 201 Favorite
+✔ POST stores a missing, null or blank label as null
+✔ POST accepts the Google-style seed place IDs too
+✔ POST answers 409 when the place is already a favorite
+✔ POST rejects a missing placeId
+✔ POST rejects an old-style node/123 placeId
+✔ POST rejects a placeId under 10 characters
+✔ POST rejects a placeId that is an object
+✔ POST rejects a label over 50 characters
+✔ POST rejects a label that isn't text
+✔ POST rejects a field the schema doesn't allow
+✔ DELETE removes the caller's favorite and answers 204 with no body
+✔ DELETE answers 404 for a missing or someone else's favorite, and for a malformed id
+✔ GET /api/health returns ok with db false when not connected
+✔ unknown path returns 404 Not found
+✔ bad JSON body returns 400 Invalid JSON
+✔ Mongo duplicate key error returns 409 Already exists
+✔ search needs no login and returns MenuItems with total, limit and skip
+✔ q is normalized like the stored searchName, so case and punctuation don't matter
+✔ regex characters in q can't change the query
+✔ limit and skip are passed through for paging
+✔ search rejects a missing q
+✔ search rejects a blank q
+✔ search rejects a q over 100 characters
+✔ search rejects a q with no letters or numbers
+✔ search rejects limit 0
+✔ search rejects limit 101
+✔ search rejects a decimal limit
+✔ search rejects a negative skip
+✔ search rejects a word for skip
+✔ a repeated q (an array) is rejected rather than sent to Mongo
+✔ needs a login
+✔ with an empty body, uses the saved mode and perMeal and returns scored items best first
+✔ body values override the saved ones without loading the user
+✔ an empty chainIds list means every chain
+✔ a saved meal limit is used even before the profile is filled in
+✔ 400 Set your profile first when no meal limit can be worked out
+✔ a body meal limit works with no profile at all
+✔ 404 when the account was deleted and a default is needed
+✔ rejects chainIds that isn't a list
+✔ rejects a malformed chain id
+✔ rejects a Mongo operator as a chain id
+✔ rejects an unknown mode
+✔ rejects a meal limit under 100
+✔ rejects a meal limit as a string
+✔ rejects a null meal limit
+✔ rejects limit 0
+✔ rejects limit 51
+✔ rejects a decimal limit
+✔ rejects includeEstimates as a string
+✔ rejects an unknown field
+✔ returns matched places with chainId, null for no match, and sends numbers to places
+✔ radiusMiles defaults to the caller's preferences.searchRadius
+✔ 404 when the token's user no longer exists and no radius is given
+✔ 401 with no token, without calling places
+✔ 401 with a bad token, without calling places
+✔ 400 for missing lat, without calling places
+✔ 400 for missing lng, without calling places
+✔ 400 for string lat, without calling places
+✔ 400 for injection string lng, without calling places
+✔ 400 for lat out of range, without calling places
+✔ 400 for lng out of range, without calling places
+✔ 400 for string radius, without calling places
+✔ 400 for radius not allowed, without calling places
+✔ 400 for null radius, without calling places
+✔ 400 for unknown field, without calling places
+✔ 400, not 500, when the request has no body
+✔ Overpass failure surfaces as 502 Places lookup failed
+✔ every /users/me route needs a token
+✔ GET /me returns the contract's User and never the hashes
+✔ GET /me answers 404 when the account was deleted
+✔ PUT /me/profile replaces the profile, storing birthDate as UTC midnight
+✔ PUT /me/profile rejects height too short
+✔ PUT /me/profile rejects height as a string
+✔ PUT /me/profile rejects weight too high
+✔ PUT /me/profile rejects missing weight
+✔ PUT /me/profile rejects birth date not YYYY-MM-DD
+✔ PUT /me/profile rejects birth date that doesn't exist
+✔ PUT /me/profile rejects under 18 by a day
+✔ PUT /me/profile rejects over 119
+✔ PUT /me/profile rejects unknown sex
+✔ PUT /me/profile rejects unknown activity level
+✔ PUT /me/profile rejects unknown goal
+✔ PUT /me/profile accepts exactly 18 today and rejects unknown fields
+✔ PUT /me/goal changes only the goal, and only for a user with a profile
+✔ PUT /me/goal answers 400 Set your profile first when the profile is null, 404 when the user is gone
+✔ PUT /me/goal rejects an invalid goal
+✔ PATCH /me/preferences sets only the fields sent
+✔ PATCH /me/preferences with mealCalorieLimit null clears it
+✔ PATCH /me/preferences rejects an empty body
+✔ PATCH /me/preferences rejects unknown units
+✔ PATCH /me/preferences rejects a radius not in 5/10/15/20
+✔ PATCH /me/preferences rejects a radius as a string
+✔ PATCH /me/preferences rejects an unknown mode
+✔ PATCH /me/preferences rejects a meal limit under 100
+✔ PATCH /me/preferences rejects a meal limit over 3000
+✔ PATCH /me/preferences rejects an unknown field
+✔ GET /me/calories returns integer targets from the saved profile
+✔ GET /me/calories uses the saved meal limit for perMeal
+✔ GET /me/calories answers 400 Set your profile first with no profile
+✔ a token from signJwt sets req.userId
+✔ 401 Not logged in for no header
+✔ 401 Not logged in for not Bearer
+✔ 401 Not logged in for empty Bearer
+✔ 401 Invalid or expired session for a garbage token
+✔ 401 Invalid or expired session for a expired token
+✔ 401 Invalid or expired session for a wrong secret token
+✔ 401 Invalid or expired session for a alg none token
+✔ 401 Invalid or expired session for a sub not a Mongo id token
+✔ 401 Invalid or expired session for a no sub token
+✔ a missing JWT_SECRET is a 500 (no status), not a 401
+✔ seed user janedoe matches the contract's check values
+✔ gain adds 300 and maintain adds nothing
+✔ male bmr is 166 above female for the same body (+5 vs -161)
+✔ every activity level uses its multiplier
+✔ target is floored at 1200 for women and 1500 for men
+✔ perMeal is the user's own meal limit when set
+✔ age counts whole years and only goes up on the birthday (UTC)
+✔ all values are integers
+✔ exact match on nameKey after normalizing
+✔ exact match on an alternate name
+✔ location suffix falls back to a prefix match
+✔ longest prefix wins
+✔ prefix must end on a word boundary
+✔ no match returns null
+✔ verify and reset emails send CLIENT_URL links with the token via SendGrid
+✔ maps nodes and ways (center) and sends the radius in meters
+✔ throws 502 Places lookup failed when Overpass errors
+✔ bad Overpass bodies throw 502, coordinate-less elements are dropped, no chains means no call
+✔ score is grams of the macro per 100 kcal, 1 decimal
+✔ protein mode ranks by protein per 100 kcal and attaches the score
+✔ carb mode ranks by carbs, and an item with unknown protein can still rank on carbs
+✔ a null macro is skipped, never ranked as 0
+✔ only items from 300 kcal up to the meal limit are returned (both ends inclusive)
+✔ equal scores put the lower-calorie item first, then sort by name
+✔ limit caps the list after ranking
+✔ the input items are not modified
+ℹ tests 178
+ℹ suites 1
+ℹ pass 178
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+

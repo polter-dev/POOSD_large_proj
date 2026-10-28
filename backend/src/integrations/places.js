@@ -57,7 +57,8 @@ out center;`;
       const pLng = el.lon ?? el.center.lon;
       const street = [t["addr:housenumber"], t["addr:street"]].filter(Boolean).join(" ");
       return {
-        placeId: `${el.type}/${el.id}`,
+        // "osm-node-123": fits favorites.placeId in db/schema.js (no "/"), so a result can be saved as a favorite.
+        placeId: `osm-${el.type}-${el.id}`,
         name: t.name,
         address: [street, t["addr:city"]].filter(Boolean).join(", ") || null,
         lat: pLat,

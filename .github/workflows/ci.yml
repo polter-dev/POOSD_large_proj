@@ -80,6 +80,10 @@ jobs:
       - name: Load schema and seed
         working-directory: backend/db
         run: npx -y mongosh@2 "$MONGODB_URI" schema.js seed.js
+      - name: API tests against the seeded database
+        run: npm run test:db
+        env:
+          TEST_MONGODB_URI: mongodb://localhost:27017
       - name: Start server
         id: start
         run: nohup node src/server.js > server.log 2>&1 &

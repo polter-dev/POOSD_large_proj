@@ -8,8 +8,8 @@ servers:
   - url: https://{domain}/api
     variables:
       domain:
-        default: example.com
-        description: Set once #9/#19 pick the domain.
+        default: cop4331ruth.lol
+        description: The live server (#19).
   - url: http://localhost:5050/api
 tags:
   - name: Menu
@@ -94,7 +94,7 @@ paths:
           content:
             application/json:
               schema: { $ref: "#/components/schemas/Error" }
-              example: { error: "Unauthorized" }
+              example: { error: "Not logged in" }
 security:
   - bearerAuth: []
 components:

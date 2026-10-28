@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:db": "node --test --test-reporter=spec tests/db/*.test.js"
   },
   "dependencies": {
     "@sendgrid/mail": "^8.1.6",

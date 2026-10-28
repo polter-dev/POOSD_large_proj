@@ -38,7 +38,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | `preferences.searchRadius` | `5` \| `10` \| `15` \| `20` (miles) |
 | `preferences.recommendationMode` | `"protein"` \| `"carb"` |
 | `preferences.mealCalorieLimit` | number 100-3000, or `null` |
-| `favorite.placeId` | `^[A-Za-z0-9_-]{10,300}$` (Google Places `place_id`) |
+| `favorite.placeId` | `^[A-Za-z0-9_-]{10,300}$` (the `placeId` from a nearby result, e.g. `osm-node-1234567890`) |
 | `favorite.label` | string 1-50 chars, or `null`/omitted (stored as `null`) |
 
 ## 2. Shared objects
@@ -136,6 +136,7 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 |---|---|---|---|---|---|---|
 | POST | `/restaurants/nearby` | yes | `{ lat, lng, radiusMiles? }`; `lat` -90..90, `lng` -180..180, `radiusMiles` `5`\|`10`\|`15`\|`20` (default `preferences.searchRadius`) | 200 `{ restaurants: [{ placeId, name, address: string\|null, distanceMiles, chainId: string\|null }] }` | 400 invalid coords/radius; 401; 404 `"User not found"` (radius omitted and the account was deleted); 502 `"Places lookup failed"` | `nearby` |
 
+- `placeId` is `osm-<type>-<id>` for the OpenStreetMap element (`osm-node-123...`, `osm-way-...`). It has no `/`, so it can be saved as a favorite as-is.
 - `chainId` is set when the normalized place name matches a chain's `nameKey` or `alternateNames` (exact lookup, then the prefix fallback in `backend/db/README.md` "For the API team"). `null` = no nutrition data.
 - Nothing about the location or the user's coordinates is stored (spec N4).
 
