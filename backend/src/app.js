@@ -12,6 +12,8 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true, db: mongoose.connection.readyState === 1 });
 });
 
+app.use("/api/restaurants", require("./routes/restaurants"));
+
 app.use((req, res) => {
   res.status(404).json({ error: "Not found" });
 });
