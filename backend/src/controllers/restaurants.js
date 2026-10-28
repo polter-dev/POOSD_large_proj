@@ -14,10 +14,11 @@ function badRequest(message) {
 // rejected rather than coerced: these values end up in the Overpass query.
 function parseNearbyBody(body) {
   const { lat, lng, radiusMiles = DEFAULT_RADIUS } = body || {};
-  if (typeof lat !== "number" || !Number.isFinite(lat) || lat < -90 || lat > 90) {
+  // Number.isFinite is false for strings, so "28.6" is rejected here too.
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
     throw badRequest("lat must be a number from -90 to 90");
   }
-  if (typeof lng !== "number" || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+  if (!Number.isFinite(lng) || lng < -180 || lng > 180) {
     throw badRequest("lng must be a number from -180 to 180");
   }
   if (!RADII.includes(radiusMiles)) {
@@ -51,4 +52,4 @@ async function nearby(req, res, next) {
   }
 }
 
-module.exports = { nearby, parseNearbyBody };
+module.exports = { nearby };

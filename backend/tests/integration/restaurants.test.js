@@ -89,6 +89,12 @@ for (const [label, body, error] of [
   });
 }
 
+test("400, not 500, when the request has no body", async () => {
+  const res = await fetch(`${base}/api/restaurants/nearby`, { method: "POST" });
+  assert.strictEqual(res.status, 400);
+  assert.deepStrictEqual(await res.json(), { error: "lat must be a number from -90 to 90" });
+});
+
 test("Overpass failure surfaces as 502 Places lookup failed", async () => {
   stubChains();
   mock.method(places, "findNearbyChainLocations", async () => {

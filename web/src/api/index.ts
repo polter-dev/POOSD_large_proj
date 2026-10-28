@@ -35,7 +35,7 @@ export const searchMenuItems = (q: string, limit = 20, skip = 0) =>
   request<SearchMenuItemsResponse>('GET', `/menu-items/search?${new URLSearchParams({ q, limit: String(limit), skip: String(skip) })}`);
 export const recommendations = (body: RecommendationsBody = {}) => request<RecommendationsResponse>('POST', '/recommendations', body);
 
-// Restaurants (backend blocked on #27)
+// Restaurants
 export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/restaurants/nearby', body);
 
 // Favorites

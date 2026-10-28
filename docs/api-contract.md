@@ -128,7 +128,7 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 
 Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no tiny-portion winners and no divide by zero) and a non-null ranking macro. `score = round(macroG / calories * 100, 1)`; sorted by `score` descending, then `calories` ascending. Response echoes the resolved `mode` and `mealCalorieLimit`.
 
-### Restaurants (blocked on issue #27, contract only)
+### Restaurants
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
