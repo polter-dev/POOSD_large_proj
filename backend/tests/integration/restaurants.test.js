@@ -2,26 +2,37 @@ const { test, before, after, afterEach, mock } = require("node:test");
 const assert = require("node:assert");
 const app = require("../../src/app");
 const Chain = require("../../src/models/Chain");
+const User = require("../../src/models/User");
 const places = require("../../src/integrations/places");
+const { signJwt } = require("../../src/services/tokens");
+
+const USER_ID = "64b0000000000000000000aa";
+process.env.JWT_SECRET = "test-secret";
 
 let server;
 let base;
+let auth;
 
 before(async () => {
   server = app.listen(0);
   await new Promise((resolve) => server.once("listening", resolve));
   base = `http://localhost:${server.address().port}`;
+  auth = `Bearer ${signJwt(USER_ID)}`;
 });
 
 after(() => server.close());
 afterEach(() => mock.restoreAll());
 
-function post(body) {
+function post(body, authorization = auth) {
   return fetch(`${base}/api/restaurants/nearby`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(authorization && { Authorization: authorization }) },
     body: JSON.stringify(body),
   });
+}
+
+function stubSavedRadius(searchRadius) {
+  return mock.method(User, "findById", () => ({ lean: async () => searchRadius && { preferences: { searchRadius } } }));
 }
 
 const chains = [
@@ -44,6 +55,8 @@ test("returns matched places with chainId, null for no match, and sends numbers 
     ];
   });
 
+  const findById = stubSavedRadius(5);
+
   const res = await post({ lat: 28.6, lng: -81.2, radiusMiles: 10 });
   assert.strictEqual(res.status, 200);
   assert.deepStrictEqual(await res.json(), {
@@ -55,10 +68,13 @@ test("returns matched places with chainId, null for no match, and sends numbers 
   assert.deepStrictEqual(calls, [
     { lat: 28.6, lng: -81.2, radiusMiles: 10, chainNames: ["Panda Express", "panda", "Subway"] },
   ]);
+  // An explicit radius needs no user lookup.
+  assert.strictEqual(findById.mock.callCount(), 0);
 });
 
-test("radiusMiles defaults to 5", async () => {
+test("radiusMiles defaults to the caller's preferences.searchRadius", async () => {
   stubChains();
+  const findById = stubSavedRadius(15);
   let radius;
   mock.method(places, "findNearbyChainLocations", async (args) => {
     radius = args.radiusMiles;
@@ -67,8 +83,31 @@ test("radiusMiles defaults to 5", async () => {
   const res = await post({ lat: 0, lng: 0 });
   assert.strictEqual(res.status, 200);
   assert.deepStrictEqual(await res.json(), { restaurants: [] });
-  assert.strictEqual(radius, 5);
+  assert.strictEqual(radius, 15);
+  assert.strictEqual(findById.mock.calls[0].arguments[0], USER_ID);
 });
+
+test("404 when the token's user no longer exists and no radius is given", async () => {
+  stubSavedRadius(null);
+  const spy = mock.method(places, "findNearbyChainLocations", async () => []);
+  const res = await post({ lat: 0, lng: 0 });
+  assert.strictEqual(res.status, 404);
+  assert.deepStrictEqual(await res.json(), { error: "User not found" });
+  assert.strictEqual(spy.mock.callCount(), 0);
+});
+
+for (const [label, authorization, error] of [
+  ["no token", null, "Not logged in"],
+  ["a bad token", "Bearer not.a.jwt", "Invalid or expired session"],
+]) {
+  test(`401 with ${label}, without calling places`, async () => {
+    const spy = mock.method(places, "findNearbyChainLocations", async () => []);
+    const res = await post({ lat: 0, lng: 0, radiusMiles: 5 }, authorization);
+    assert.strictEqual(res.status, 401);
+    assert.deepStrictEqual(await res.json(), { error });
+    assert.strictEqual(spy.mock.callCount(), 0);
+  });
+}
 
 for (const [label, body, error] of [
   ["missing lat", { lng: -81.2 }, "lat must be a number from -90 to 90"],
@@ -79,6 +118,8 @@ for (const [label, body, error] of [
   ["lng out of range", { lat: 0, lng: -180.5 }, "lng must be a number from -180 to 180"],
   ["string radius", { lat: 0, lng: 0, radiusMiles: "10" }, "radiusMiles must be 5, 10, 15 or 20"],
   ["radius not allowed", { lat: 0, lng: 0, radiusMiles: 7 }, "radiusMiles must be 5, 10, 15 or 20"],
+  ["null radius", { lat: 0, lng: 0, radiusMiles: null }, "radiusMiles must be 5, 10, 15 or 20"],
+  ["unknown field", { lat: 0, lng: 0, userId: "x" }, "Unknown field: userId"],
 ]) {
   test(`400 for ${label}, without calling places`, async () => {
     const spy = mock.method(places, "findNearbyChainLocations", async () => []);
@@ -90,7 +131,7 @@ for (const [label, body, error] of [
 }
 
 test("400, not 500, when the request has no body", async () => {
-  const res = await fetch(`${base}/api/restaurants/nearby`, { method: "POST" });
+  const res = await fetch(`${base}/api/restaurants/nearby`, { method: "POST", headers: { Authorization: auth } });
   assert.strictEqual(res.status, 400);
   assert.deepStrictEqual(await res.json(), { error: "lat must be a number from -90 to 90" });
 });

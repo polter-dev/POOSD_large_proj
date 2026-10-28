@@ -8,7 +8,7 @@ const chainSchema = new mongoose.Schema(
     alternateNames: [String],
     nutritionSourceUrl: String,
   },
-  { collection: "chains", timestamps: true }
+  { collection: "chains", versionKey: false, timestamps: true }
 );
 
 module.exports = mongoose.model("Chain", chainSchema);

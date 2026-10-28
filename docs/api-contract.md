@@ -81,18 +81,20 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/auth/register` | no | `{ firstName, lastName, username, email, password }` | 201 `{ message: "Verification email sent" }` | 400 invalid field; 409 email or username already taken | `register` |
-| POST | `/auth/login` | no | `{ email, password }` | 200 `{ token, user: User }` | 401 `"Invalid email or password"`; 403 `"Email not verified"` | `login` |
-| GET | `/auth/verify-email?token=` | no | query: `token` required | 200 `{ message: "Email verified" }` | 400 invalid or expired token | `verifyEmail` |
-| POST | `/auth/resend-verification` | no | `{ email }` | 200 `{ message: "If that email exists, a verification link was sent" }` | 400 missing email | `resendVerification` |
-| POST | `/auth/forgot-password` | no | `{ email }` | 200 `{ message: "If that email exists, a reset link was sent" }` | 400 missing email | `forgotPassword` |
-| POST | `/auth/reset-password` | no | `{ token, password }` | 200 `{ message: "Password updated" }` | 400 invalid/expired token or bad password | `resetPassword` |
+| POST | `/auth/register` | no | `{ firstName, lastName, username, email, password }` | 201 `{ message: "Verification email sent" }` | 400 invalid field (the design-spec sign-up message); 409 `"Email already registered"` or `"Username already taken"` | `register` |
+| POST | `/auth/login` | no | `{ email, password }` | 200 `{ token, user: User }` | 400 `"Email and password are required"`; 401 `"Invalid email or password"`; 403 `"Email not verified"` | `login` |
+| GET | `/auth/verify-email?token=` | no | query: `token` required | 200 `{ message: "Email verified" }` | 400 `"Token is required"`; 400 `"Invalid or expired token"` | `verifyEmail` |
+| POST | `/auth/resend-verification` | no | `{ email }` | 200 `{ message: "If that email exists, a verification link was sent" }` | 400 `"Email is required"` | `resendVerification` |
+| POST | `/auth/forgot-password` | no | `{ email }` | 200 `{ message: "If that email exists, a reset link was sent" }` | 400 `"Email is required"` | `forgotPassword` |
+| POST | `/auth/reset-password` | no | `{ token, password }` | 200 `{ message: "Password updated" }` | 400 `"Token is required"`, `"Invalid or expired token"` or `"Password: at least 8 characters"` | `resetPassword` |
 
 - **register** creates the user with `isVerified: false`, `profile: null`, default preferences `{ units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null }`, and emails `${CLIENT_URL}/verify-email?token=...`. That client page reads `token` and calls `GET /auth/verify-email?token=...`.
 - **Tokens** (verify and reset): random token in the link; only its SHA-256 is stored (`verificationTokenHash` / `resetTokenHash`) with an expiry. Verification links expire in 24 hours, reset links in 1 hour. A used token is set to `null` (with its expiry).
 - **resend-verification** does nothing (still 200) if the user is already verified.
 - **forgot-password** emails `${CLIENT_URL}/reset-password?token=...`.
 - **login** checks the password before `isVerified`, so 403 is only returned for correct credentials.
+- **Email send failures** (SendGrid down, bad key, `EMAIL_FROM` unset) are logged and never change the reply (#65). Register has already saved the user, who can use resend-verification; resend and forgot must reply the same whether or not the email exists.
+- **Protected routes** answer 401 `"Not logged in"` with no `Bearer` token and 401 `"Invalid or expired session"` for a bad or expired one. A missing `JWT_SECRET` is a 500.
 
 ### Users (all auth yes)
 
@@ -132,7 +134,7 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/restaurants/nearby` | yes | `{ lat, lng, radiusMiles? }`; `lat` -90..90, `lng` -180..180, `radiusMiles` `5`\|`10`\|`15`\|`20` (default `preferences.searchRadius`) | 200 `{ restaurants: [{ placeId, name, address: string\|null, distanceMiles, chainId: string\|null }] }` | 400 invalid coords/radius; 502 `"Places lookup failed"` | `nearby` |
+| POST | `/restaurants/nearby` | yes | `{ lat, lng, radiusMiles? }`; `lat` -90..90, `lng` -180..180, `radiusMiles` `5`\|`10`\|`15`\|`20` (default `preferences.searchRadius`) | 200 `{ restaurants: [{ placeId, name, address: string\|null, distanceMiles, chainId: string\|null }] }` | 400 invalid coords/radius; 401; 404 `"User not found"` (radius omitted and the account was deleted); 502 `"Places lookup failed"` | `nearby` |
 
 - `chainId` is set when the normalized place name matches a chain's `nameKey` or `alternateNames` (exact lookup, then the prefix fallback in `backend/db/README.md` "For the API team"). `null` = no nutrition data.
 - Nothing about the location or the user's coordinates is stored (spec N4).
