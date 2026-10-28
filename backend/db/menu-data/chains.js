@@ -49,7 +49,7 @@ const CHAINS = [
   },
   {
     name: "Panda Express",
-    alternateNames: ["Panda"],
+    alternateNames: [],
     nutritionSourceUrl: "https://www.pandaexpress.com/nutritioninformation",
     items: [
       { name: "The Original Orange Chicken", category: "entree", calories: 560, proteinG: 19, carbsG: 63, fatG: 25,
@@ -224,7 +224,7 @@ const CHAINS = [
   },
   {
     name: "Raising Cane's",
-    alternateNames: ["Raising Canes Chicken Fingers", "Canes"],
+    alternateNames: ["Raising Canes Chicken Fingers"],
     nutritionSourceUrl: "https://www.raisingcanes.com/allergens/",
     items: [
       { name: "Chicken Finger", category: "entree", calories: 130, proteinG: 12, carbsG: 5, fatG: 6,

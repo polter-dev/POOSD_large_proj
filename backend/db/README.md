@@ -78,7 +78,9 @@ The ERD is `docs/diagrams/erd.puml`.
     `nameKey` or one of its `alternateNames`. Prefer the longest match, so
     `subway` never wins over a longer name that also matches.
   - Only add an alternate spelling to `menu-data/chains.js` when it's a
-    genuinely different name (e.g. `canes`), not to cover a location suffix.
+    genuinely different name (e.g. `chickfila`), not to cover a location suffix.
+    Never add a short word other restaurants start with (`panda`, `canes`):
+    the prefix rule would tag "Panda Garden" as Panda Express.
 - **Menu search (#31).** `menuItems.find({ searchName: { $regex: <escaped> } })`
   with `limit`/`skip` (query 12).
 - **Recommendations (#32).** Filter `isEstimate: false` unless the user turned
