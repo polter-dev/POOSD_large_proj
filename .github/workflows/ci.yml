@@ -50,7 +50,8 @@ jobs:
   backend-mongodb:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
-    runs-on: ubuntu-latest
+    # shortcut: MongoDB 8 refuses to start on ubuntu-latest (26.04, kernel 7.0; SERVER-136848); back to ubuntu-latest once a mongo:8 release runs there
+    runs-on: ubuntu-24.04
     services:
       mongo:
         image: mongo:8
