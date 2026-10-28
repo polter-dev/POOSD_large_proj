@@ -17,7 +17,7 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    once, as root:
    ```bash
    adduser --disabled-password --gecos '' deploy && usermod -aG sudo deploy && rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy
-   echo 'deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/deploy   # no password exists, so sudo must not ask
+   echo 'deploy ALL=(ALL) NOPASSWD:ALL' | sudo tee /etc/sudoers.d/90-deploy && sudo chmod 440 /etc/sudoers.d/90-deploy   # no password exists, so sudo must not ask
    ```
 2. **DNS at the registrar (GoDaddy).** Add `A` records for `@` and `www`
    pointing at the droplet IP, TTL 600, with domain forwarding off. Wait until
