@@ -81,6 +81,7 @@ jobs:
         working-directory: backend/db
         run: npx -y mongosh@2 "$MONGODB_URI" schema.js seed.js
       - name: Start server
+        id: start
         run: nohup node src/server.js > server.log 2>&1 &
       - name: Wait for health
         run: |
@@ -98,10 +99,10 @@ jobs:
           echo; echo "HTTP $code"
           test "$code" = 200
       - name: Stop server
-        if: always()
+        if: always() && steps.start.outcome == 'success'
         run: pkill -f "node src/server.js" || true
       - name: Server log
-        if: failure()
+        if: failure() && steps.start.outcome == 'success'
         run: cat server.log
 
   web:
