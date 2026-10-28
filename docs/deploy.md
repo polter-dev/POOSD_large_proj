@@ -72,9 +72,10 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
 cd /var/www/POOSD_large_proj && bash deploy/deploy.sh
 ```
 
-It pulls the current branch, installs backend deps, builds the web app (once
-`web/package.json` exists), and reloads the API with pm2. If only
-`backend/.env` changed, run `pm2 reload api`.
+It pulls the current branch, installs backend deps, builds the web app into
+`web/dist` (which nginx serves), and reloads the API with pm2. If only
+`backend/.env` changed, run `pm2 reload api`. If only `web/.env` changed,
+re-run the script: Vite bakes `VITE_API_URL` into the build.
 
 ## Verify
 
