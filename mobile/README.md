@@ -20,7 +20,7 @@ The API base URL is set at build time with `API_URL`. Clients use a domain name,
 |---|---|
 | Local backend on this computer (debug default) | `adb reverse tcp:5050 tcp:5050` once per emulator boot, then `flutter run`. The app calls `http://localhost:5050/api`, which `adb reverse` forwards to this computer. |
 | Live server | `flutter run --dart-define=API_URL=https://<domain>/api` |
-| Release build | `flutter build apk --dart-define=API_URL=https://<domain>/api`. Without it, release builds use `productionApiUrl` in `lib/services/api_client.dart` (`https://DOMAIN_PLACEHOLDER/api` until #57 picks the domain). |
+| Release build | `flutter build apk --dart-define=API_URL=https://<domain>/api`. Without it, release builds use `productionApiUrl` in `lib/services/api_client.dart` (`https://cop4331ruth.lol/api`). |
 
 Plain `http` is allowed in debug builds only (`android/app/src/debug/AndroidManifest.xml`); release builds need https.
 Port 5050, not 5000: macOS AirPlay Receiver takes 5000 (#66).
