@@ -28,8 +28,9 @@ export default function TextField({ label, value, onChange, error, lowercase, ty
           onChange={(e) => onChange(lowercase ? e.target.value.toLowerCase() : e.target.value)}
           aria-invalid={!!error}
           aria-describedby={error ? `${id}-error` : undefined}
-          className={`h-12 w-full rounded-(--radius-input) border bg-bg px-3 text-base focus:border-primary focus:outline-1 focus:outline-offset-0 focus:outline-primary ${
-            error ? 'border-error' : 'border-border-input'
+          // Focus keeps the field's color, so a field with an error stays red while it's being fixed.
+          className={`h-12 w-full rounded-(--radius-input) border bg-bg px-3 text-base focus:outline-1 focus:outline-offset-0 ${
+            error ? 'border-error focus:outline-error' : 'border-border-input focus:border-primary focus:outline-primary'
           } ${isPassword ? 'pr-16' : ''}`}
           {...rest}
         />

@@ -177,7 +177,7 @@ than "we sent". Both links open the **web** site, on web and mobile.
 
 ## 6. Using the tokens in code
 
-React (`web/src/styles/tokens.css`, once #15 sets up the project):
+React (`web/src/styles/tokens.css`; Tailwind reads these variables, see `web/src/styles/index.css`):
 
 ```css
 :root {
@@ -194,7 +194,7 @@ React (`web/src/styles/tokens.css`, once #15 sets up the project):
 }
 ```
 
-Flutter (`mobile/lib/theme.dart`, once #20 sets up the project):
+Flutter (`mobile/lib/theme.dart`):
 
 ```dart
 class AppColors {

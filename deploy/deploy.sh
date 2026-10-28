@@ -7,10 +7,8 @@ git pull --ff-only
 
 (cd backend && npm ci --omit=dev)
 
-# web/ is not scaffolded yet (#15); skip it until it has a package.json.
-if [ -f web/package.json ]; then
-  (cd web && npm ci && npm run build)
-fi
+# nginx serves web/dist. Needs web/.env with VITE_API_URL=/api (docs/deploy.md step 6).
+(cd web && npm ci && npm run build)
 
 # Starts the API on first run, zero-downtime reload after that.
 pm2 startOrReload deploy/ecosystem.config.js
