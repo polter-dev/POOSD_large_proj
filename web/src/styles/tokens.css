@@ -1,0 +1,13 @@
+/* docs/design-spec.md section 6. Change the spec first, then this file. */
+:root {
+  --bg: #FFFFFF; --surface: #F5F6F8; --border: #E3E6EA; --border-input: #858E99;
+  --text: #1A1D21; --text-muted: #5B6470;
+  --primary: #15803D; --primary-hover: #166534; --on-primary: #FFFFFF;
+  --fit-great-bg: #DCFCE7; --fit-great-text: #166534;
+  --fit-ok-bg: #FEF3C7; --fit-ok-text: #92400E;
+  --fit-over-bg: #FEE2E2; --fit-over-text: #B91C1C;
+  --error: #B91C1C; --error-bg: #FEE2E2;
+  --macro-protein: #2563EB; --macro-carbs: #EA580C; --macro-fat: #A16207; --macro-unknown: #808994;
+  --radius-input: 8px; --radius-card: 12px;
+  --font: "Manrope", system-ui, sans-serif;
+}
