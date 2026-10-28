@@ -9,11 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 // Where the API is. Clients use a domain name, never an IP (#19).
 // - Pass it at build time: --dart-define=API_URL=https://<domain>/api
-// - Release builds without it use productionApiUrl. DOMAIN_PLACEHOLDER is the same placeholder as
-//   deploy/nginx.conf; replace it here once #57 picks the domain.
+// - Release builds without it use productionApiUrl, the droplet's domain (#57).
 // - Debug builds without it use the dev API on this computer, which the emulator reaches as localhost
 //   after `adb reverse tcp:5050 tcp:5050` (see mobile/README.md).
-const productionApiUrl = 'https://DOMAIN_PLACEHOLDER/api';
+const productionApiUrl = 'https://cop4331ruth.lol/api';
 const devApiUrl = 'http://localhost:5050/api';
 const _apiUrlOverride = String.fromEnvironment('API_URL');
 const apiBaseUrl = _apiUrlOverride != '' ? _apiUrlOverride : (kReleaseMode ? productionApiUrl : devApiUrl);
