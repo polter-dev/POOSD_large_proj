@@ -45,14 +45,8 @@ mobile client. Calorie targets are general estimates, not medical advice.
 
 All three apps are set up; install and run each one locally.
 
-**Backend** (API on http://localhost:5050/api). Needs a MongoDB loaded once with
-`backend/db/schema.js` and `seed.js`, see [`backend/db/README.md`](backend/db/README.md).
-
-```bash
-cd backend && npm install
-cp .env.example .env   # set MONGODB_URI and JWT_SECRET
-npm run dev
-```
+**Backend** (API on http://localhost:5050/api), see [`backend/README.md`](backend/README.md). Needs a MongoDB
+loaded once with `backend/db/schema.js` and `seed.js` ([`backend/db/README.md`](backend/db/README.md)).
 
 **Web** (http://localhost:5173), see [`web/README.md`](web/README.md):
 
@@ -68,4 +62,13 @@ Deploying to the droplet: [`docs/deploy.md`](docs/deploy.md).
 
 ## AI Assistance Disclosure
 
-See `AI Disclosure Template.md`.
+Format: see `AI Disclosure Template.md`. Add an entry for each use.
+
+- **Tool**: Claude Opus 5.5 (Anthropic), via Claude Code in VS Code
+- **Dates**: October 27-28, 2026
+- **Scope**: Backend auth endpoints (register, login, email verification, password reset), the JWT middleware,
+  `POST /restaurants/nearby` with chain matching, their unit and integration tests, and the matching doc updates
+  (`backend/README.md`, `docs/api-contract.md`, `docs/deploy.md`); PR #71
+- **Use**: Code and test generation from `docs/api-contract.md` and issues #12, #13, #21, #30 and #65; code review;
+  end-to-end checks against a local MongoDB loaded with `db/schema.js` and `db/seed.js`. Those commits are marked
+  `Co-Authored-By: Claude`.
