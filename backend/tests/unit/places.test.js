@@ -32,9 +32,9 @@ test("maps nodes and ways (center) and sends the radius in meters", async () => 
   assert.match(query, /\(around:16093,28\.6,-81\.2\)/);
   assert.ok(query.includes("McDonald['’]?s|Chick-fil-A"));
   assert.deepStrictEqual(rows[0], {
-    placeId: "node/1", name: "McDonald's", address: "1 Main St, Orlando", lat: 28.6, lng: -81.2, distanceMiles: 0,
+    placeId: "osm-node-1", name: "McDonald's", address: "1 Main St, Orlando", lat: 28.6, lng: -81.2, distanceMiles: 0,
   });
-  assert.strictEqual(rows[1].placeId, "way/2");
+  assert.strictEqual(rows[1].placeId, "osm-way-2");
   assert.strictEqual(rows[1].address, null);
   assert.deepStrictEqual([rows[1].lat, rows[1].lng], [28.7, -81.2]);
   assert.ok(Math.abs(rows[1].distanceMiles - 6.9) < 0.1);

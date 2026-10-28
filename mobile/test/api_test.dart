@@ -142,10 +142,10 @@ void main() {
     final api = apiWith(
       (r) async => r.method == 'DELETE'
           ? http.Response('', 204)
-          : json({'id': 'f1', 'placeId': 'node/9661240581', 'label': null, 'createdAt': '2026-10-27T12:00:00Z'}, 201),
+          : json({'id': 'f1', 'placeId': 'osm-node-9661240581', 'label': null, 'createdAt': '2026-10-27T12:00:00Z'}, 201),
     );
-    final fav = await api.addFavorite(placeId: 'node/9661240581');
-    expect(jsonDecode(sent[0].body), {'placeId': 'node/9661240581', 'label': null});
+    final fav = await api.addFavorite(placeId: 'osm-node-9661240581');
+    expect(jsonDecode(sent[0].body), {'placeId': 'osm-node-9661240581', 'label': null});
     expect(fav.label, isNull);
     await api.removeFavorite('f1');
     expect(sent[1].url.path, '/api/favorites/f1');

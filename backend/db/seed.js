@@ -140,8 +140,8 @@ print(`menuItems inserted: ${itemCount}`);
 // ---------------------------------------------------------------------------
 // favorites
 // ---------------------------------------------------------------------------
-// Place IDs are made-up placeholders in Google's format; real ones come from
-// the Places API once #27 picks a provider.
+// Place IDs are made-up placeholders. Real ones come from the nearby search
+// (OpenStreetMap, #27) and look like osm-node-1234567890.
 const userId = (username) => db.users.findOne({ username }, { _id: 1 })._id;
 const favorites = db.favorites.insertMany([
   { userId: userId("janedoe"), placeId: "ChIJdemo_ChickfilA_StudentUnion", label: "Union Chick-fil-A", createdAt: now },

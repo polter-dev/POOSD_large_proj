@@ -50,8 +50,8 @@ test("returns matched places with chainId, null for no match, and sends numbers 
   mock.method(places, "findNearbyChainLocations", async (args) => {
     calls.push(args);
     return [
-      { placeId: "node/1", name: "Panda Express - UCF", address: null, lat: 28.6, lng: -81.2, distanceMiles: 0.4 },
-      { placeId: "way/2", name: "Not Subway Cafe", address: "1 Main St", lat: 28.7, lng: -81.2, distanceMiles: 6.9 },
+      { placeId: "osm-node-1", name: "Panda Express - UCF", address: null, lat: 28.6, lng: -81.2, distanceMiles: 0.4 },
+      { placeId: "osm-way-2", name: "Not Subway Cafe", address: "1 Main St", lat: 28.7, lng: -81.2, distanceMiles: 6.9 },
     ];
   });
 
@@ -61,8 +61,8 @@ test("returns matched places with chainId, null for no match, and sends numbers 
   assert.strictEqual(res.status, 200);
   assert.deepStrictEqual(await res.json(), {
     restaurants: [
-      { placeId: "node/1", name: "Panda Express - UCF", address: null, distanceMiles: 0.4, chainId: chains[0]._id },
-      { placeId: "way/2", name: "Not Subway Cafe", address: "1 Main St", distanceMiles: 6.9, chainId: null },
+      { placeId: "osm-node-1", name: "Panda Express - UCF", address: null, distanceMiles: 0.4, chainId: chains[0]._id },
+      { placeId: "osm-way-2", name: "Not Subway Cafe", address: "1 Main St", distanceMiles: 6.9, chainId: null },
     ],
   });
   assert.deepStrictEqual(calls, [
