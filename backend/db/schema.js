@@ -181,8 +181,9 @@ const verifiedNeedsDate = {
 // ---------------------------------------------------------------------------
 // favorites
 // ---------------------------------------------------------------------------
-// A saved restaurant LOCATION. Spec N4: store only the user, the Google place
-// ID and an optional label (no address, no coordinates, no user location).
+// A saved restaurant LOCATION. Spec N4: store only the user, the place ID from
+// the nearby search (osm-node-123...) and an optional label (no address, no
+// coordinates, no user location).
 // additionalProperties: false makes the database enforce that.
 const favoritesSchema = {
   bsonType: "object",
@@ -191,7 +192,7 @@ const favoritesSchema = {
   properties: {
     _id: { bsonType: "objectId" },
     userId: { bsonType: "objectId", description: "users._id" },
-    placeId: { bsonType: "string", pattern: "^[A-Za-z0-9_-]{10,300}$", description: "Google Places place_id" },
+    placeId: { bsonType: "string", pattern: "^[A-Za-z0-9_-]{10,300}$", description: "placeId from POST /restaurants/nearby, e.g. osm-node-1234567890" },
     label: { bsonType: ["string", "null"], minLength: 1, maxLength: 50, description: "optional, e.g. Union Chick-fil-A" },
     createdAt: { bsonType: "date" },
   },

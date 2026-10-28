@@ -105,7 +105,7 @@ for (const [label, body, error] of [
   ["a placeId under 10 characters", { placeId: "osm-node1" }, "placeId is invalid"],
   ["a placeId that is an object", { placeId: { $ne: null } }, "placeId is invalid"],
   ["a label over 50 characters", { placeId: PLACE_ID, label: "x".repeat(51) }, "Label: 50 characters max"],
-  ["a label that isn't text", { placeId: PLACE_ID, label: 5 }, "Label: 50 characters max"],
+  ["a label that isn't text", { placeId: PLACE_ID, label: 5 }, "Label must be text"],
   ["a field the schema doesn't allow", { placeId: PLACE_ID, address: "1 Main St" }, "Unknown field: address"],
 ]) {
   test(`POST rejects ${label}`, async () => {

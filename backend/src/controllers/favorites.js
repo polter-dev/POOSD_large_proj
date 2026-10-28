@@ -14,7 +14,8 @@ function toFavoriteJSON(f) {
 // Omitted, null or blank all mean "no label".
 function checkLabel(v) {
   if (v === undefined || v === null) return null;
-  if (typeof v !== "string" || v.trim().length > 50) throw httpError(400, "Label: 50 characters max");
+  if (typeof v !== "string") throw httpError(400, "Label must be text");
+  if (v.trim().length > 50) throw httpError(400, "Label: 50 characters max");
   return v.trim() || null;
 }
 

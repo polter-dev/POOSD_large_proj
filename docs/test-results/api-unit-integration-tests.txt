@@ -61,6 +61,7 @@
 ✔ q is normalized like the stored searchName, so case and punctuation don't matter
 ✔ regex characters in q can't change the query
 ✔ limit and skip are passed through for paging
+✔ a skip past the end is allowed and just returns no items
 ✔ search rejects a missing q
 ✔ search rejects a blank q
 ✔ search rejects a q over 100 characters
@@ -177,9 +178,9 @@
 ✔ equal scores put the lower-calorie item first, then sort by name
 ✔ limit caps the list after ranking
 ✔ the input items are not modified
-ℹ tests 178
+ℹ tests 179
 ℹ suites 1
-ℹ pass 178
+ℹ pass 179
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0

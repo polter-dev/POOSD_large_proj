@@ -93,6 +93,13 @@ test("limit and skip are passed through for paging", async () => {
   assert.deepStrictEqual([seen.limit, seen.skip], [10, 20]);
 });
 
+test("a skip past the end is allowed and just returns no items", async () => {
+  const seen = stubSearch([], 45);
+  const res = await search({ q: "chicken", skip: "1000000" });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(seen.skip, 1000000);
+});
+
 for (const [label, params, error] of [
   ["a missing q", {}, "q is required"],
   ["a blank q", { q: "   " }, "q is required"],

@@ -3,11 +3,13 @@ const httpError = require("../utils/httpError");
 const normalize = require("../utils/normalize");
 const toMenuItemJSON = require("../utils/toMenuItemJSON");
 
-// A query value as a whole number in [min, max], or def when it's absent.
+// A query value as a whole number from min to max, or def when it's absent.
 // Query values are strings (an array when repeated), so "abc", "1.5" and ["1", "2"] are all 400.
 function intParam(v, def, min, max, message) {
   if (v === undefined) return def;
-  if (typeof v !== "string" || !/^\d{1,6}$/.test(v) || +v < min || +v > max) throw httpError(400, message);
+  if (typeof v !== "string" || !/^\d+$/.test(v) || !Number.isSafeInteger(+v) || +v < min || +v > max) {
+    throw httpError(400, message);
+  }
   return +v;
 }
 
@@ -19,7 +21,7 @@ async function search(req, res, next) {
     if (typeof q !== "string" || !q.trim()) throw httpError(400, "q is required");
     if (q.length > 100) throw httpError(400, "q: 100 characters max");
     const limit = intParam(req.query.limit, 20, 1, 100, "limit must be a whole number from 1 to 100");
-    const skip = intParam(req.query.skip, 0, 0, 999999, "skip must be a whole number, 0 or more");
+    const skip = intParam(req.query.skip, 0, 0, Number.MAX_SAFE_INTEGER, "skip must be a whole number, 0 or more");
 
     const text = normalize(q);
     if (!text) throw httpError(400, "q must contain a letter or number");
