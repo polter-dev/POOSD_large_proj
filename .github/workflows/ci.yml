@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read # dorny/paths-filter lists PR files through the API
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      web: ${{ steps.filter.outputs.web }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend: [backend/**, .github/workflows/ci.yml]
+            web: [web/**, .github/workflows/ci.yml]
+            mobile: [mobile/**, .github/workflows/ci.yml]
+
+  backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+      - run: npm test
+
+  backend-mongodb:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        # shortcut: mongo:8 exits at startup on the runner's Ubuntu 7.0 kernel (SERVER-136848); switch to mongo:8 (prod is 8.0) once that is fixed
+        image: mongo:7
+        ports: ["27017:27017"]
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand(\"ping\")'"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PORT: 5050
+      MONGODB_URI: mongodb://localhost:27017
+      JWT_SECRET: ci-secret
+      CLIENT_URL: http://localhost:5173
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci --omit=dev
+      - name: Load schema and seed
+        working-directory: backend/db
+        run: npx -y mongosh@2 "$MONGODB_URI" schema.js seed.js
+      - name: Start server
+        id: start
+        run: nohup node src/server.js > server.log 2>&1 &
+      - name: Wait for health
+        run: |
+          for _ in $(seq 30); do
+            body=$(curl -fsS http://localhost:5050/api/health) && break
+            sleep 1
+          done
+          echo "$body"
+          grep -q '"db":true' <<< "$body"
+      - name: Seed login returns 200
+        run: |
+          code=$(curl -sS -o /dev/stderr -w '%{http_code}' -X POST http://localhost:5050/api/auth/login \
+            -H 'Content-Type: application/json' \
+            -d '{"email":"jane.doe@example.com","password":"Password123!"}')
+          echo; echo "HTTP $code"
+          test "$code" = 200
+      - name: Stop server
+        if: always() && steps.start.outcome == 'success'
+        run: pkill -f "node src/server.js" || true
+      - name: Server log
+        if: failure() && steps.start.outcome == 'success'
+        run: cat server.log
+
+  web:
+    needs: changes
+    if: needs.changes.outputs.web == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          VITE_API_URL: /api
+
+  mobile:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x # pubspec.lock needs Dart 3.13 (mobile/README.md)
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
