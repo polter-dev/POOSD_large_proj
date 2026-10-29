@@ -2,7 +2,7 @@ import { request } from './client';
 import type {
   AddFavoriteBody, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
   MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
-  RegisterBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
+  RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
   UpdateProfileBody, User,
 } from '../types/api';
 
@@ -19,7 +19,7 @@ export const login = async (body: LoginBody) => {
 };
 export const logout = () => localStorage.removeItem('token');
 export const verifyEmail = (token: string) => request<MessageResponse>('GET', `/auth/verify-email?token=${encodeURIComponent(token)}`);
-export const resendVerification = (body: EmailBody) => request<MessageResponse>('POST', '/auth/resend-verification', body);
+export const resendVerification = (body: ResendVerificationBody) => request<MessageResponse>('POST', '/auth/resend-verification', body);
 export const forgotPassword = (body: EmailBody) => request<MessageResponse>('POST', '/auth/forgot-password', body);
 export const resetPassword = (body: ResetPasswordBody) => request<MessageResponse>('POST', '/auth/reset-password', body);
 

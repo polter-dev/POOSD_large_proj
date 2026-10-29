@@ -22,6 +22,13 @@ export function validateEmail(v: string) {
   return EMAIL.test(s) && s.length <= 254 ? null : 'Email: enter a valid address';
 }
 
+// Login takes either. Usernames can't contain "@", so an "@" means it's an email (same rule as the server).
+export function validateLogin(v: string) {
+  const s = normalizeLower(v);
+  if (!s) return 'Email or username is required';
+  return s.includes('@') ? validateEmail(s) : validateUsername(s);
+}
+
 export const validatePassword = (v: string) => (v.length >= 8 ? null : 'Password: at least 8 characters');
 
 // The server trims and lowercases email and username before storing or comparing.

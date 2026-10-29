@@ -86,13 +86,15 @@ export interface RegisterBody {
 }
 
 export interface LoginBody {
-  email: string;
+  login: string; // email or username
   password: string;
 }
 
 export interface EmailBody {
   email: string;
 }
+
+export type ResendVerificationBody = EmailBody | { login: string };
 
 export interface ResetPasswordBody {
   token: string;

@@ -130,15 +130,16 @@ Login and register are the first screen (course requirement). Same fields, copy 
 (#17) and mobile (#20).
 
 ### Log in
-- Title "Log in". Fields: **Email**, **Password**. Login is by email only: `POST /auth/login`
-  takes `{ email, password }`, so the label says "Email", never "Username".
+- Title "Log in". Fields: **Email or username**, **Password**. `POST /auth/login` takes
+  `{ login, password }`; a value with `@` is an email, anything else a username. Empty shows
+  "Email or username is required"; otherwise the email or username rule from Sign up applies.
 - Primary button "Log in". Links: "Forgot password?" and "No account? Sign up".
 - On success: store the token. If `user.profile` is `null`, go to onboarding; else go home.
 - Errors (banner):
-  - 401: "Invalid email or password"
+  - 401: "Invalid email/username or password"
   - 403: "Email not verified", with a **Resend verification email** button in the banner
-    (`POST /auth/resend-verification` with the typed email). After it's sent, show:
-    "If that email exists, a verification link was sent".
+    (`POST /auth/resend-verification` with `{ login }`, the typed email or username). After it's
+    sent, show: "If that account exists, a verification link was sent".
   - Network failure: "Can't reach the server. Check your connection and try again."
 
 ### Sign up

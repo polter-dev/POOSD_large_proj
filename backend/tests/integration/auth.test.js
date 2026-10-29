@@ -197,6 +197,23 @@ test("login returns a 7-day JWT for the user and the User object without secrets
   });
 });
 
+for (const [label, login, expected] of [
+  ["a username", " JaneDoe ", { username: "janedoe" }],
+  ["an email in the login field", "Jane.Doe@example.com", { email: "jane.doe@example.com" }],
+]) {
+  test(`login accepts ${label}`, async () => {
+    let filter;
+    mock.method(User, "findOne", (f) => {
+      filter = f;
+      return { lean: async () => storedUser() };
+    });
+    const res = await post("/login", { login, password: "Password123!" });
+    assert.strictEqual(res.status, 200);
+    assert.deepStrictEqual(filter, expected);
+    assert.strictEqual((await res.json()).user.username, "janedoe");
+  });
+}
+
 test("login returns birthDate as YYYY-MM-DD", async () => {
   const profile = {
     heightIn: 65, weightLb: 160, birthDate: new Date("2006-03-14"), sex: "female", activityLevel: "light", goal: "lose",
@@ -210,14 +227,16 @@ test("login 401 for a wrong password", async () => {
   mock.method(User, "findOne", lean(storedUser()));
   const res = await post("/login", { email: "jane.doe@example.com", password: "wrong-password" });
   assert.strictEqual(res.status, 401);
-  assert.deepStrictEqual(await res.json(), { error: "Invalid email or password" });
+  assert.deepStrictEqual(await res.json(), { error: "Invalid email/username or password" });
 });
 
-test("login 401 for an unknown email", async () => {
+test("login 401 for an unknown email or username", async () => {
   mock.method(User, "findOne", lean(null));
-  const res = await post("/login", { email: "nobody@example.com", password: "Password123!" });
-  assert.strictEqual(res.status, 401);
-  assert.deepStrictEqual(await res.json(), { error: "Invalid email or password" });
+  for (const login of ["nobody@example.com", "nobody"]) {
+    const res = await post("/login", { login, password: "Password123!" });
+    assert.strictEqual(res.status, 401);
+    assert.deepStrictEqual(await res.json(), { error: "Invalid email/username or password" });
+  }
 });
 
 test("login 403 for an unverified user, but only with the right password", async () => {
@@ -233,12 +252,14 @@ for (const [label, body] of [
   ["missing password", { email: "jane.doe@example.com" }],
   ["no body", undefined],
   ["email as a Mongo operator", { email: { $ne: null }, password: "Password123!" }],
+  ["login as a Mongo operator", { login: { $ne: null }, password: "Password123!" }],
+  ["an empty login", { login: "  ", password: "Password123!" }],
 ]) {
   test(`login 400 for ${label}, without a lookup`, async () => {
     const findOne = mock.method(User, "findOne", lean(storedUser()));
     const res = await post("/login", body);
     assert.strictEqual(res.status, 400);
-    assert.deepStrictEqual(await res.json(), { error: "Email and password are required" });
+    assert.deepStrictEqual(await res.json(), { error: "Email or username and password are required" });
     assert.strictEqual(findOne.mock.callCount(), 0);
   });
 }
@@ -291,7 +312,7 @@ for (const [label, query] of [["missing token", ""], ["repeated token", "?token=
 // ---------------------------------------------------------------------------
 // resend-verification and forgot-password
 // ---------------------------------------------------------------------------
-const RESEND_MSG = "If that email exists, a verification link was sent";
+const RESEND_MSG = "If that account exists, a verification link was sent";
 const FORGOT_MSG = "If that email exists, a reset link was sent";
 
 test("resend-verification gives an unverified user a new 24h token and emails it", async () => {
@@ -310,6 +331,20 @@ test("resend-verification gives an unverified user a new 24h token and emails it
   assert.ok(hours > 23.9 && hours <= 24);
 });
 
+// The login page offers resend after a 403, and the user may have logged in with a username.
+test("resend-verification by username emails the account's address", async () => {
+  let filter;
+  mock.method(User, "findOneAndUpdate", async (f) => {
+    filter = f;
+    return storedUser({ isVerified: false });
+  });
+  const res = await post("/resend-verification", { login: "JaneDoe" });
+  assert.strictEqual(res.status, 200);
+  assert.deepStrictEqual(await res.json(), { message: RESEND_MSG });
+  assert.deepStrictEqual(filter, { username: "janedoe", isVerified: false });
+  assert.match(logs.at(-1), /jane\.doe@example\.com: http:\/\/app\/verify-email\?token=/);
+});
+
 test("forgot-password sets a 1h reset token and emails the reset link", async () => {
   let args;
   mock.method(User, "findOneAndUpdate", async (...a) => {
@@ -326,7 +361,10 @@ test("forgot-password sets a 1h reset token and emails the reset link", async ()
   assert.ok(minutes > 59.9 && minutes <= 60);
 });
 
-for (const [path, message] of [["/resend-verification", RESEND_MSG], ["/forgot-password", FORGOT_MSG]]) {
+for (const [path, message, missing] of [
+  ["/resend-verification", RESEND_MSG, "Email or username is required"],
+  ["/forgot-password", FORGOT_MSG, "Email is required"],
+]) {
   test(`${path} gives the same reply and sends nothing for an unknown (or verified) email`, async () => {
     mock.method(User, "findOneAndUpdate", async () => null);
     const res = await post(path, { email: "nobody@example.com" });
@@ -349,7 +387,7 @@ for (const [path, message] of [["/resend-verification", RESEND_MSG], ["/forgot-p
   test(`${path} 400 for a missing email`, async () => {
     const res = await post(path, {});
     assert.strictEqual(res.status, 400);
-    assert.deepStrictEqual(await res.json(), { error: "Email is required" });
+    assert.deepStrictEqual(await res.json(), { error: missing });
   });
 }
 
