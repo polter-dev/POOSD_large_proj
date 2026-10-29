@@ -45,6 +45,14 @@ function checkPassword(v) {
   return v;
 }
 
+// Login and resend-verification take `login`: an email or a username. Usernames can't contain "@"
+// (USERNAME above), so an "@" means email. `email` is still accepted for clients that send it (mobile).
+function loginFilter(b) {
+  const s = lower(b.login ?? b.email);
+  if (!s) return null;
+  return s.includes("@") ? { email: s } : { username: s };
+}
+
 function checkToken(v) {
   if (!str(v)) throw httpError(400, "Token is required");
   return v;
@@ -103,15 +111,15 @@ async function register(req, res, next) {
 
 async function login(req, res, next) {
   try {
-    const b = readBody(req.body, ["email", "password"]);
-    const address = lower(b.email);
+    const b = readBody(req.body, ["login", "email", "password"]);
+    const filter = loginFilter(b);
     const password = str(b.password);
-    if (!address || !password) throw httpError(400, "Email and password are required");
+    if (!filter || !password) throw httpError(400, "Email or username and password are required");
 
-    const user = await User.findOne({ email: address }).lean();
+    const user = await User.findOne(filter).lean();
     // Password before isVerified, so 403 only ever answers correct credentials.
     const ok = await bcrypt.compare(password, user ? user.passwordHash : DUMMY_HASH);
-    if (!user || !ok) throw httpError(401, "Invalid email or password");
+    if (!user || !ok) throw httpError(401, "Invalid email/username or password");
     if (!user.isVerified) throw httpError(403, "Email not verified");
     res.json({ token: signJwt(user._id), user: toUserJSON(user) });
   } catch (err) {
@@ -134,18 +142,19 @@ async function verifyEmail(req, res, next) {
   }
 }
 
-// Same reply whether or not the email exists (or is already verified), so accounts can't be probed.
+// Same reply whether or not the account exists (or is already verified), so accounts can't be probed.
+// Takes a username too, so the login page can offer it after a 403 on a username login.
 async function resendVerification(req, res, next) {
   try {
-    const address = lower(readBody(req.body, ["email"]).email);
-    if (!address) throw httpError(400, "Email is required");
+    const filter = loginFilter(readBody(req.body, ["login", "email"]));
+    if (!filter) throw httpError(400, "Email or username is required");
     const { token, hash } = newEmailToken();
     const user = await User.findOneAndUpdate(
-      { email: address, isVerified: false },
+      { ...filter, isVerified: false },
       { $set: { verificationTokenHash: hash, verificationTokenExpires: new Date(Date.now() + VERIFY_TTL_MS) } }
     );
-    if (user) await trySend(email.sendVerificationEmail, address, token);
-    res.json({ message: "If that email exists, a verification link was sent" });
+    if (user) await trySend(email.sendVerificationEmail, user.email, token);
+    res.json({ message: "If that account exists, a verification link was sent" });
   } catch (err) {
     next(err);
   }

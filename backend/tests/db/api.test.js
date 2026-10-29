@@ -58,6 +58,24 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       assert.strictEqual(res.status, 403);
     });
 
+    test("login and resend-verification accept a username", async () => {
+      let res = await api("POST", "/auth/login", { login: "JaneDoe", password: "Password123!" });
+      assert.strictEqual(res.status, 200);
+      assert.strictEqual((await res.json()).user.email, "jane.doe@example.com");
+      res = await api("POST", "/auth/login", { login: "alexkim", password: "Password123!" });
+      assert.strictEqual(res.status, 403);
+      // Resend replaces alexkim's token; put the seeded one back so demo-verify-token still works.
+      const { verificationTokenHash, verificationTokenExpires } = await User.findOne({ username: "alexkim" }).lean();
+      try {
+        res = await api("POST", "/auth/resend-verification", { login: "alexkim" });
+        assert.strictEqual(res.status, 200);
+        const after = await User.findOne({ username: "alexkim" }).lean();
+        assert.notStrictEqual(after.verificationTokenHash, verificationTokenHash);
+      } finally {
+        await User.updateOne({ username: "alexkim" }, { $set: { verificationTokenHash, verificationTokenExpires } });
+      }
+    });
+
     test("register stores a user the users validator accepts, and a taken email is 409", async () => {
       const email = `db-test-${Date.now()}@example.com`;
       const body = { firstName: "Db", lastName: "Test", username: `dbtest${Date.now() % 1e9}`, email, password: "Password123!" };

@@ -18,7 +18,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | Error codes | 400 validation; 401 missing/invalid token or bad credentials; 403 email not verified; 404 not found; 409 duplicate; 502 upstream (Places) failed; 500 server (message is always `"Server error"`). |
 | Case | Server lowercases `email` and `username` (and trims them) before storing or comparing. |
 | Password | Minimum 8 characters. Stored as a bcrypt hash. |
-| Enumeration | `resend-verification` and `forgot-password` always return 200 with the same message whether or not the email exists. |
+| Enumeration | `resend-verification` and `forgot-password` always return 200 with the same message whether or not the account exists. |
 | Unknown fields | Request fields not listed here are rejected with 400 (the collections have `additionalProperties: false`). |
 
 ### Validation (exactly `schema.js`)
@@ -82,9 +82,9 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
 | POST | `/auth/register` | no | `{ firstName, lastName, username, email, password }` | 201 `{ message: "Verification email sent" }` | 400 invalid field (the design-spec sign-up message); 409 `"Email already registered"` or `"Username already taken"` | `register` |
-| POST | `/auth/login` | no | `{ email, password }` | 200 `{ token, user: User }` | 400 `"Email and password are required"`; 401 `"Invalid email or password"`; 403 `"Email not verified"` | `login` |
+| POST | `/auth/login` | no | `{ login, password }` (`login` = email or username) | 200 `{ token, user: User }` | 400 `"Email or username and password are required"`; 401 `"Invalid email/username or password"`; 403 `"Email not verified"` | `login` |
 | GET | `/auth/verify-email?token=` | no | query: `token` required | 200 `{ message: "Email verified" }` | 400 `"Token is required"`; 400 `"Invalid or expired token"` | `verifyEmail` |
-| POST | `/auth/resend-verification` | no | `{ email }` | 200 `{ message: "If that email exists, a verification link was sent" }` | 400 `"Email is required"` | `resendVerification` |
+| POST | `/auth/resend-verification` | no | `{ login }` (email or username) | 200 `{ message: "If that account exists, a verification link was sent" }` | 400 `"Email or username is required"` | `resendVerification` |
 | POST | `/auth/forgot-password` | no | `{ email }` | 200 `{ message: "If that email exists, a reset link was sent" }` | 400 `"Email is required"` | `forgotPassword` |
 | POST | `/auth/reset-password` | no | `{ token, password }` | 200 `{ message: "Password updated" }` | 400 `"Token is required"`, `"Invalid or expired token"` or `"Password: at least 8 characters"` | `resetPassword` |
 
@@ -93,6 +93,7 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 - **resend-verification** does nothing (still 200) if the user is already verified.
 - **forgot-password** emails `${CLIENT_URL}/reset-password?token=...`.
 - **login** checks the password before `isVerified`, so 403 is only returned for correct credentials.
+- **`login` field** (login and resend-verification): trimmed and lowercased; a value with `@` is looked up as an email, anything else as a username (usernames can't contain `@`). The older `{ email }` body is still accepted, so clients that send it keep working. Resend emails the account's address even when given a username.
 - **Email send failures** (SendGrid down, bad key, `EMAIL_FROM` unset) are logged and never change the reply (#65). Register has already saved the user, who can use resend-verification; resend and forgot must reply the same whether or not the email exists.
 - **Protected routes** answer 401 `"Not logged in"` with no `Bearer` token and 401 `"Invalid or expired session"` for a bad or expired one. A missing `JWT_SECRET` is a 500.
 
