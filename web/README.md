@@ -28,8 +28,10 @@ droplet uses `VITE_API_URL=/api` (see `docs/deploy.md`).
 | `src/types/api.ts` | Request and response types, mirroring the contract. |
 | `src/context/AuthContext.tsx` | The logged-in user (`useAuth()`). On reload it checks the stored token with `GET /users/me`. |
 | `src/styles/tokens.css` | Design tokens from the spec, section 6. `index.css` maps them into Tailwind (`bg-primary`, `text-text-muted`, ...). |
-| `src/components/` | `TextField`, `Button`, `Banner`, `AuthLayout` (spec section 4). |
-| `src/pages/` | Log in (`/`), sign up, forgot password, check your email, the emailed-link pages `/verify-email` and `/reset-password` (#22), and placeholders for `/onboarding` (#25) and `/home` (#34). |
+| `src/components/` | `TextField`, `Button`, `Banner`, `AuthLayout`, `SegmentedControl`, `SelectField` (spec section 4), and `AppShell`, the logged-in header with the app's sections. |
+| `src/pages/` | Log in (`/`), sign up, forgot password, check your email, the emailed-link pages `/verify-email` and `/reset-password` (#22), profile setup `/onboarding` and editing `/profile` (`ProfilePage`), `/targets` (#25), and a placeholder for `/home` (#34). |
+| `src/units.ts` | Imperial/metric conversion and display. The API always stores inches and pounds. |
 | `src/validators.ts` | Client checks and messages, same rules as the server and `mobile/lib/validators.dart`. |
 
-After login, a user with no `profile` goes to `/onboarding`, everyone else to `/home`.
+After login, a user with no `profile` goes to `/onboarding`, everyone else to `/home`. Saving the profile goes
+to `/targets`; `/targets` and `/profile` send a user without a profile back to `/onboarding`.

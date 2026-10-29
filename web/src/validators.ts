@@ -26,3 +26,37 @@ export const validatePassword = (v: string) => (v.length >= 8 ? null : 'Password
 
 // The server trims and lowercases email and username before storing or comparing.
 export const normalizeLower = (v: string) => v.trim().toLowerCase();
+
+// Profile (contract "Validation"). The form shows the user's units, so the limits are given in them;
+// the metric ones are rounded inward so the converted value always passes the server's 36-96 in / 50-700 lb.
+
+// A number typed into a text field, or null when it isn't one.
+export function parseNumber(v: string) {
+  const s = v.trim();
+  return s && Number.isFinite(Number(s)) ? Number(s) : null;
+}
+
+export function validateHeight(heightIn: number | null, metric: boolean) {
+  if (heightIn !== null && heightIn >= 36 && heightIn <= 96) return null;
+  return metric ? 'Height: 92 to 243 cm' : 'Height: 3 ft to 8 ft';
+}
+
+export function validateWeight(weightLb: number | null, metric: boolean) {
+  if (weightLb !== null && weightLb >= 50 && weightLb <= 700) return null;
+  return metric ? 'Weight: 23 to 317 kg' : 'Weight: 50 to 700 lb';
+}
+
+// Same rule and messages as the server: a real YYYY-MM-DD date, age 18-119 in whole years (UTC).
+export function validateBirthDate(v: string, now = new Date()) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  const date = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  if (!date || date.toISOString().slice(0, 10) !== v) return 'Birth date is required';
+  let age = now.getUTCFullYear() - date.getUTCFullYear();
+  const month = now.getUTCMonth() - date.getUTCMonth();
+  if (month < 0 || (month === 0 && now.getUTCDate() < date.getUTCDate())) age -= 1;
+  if (age < 18) return 'Birth date: you must be 18 or older';
+  if (age > 119) return 'Birth date: check the year';
+  return null;
+}
+
+export const validateChoice = (v: string, label: string) => (v ? null : `${label}: choose one`);

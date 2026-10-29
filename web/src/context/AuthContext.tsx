@@ -7,6 +7,7 @@ interface AuthState {
   loading: boolean; // true while a stored token is being checked on first load
   login: (body: LoginBody) => Promise<User>;
   logout: () => void;
+  setUser: (user: User) => void; // after a /users/me update, which returns the new User
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -39,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, loading, login, logout, setUser }}>{children}</AuthContext.Provider>;
 }
 
 // eslint-disable-next-line react/only-export-components
