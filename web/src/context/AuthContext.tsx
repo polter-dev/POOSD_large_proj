@@ -7,6 +7,8 @@ interface AuthState {
   loading: boolean; // true while a stored token is being checked on first load
   login: (body: LoginBody) => Promise<User>;
   logout: () => void;
+  setUser: (user: User) => void; // after a /users/me update, which returns the new User
+  sessionExpired: boolean; // a request got 401 mid-session; the login page says so
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -15,6 +17,18 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(() => localStorage.getItem('token') !== null);
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  // Any 401 on a request with a token (expired or bad JWT) logs out; the route guards then show the
+  // login page. Registered before the first-load check below, which can hit it too.
+  useEffect(() => {
+    api.setSessionExpiredHandler(() => {
+      api.logout();
+      setUser(null);
+      setSessionExpired(true);
+    });
+    return () => api.setSessionExpiredHandler(null);
+  }, []);
 
   useEffect(() => {
     if (!loading) return;
@@ -31,15 +45,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(body: LoginBody) {
     const res = await api.login(body);
     setUser(res.user);
+    setSessionExpired(false);
     return res.user;
   }
 
   function logout() {
     api.logout();
     setUser(null);
+    setSessionExpired(false);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, setUser, sessionExpired }}>{children}</AuthContext.Provider>
+  );
 }
 
 // eslint-disable-next-line react/only-export-components
