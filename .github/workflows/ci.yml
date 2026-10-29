@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }} # never kill a main deploy mid-run
 
 permissions:
   contents: read
@@ -146,3 +146,21 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+  deploy:
+    needs: [changes, backend, backend-mongodb, web, mobile]
+    # skipped jobs (paths filter) are fine; failed or cancelled ones block the deploy
+    if: ${{ !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' && !contains(needs.*.result, 'failure') && !contains(needs.*.result, 'cancelled') }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Install SSH key
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
+      # the key's forced command in authorized_keys runs deploy/deploy.sh; the `true` is ignored
+      - run: ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 deploy@cop4331ruth.lol true
