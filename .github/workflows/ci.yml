@@ -163,4 +163,4 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519 && chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts && chmod 644 ~/.ssh/known_hosts
       # the key's forced command in authorized_keys runs deploy/deploy.sh; the `true` is ignored
-      - run: ssh -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 deploy@cop4331ruth.lol true
+      - run: ssh -o BatchMode=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 deploy@cop4331ruth.lol true

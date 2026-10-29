@@ -103,7 +103,7 @@ Every push to `main` deploys automatically: the `deploy` job in
 `.github/workflows/ci.yml` runs once the CI jobs pass (skipped ones are fine).
 It SSHes in as `deploy` with repo secrets `DEPLOY_SSH_KEY` (ed25519 private key)
 and `DEPLOY_KNOWN_HOSTS`. The key's line in `~deploy/.ssh/authorized_keys` forces the command:
-`command="cd /var/www/POOSD_large_proj && bash deploy/deploy.sh",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding ssh-ed25519 AAAA... gh-deploy`
+`command="cd /var/www/POOSD_large_proj && bash deploy/deploy.sh",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty ssh-ed25519 AAAA... github-actions-deploy`
 
 To rotate the key: `ssh-keygen -t ed25519 -N '' -f key`, swap the old line in
 authorized_keys for one with `key.pub`, then `gh secret set DEPLOY_SSH_KEY < key`
