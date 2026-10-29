@@ -43,6 +43,16 @@ export function parseNumber(v: string) {
   return s && Number.isFinite(Number(s)) ? Number(s) : null;
 }
 
+// The ft + in boxes on their own: the total check below can't see "5 ft 30 in" or "6 ft -5 in".
+export function validateFeetInches(ft: string, inch: string) {
+  const f = parseNumber(ft);
+  const i = inch.trim() ? parseNumber(inch) : 0;
+  if (f === null || i === null) return null; // not numbers: the total check reports it
+  if (!Number.isInteger(f) || f < 0) return 'Height: feet must be a whole number';
+  if (i < 0 || i >= 12) return 'Height: inches must be 0 to 11';
+  return null;
+}
+
 export function validateHeight(heightIn: number | null, metric: boolean) {
   if (heightIn !== null && heightIn >= 36 && heightIn <= 96) return null;
   return metric ? 'Height: 92 to 243 cm' : 'Height: 3 ft to 8 ft';

@@ -14,7 +14,7 @@ const validatePassword = (v: string) => (v ? null : 'Password is required'); // 
 // First page of the site (course requirement). Log in with an email or a username:
 // POST /auth/login takes { login, password }.
 export default function LoginPage() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
@@ -69,6 +69,7 @@ export default function LoginPage() {
         />
       )}
       {info && <Banner message={info} info />}
+      {sessionExpired && !error && !info && <Banner message="Your session expired. Log in again." info />}
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         <TextField
           label="Email or username"

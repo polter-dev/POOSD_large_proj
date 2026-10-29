@@ -6,7 +6,7 @@ import type {
   UpdateProfileBody, User,
 } from '../types/api';
 
-export { ApiError } from './client';
+export { ApiError, setSessionExpiredHandler } from './client';
 
 // One function per row of docs/api-contract.md section 3 ("Web client fn" column), plus logout.
 

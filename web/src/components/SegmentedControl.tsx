@@ -21,7 +21,8 @@ export default function SegmentedControl<T extends string>({ label, options, val
         {options.map((o) => (
           <label
             key={o.value}
-            className="flex flex-1 cursor-pointer items-center justify-center border-l border-border-input text-base font-semibold first:border-l-0 hover:bg-surface has-checked:bg-primary has-checked:text-on-primary has-focus-visible:outline-2 has-focus-visible:-outline-offset-4 has-focus-visible:outline-on-primary"
+            // Keyboard focus ring: primary on an unselected (white) segment, white inside the selected (green) one.
+            className="flex flex-1 cursor-pointer items-center justify-center border-l border-border-input text-base font-semibold first:border-l-0 hover:bg-surface has-checked:bg-primary has-checked:text-on-primary has-focus-visible:outline-2 has-focus-visible:-outline-offset-4 has-focus-visible:outline-primary has-checked:has-focus-visible:outline-on-primary"
           >
             <input
               type="radio"

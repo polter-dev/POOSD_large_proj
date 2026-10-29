@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router';
 import * as api from '../api';
 import AppShell from '../components/AppShell';
@@ -11,7 +11,9 @@ import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../errors';
 import type { ActivityLevel, Goal, Profile, Sex, Units } from '../types/api';
 import { ACTIVITY_LEVELS, CM_PER_IN, KG_PER_LB, round1 } from '../units';
-import { parseNumber, validateBirthDate, validateChoice, validateHeight, validateWeight } from '../validators';
+import {
+  parseNumber, validateBirthDate, validateChoice, validateFeetInches, validateHeight, validateWeight,
+} from '../validators';
 
 // What the inputs hold, in the units on screen. Height is ft + in for imperial, cm for metric.
 interface Form {
@@ -66,9 +68,12 @@ function weightLb(f: Form, units: Units) {
 export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
   const { user, setUser } = useAuth();
   const navigate = useNavigate();
+  const saved = user!.profile;
   const savedUnits = user!.preferences.units;
   const [units, setUnits] = useState<Units>(savedUnits);
-  const [form, setForm] = useState<Form>(() => toForm(user!.profile, savedUnits));
+  const [initial] = useState<Form>(() => toForm(saved, savedUnits));
+  const [form, setForm] = useState<Form>(initial);
+  const heightErrorId = useId();
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +81,7 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
 
   function check(f: Form): Errors {
     return {
-      height: validateHeight(heightIn(f, units), metric),
+      height: (metric ? null : validateFeetInches(f.ft, f.inch)) ?? validateHeight(heightIn(f, units), metric),
       weight: validateWeight(weightLb(f, units), metric),
       birthDate: validateBirthDate(f.birthDate),
       sex: validateChoice(f.sex, 'Sex'),
@@ -94,11 +99,22 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
 
   const blur = (key: keyof Errors) => () => setErrors((e) => ({ ...e, [key]: check(form)[key] }));
 
+  // Inches and pounds for what's on screen. A box still showing the stored value gives the stored value
+  // exactly: 130 lb shows as 59 kg, and converting 59 kg back would give 130.1.
+  function exactHeight(f: Form, u: Units) {
+    const same = u === 'metric' ? f.cm === initial.cm : f.ft === initial.ft && f.inch === initial.inch;
+    return saved && u === savedUnits && same ? saved.heightIn : heightIn(f, u);
+  }
+
+  function exactWeight(f: Form, u: Units) {
+    return saved && u === savedUnits && f.weight === initial.weight ? saved.weightLb : weightLb(f, u);
+  }
+
   // Keep what was typed when switching units: convert through inches and pounds.
   function switchUnits(next: Units) {
     if (next === units) return;
-    const h = heightIn(form, units);
-    const w = weightLb(form, units);
+    const h = exactHeight(form, units);
+    const w = exactWeight(form, units);
     setUnits(next);
     setForm((f) => ({ ...f, ...heightFields(h), weight: weightField(w, next) }));
     setErrors((e) => ({ ...e, height: null, weight: null }));
@@ -113,8 +129,8 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
     setError(null);
     try {
       let updated = await api.updateProfile({
-        heightIn: heightIn(form, units)!,
-        weightLb: weightLb(form, units)!,
+        heightIn: exactHeight(form, units)!,
+        weightLb: exactWeight(form, units)!,
         birthDate: form.birthDate,
         sex: form.sex as Sex,
         activityLevel: form.activityLevel as ActivityLevel,
@@ -164,6 +180,7 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
                   onChange={(v) => update({ cm: v }, 'height')}
                   onBlur={blur('height')}
                   invalid={!!errors.height}
+                  aria-describedby={errors.height ? heightErrorId : undefined}
                 />
               ) : (
                 <div className="grid grid-cols-2 gap-4">
@@ -176,6 +193,7 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
                     onChange={(v) => update({ ft: v }, 'height')}
                     onBlur={blur('height')}
                     invalid={!!errors.height}
+                    aria-describedby={errors.height ? heightErrorId : undefined}
                   />
                   <TextField
                     label="Height, inches"
@@ -186,10 +204,15 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
                     onChange={(v) => update({ inch: v }, 'height')}
                     onBlur={blur('height')}
                     invalid={!!errors.height}
+                    aria-describedby={errors.height ? heightErrorId : undefined}
                   />
                 </div>
               )}
-              {errors.height && <p className="text-sm text-error">{errors.height}</p>}
+              {errors.height && (
+                <p id={heightErrorId} className="text-sm text-error">
+                  {errors.height}
+                </p>
+              )}
             </fieldset>
             <TextField
               label="Weight"
