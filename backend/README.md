@@ -51,7 +51,8 @@ With the seed data loaded and `npm run dev` running (every seed password is `Pas
 
 | Try | Request | Expect |
 |---|---|---|
-| Log in | `POST /api/auth/login` `{ "email": "jane.doe@example.com", "password": "Password123!" }` | 200 `{ token, user }` |
+| Log in | `POST /api/auth/login` `{ "login": "jane.doe@example.com", "password": "Password123!" }` | 200 `{ token, user }` |
+| Log in by username | same, with `"login": "janedoe"` | 200 `{ token, user }` |
 | Unverified account | same, with `alex.kim@example.com` | 403 `"Email not verified"` |
 | Verify it | `GET /api/auth/verify-email?token=demo-verify-token` | 200; `alexkim` can now log in |
 | Reset a password | `POST /api/auth/reset-password` `{ "token": "demo-reset-token", "password": "NewPassword1" }` | 200; `chrisb` logs in with the new password |
@@ -120,8 +121,10 @@ Follow the existing routes and controllers:
   - Register has already saved the user, who can use resend-verification.
   - Resend and forgot-password must reply the same whether or not the email exists.
 - **No account probing:**
-  - Resend and forgot-password give the same message for unknown emails.
-  - Login compares against a dummy hash when no account matches, so a wrong email takes as long as a wrong password.
+  - Resend and forgot-password give the same message for unknown accounts.
+  - Login compares against a dummy hash when no account matches, so a wrong email or username takes as long as a wrong password.
+- **Login by email or username:** `login` and resend-verification take `{ login }`; a value with `@` is an email,
+  anything else a username. `{ email }` still works, so the mobile app keeps logging in until it switches.
 - **Nearby:**
   - `lat`/`lng`/`radiusMiles` must be JSON numbers; strings are rejected, not converted, because they go into the Overpass query.
   - With no `radiusMiles`, it uses the user's `preferences.searchRadius`.
@@ -138,4 +141,3 @@ Follow the existing routes and controllers:
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.
   - bcrypt ignores password bytes past 72.
-  - Short alternate names in `db/menu-data/chains.js` ("Panda", "Canes") also match unrelated places that start with them.

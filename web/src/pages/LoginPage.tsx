@@ -7,17 +7,18 @@ import Button from '../components/Button';
 import TextField from '../components/TextField';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../errors';
-import { normalizeLower, validateEmail } from '../validators';
+import { normalizeLower, validateLogin } from '../validators';
 
 const validatePassword = (v: string) => (v ? null : 'Password is required'); // the server says if it's wrong
 
-// First page of the site (course requirement). Login is by email only: POST /auth/login takes { email, password }.
+// First page of the site (course requirement). Log in with an email or a username:
+// POST /auth/login takes { login, password }.
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail] = useState('');
+  const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
-  const [errors, setErrors] = useState<{ email?: string | null; password?: string | null }>({});
+  const [errors, setErrors] = useState<{ login?: string | null; password?: string | null }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notVerified, setNotVerified] = useState(false); // 403: offer "Resend verification email"
@@ -26,15 +27,15 @@ export default function LoginPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
-    const next = { email: validateEmail(email), password: validatePassword(password) };
+    const next = { login: validateLogin(loginId), password: validatePassword(password) };
     setErrors(next);
-    if (loading || next.email || next.password) return;
+    if (loading || next.login || next.password) return;
     setLoading(true);
     setError(null);
     setInfo(null);
     setNotVerified(false);
     try {
-      const user = await login({ email: normalizeLower(email), password });
+      const user = await login({ login: normalizeLower(loginId), password });
       navigate(user.profile ? '/home' : '/onboarding', { replace: true });
     } catch (err) {
       setError(errorMessage(err));
@@ -46,7 +47,7 @@ export default function LoginPage() {
   async function resend() {
     setResending(true);
     try {
-      const res = await resendVerification({ email: normalizeLower(email) });
+      const res = await resendVerification({ login: normalizeLower(loginId) });
       setError(null);
       setNotVerified(false);
       setInfo(res.message);
@@ -70,17 +71,18 @@ export default function LoginPage() {
       {info && <Banner message={info} info />}
       <form onSubmit={submit} noValidate className="flex flex-col gap-4">
         <TextField
-          label="Email"
-          type="email"
-          autoComplete="email"
+          label="Email or username"
+          autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           lowercase
-          value={email}
+          value={loginId}
           onChange={(v) => {
-            setEmail(v);
-            if (errors.email) setErrors((x) => ({ ...x, email: validateEmail(v) }));
+            setLoginId(v);
+            if (errors.login) setErrors((x) => ({ ...x, login: validateLogin(v) }));
           }}
-          onBlur={() => setErrors((x) => ({ ...x, email: validateEmail(email) }))}
-          error={errors.email}
+          onBlur={() => setErrors((x) => ({ ...x, login: validateLogin(loginId) }))}
+          error={errors.login}
         />
         <TextField
           label="Password"
