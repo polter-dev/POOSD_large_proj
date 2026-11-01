@@ -1,0 +1,336 @@
+import 'package:flutter/material.dart';
+
+import '../models/api_models.dart';
+import '../services/api.dart';
+import '../services/location.dart';
+import '../theme.dart';
+import '../widgets/api_scope.dart';
+import '../widgets/app_parts.dart';
+import '../widgets/error_banner.dart';
+import 'picks_screen.dart';
+
+/// #35, prototype screen 07: restaurants within 5 to 20 miles (POST /restaurants/nearby), each with
+/// how many of its items fit the goal. The count is one POST /recommendations for all of them
+/// (spec, Restaurant card). Asks for location the first time it opens; the position is only used
+/// for the request, never stored (spec N4).
+class NearbyScreen extends StatefulWidget {
+  const NearbyScreen({super.key, required this.user});
+
+  final User user;
+
+  @override
+  State<NearbyScreen> createState() => _NearbyScreenState();
+}
+
+class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver {
+  late int _radius = widget.user.preferences.searchRadius;
+  LatLng? _here; // kept while the screen is open, so changing the radius doesn't locate again
+  LocationProblem? _problem;
+  List<NearbyRestaurant>? _restaurants;
+  Map<String, int>? _fits; // chainId -> items that fit; null if the count failed
+  String? _error;
+  bool _loading = true;
+  int _request = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // Back from Settings with location turned on or allowed: try again without another tap.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed &&
+        (_problem == LocationProblem.serviceOff || _problem == LocationProblem.blocked)) {
+      _load();
+    }
+  }
+
+  // A new goal or per-meal limit changes the counts.
+  @override
+  void didUpdateWidget(NearbyScreen old) {
+    super.didUpdateWidget(old);
+    if (old.user != widget.user) _load();
+  }
+
+  Future<void> _load() async {
+    final request = ++_request;
+    if (!_loading || _problem != null || _error != null) {
+      setState(() {
+        _loading = true;
+        _problem = null;
+        _error = null;
+      });
+    }
+    final api = ApiScope.of(context);
+    try {
+      var here = _here;
+      if (here == null) {
+        here = await ApiScope.locationOf(context).current();
+        if (!mounted || request != _request) return;
+        setState(() => _here = here); // the message moves on to "Finding restaurants"
+      }
+      final restaurants = await api.nearby(lat: here.lat, lng: here.lng, radiusMiles: _radius);
+      final chainIds = {for (final r in restaurants) ?r.chainId}.toList();
+      Map<String, int>? fits = {};
+      // Empty chainIds would mean every chain, so skip the call when nothing nearby has data.
+      if (chainIds.isNotEmpty) {
+        try {
+          final res = await api.recommendations(chainIds: chainIds, limit: 50);
+          for (final r in res.items) {
+            fits[r.item.chainId] = (fits[r.item.chainId] ?? 0) + 1;
+          }
+        } on ApiError {
+          fits = null; // still show the restaurants, just without counts
+        }
+      }
+      if (!mounted || request != _request) return;
+      setState(() {
+        _restaurants = restaurants;
+        _fits = fits;
+        _loading = false;
+      });
+    } on LocationException catch (e) {
+      if (mounted && request == _request) {
+        setState(() {
+          _problem = e.problem;
+          _loading = false;
+        });
+      }
+    } on ApiError catch (e) {
+      if (mounted && request == _request) {
+        setState(() {
+          _error = e.message;
+          _loading = false;
+        });
+      }
+    }
+  }
+
+  void _setRadius(int r) {
+    if (r == _radius) return;
+    setState(() => _radius = r);
+    _load();
+  }
+
+  void _open(NearbyRestaurant r) => Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => PicksScreen(user: widget.user, chainId: r.chainId, restaurantName: r.name),
+    ),
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final restaurants = _restaurants;
+    return Scaffold(
+      appBar: appBar('Nearby'),
+      body: RefreshIndicator(
+        onRefresh: _load,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(), // pull to refresh even when it all fits
+          padding: const EdgeInsets.all(AppSpace.s4),
+          children: [
+            Semantics(
+              label: 'Search radius',
+              child: Wrap(
+                spacing: AppSpace.s2,
+                runSpacing: AppSpace.s2,
+                children: [
+                  for (final r in searchRadii)
+                    _RadiusChip(miles: r, selected: r == _radius, onTap: () => _setRadius(r)),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppSpace.s4),
+            if (_problem != null)
+              _LocationHelp(
+                problem: _problem!,
+                onRetry: _load,
+                onSettings: () => ApiScope.locationOf(context).openSettings(_problem!),
+              )
+            else if (_error != null)
+              ErrorBanner(message: _error!, actionLabel: 'Try again', onAction: _load)
+            else if (_loading)
+              StatusMessage(
+                message: _here == null
+                    ? 'Finding where you are…'
+                    : 'Finding restaurants near you… This can take up to a minute.',
+                loading: true,
+              )
+            else if (restaurants!.isEmpty)
+              StatusMessage(
+                title: 'No restaurants found',
+                message: _radius < searchRadii.last
+                    ? 'Nothing within $_radius mi. Try a bigger radius.'
+                    : 'Nothing within $_radius mi.',
+              )
+            else
+              for (final (i, r) in restaurants.indexed) ...[
+                if (i > 0) const SizedBox(height: AppSpace.s3),
+                _RestaurantCard(
+                  restaurant: r,
+                  fits: r.chainId == null || _fits == null ? null : _fits![r.chainId] ?? 0,
+                  onTap: _open,
+                ),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RadiusChip extends StatelessWidget {
+  const _RadiusChip({required this.miles, required this.selected, required this.onTap});
+
+  final int miles;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      selected: selected,
+      inMutuallyExclusiveGroup: true,
+      button: true,
+      child: Material(
+        color: selected ? AppColors.primary : AppColors.bg,
+        shape: StadiumBorder(side: BorderSide(color: selected ? AppColors.primary : AppColors.borderInput)),
+        child: InkWell(
+          customBorder: const StadiumBorder(),
+          onTap: onTap,
+          // No alignment here: an aligned Container fills the Wrap's whole width.
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.s4, vertical: 10),
+            child: Text(
+              '$miles mi',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+                color: selected ? AppColors.onPrimary : AppColors.text,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Restaurant card (spec): name, distance, address when there is one, and the fit badge. Only cards
+/// with something that fits open Best picks; "No nutrition data" isn't tappable.
+class _RestaurantCard extends StatelessWidget {
+  const _RestaurantCard({required this.restaurant, required this.fits, required this.onTap});
+
+  final NearbyRestaurant restaurant;
+  final int? fits; // null: no nutrition data, or the count failed
+  final ValueChanged<NearbyRestaurant> onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = restaurant;
+    final hasData = r.chainId != null;
+    final tappable = hasData && (fits == null || fits! > 0);
+    final Widget badge;
+    if (!hasData) {
+      badge = const Pill(text: 'No nutrition data', bg: AppColors.surface, fg: AppColors.textMuted);
+    } else if (fits == null) {
+      badge = const SizedBox.shrink();
+    } else if (fits == 0) {
+      badge = const Pill(text: 'Nothing fits your goal', bg: AppColors.surface, fg: AppColors.textMuted);
+    } else {
+      badge = Pill(
+        text: '$fits ${fits == 1 ? 'option fits' : 'options fit'} your goal',
+        icon: Icons.check,
+        bg: AppColors.fitGreatBg,
+        fg: AppColors.fitGreatText,
+      );
+    }
+    return AppCard(
+      onTap: tappable ? () => onTap(r) : null,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: Text(r.name, style: Theme.of(context).textTheme.titleLarge)),
+              const SizedBox(width: AppSpace.s3),
+              Text(
+                '${r.distanceMiles.toStringAsFixed(1)} mi',
+                style: const TextStyle(fontSize: 14, color: AppColors.textMuted),
+              ),
+            ],
+          ),
+          if (r.address != null) ...[
+            const SizedBox(height: AppSpace.s2),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(top: 2),
+                  child: Icon(Icons.place_outlined, size: 16, color: AppColors.textMuted),
+                ),
+                const SizedBox(width: AppSpace.s2),
+                Expanded(
+                  child: Text(r.address!, style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: AppSpace.s3),
+          badge,
+        ],
+      ),
+    );
+  }
+}
+
+/// What to do when there's no location, one message per [LocationProblem].
+class _LocationHelp extends StatelessWidget {
+  const _LocationHelp({required this.problem, required this.onRetry, required this.onSettings});
+
+  final LocationProblem problem;
+  final VoidCallback onRetry;
+  final VoidCallback onSettings;
+
+  @override
+  Widget build(BuildContext context) {
+    final (title, message) = switch (problem) {
+      LocationProblem.serviceOff => ('Location is off', 'Turn on location to find restaurants near you.'),
+      LocationProblem.denied => (
+        'Allow location',
+        'Menu Macro Fitter uses your location only to find restaurants near you. It isn\'t saved.',
+      ),
+      LocationProblem.blocked => (
+        'Location is blocked',
+        'Allow location for Menu Macro Fitter in Settings, then come back.',
+      ),
+      LocationProblem.unavailable => ("Can't find your location", 'Check that location is on, then try again.'),
+    };
+    final settings = switch (problem) {
+      LocationProblem.serviceOff => 'Open location settings',
+      LocationProblem.blocked => 'Open settings',
+      _ => null,
+    };
+    return StatusMessage(
+      title: title,
+      message: '$message Best picks and Search work without it.',
+      actions: [
+        if (settings != null) FilledButton(onPressed: onSettings, child: Text(settings)),
+        if (problem == LocationProblem.denied)
+          FilledButton(onPressed: onRetry, child: const Text('Allow location'))
+        else
+          OutlinedButton(onPressed: onRetry, child: const Text('Try again')),
+      ],
+    );
+  }
+}

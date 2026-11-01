@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Calls the API. Without this, release builds can't reach the server. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Nearby restaurants (#35). Approximate is enough for a 5-20 mile search, and nothing about it is stored (spec N4). -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
     <application
         android:label="Menu Macro Fitter"
         android:name="${applicationName}"

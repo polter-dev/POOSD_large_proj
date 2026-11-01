@@ -6,8 +6,8 @@ import '../validators.dart';
 import '../widgets/api_scope.dart';
 import '../widgets/error_banner.dart';
 import '../widgets/form_parts.dart';
+import 'app_shell.dart';
 import 'forgot_password_screen.dart';
-import 'home_screen.dart';
 import 'sign_up_screen.dart';
 
 /// First screen of the app (course requirement). POST /auth/login takes { login, password }, where login is an
@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       final res = await ApiScope.of(context).login(login: normalizeLower(_login.text), password: _password.text);
       if (!mounted) return;
-      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => HomeScreen(user: res.user)));
+      Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => homeFor(res.user)));
     } on ApiError catch (e) {
       if (!mounted) return;
       setState(() {

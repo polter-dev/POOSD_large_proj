@@ -107,7 +107,7 @@ void main() {
     expect(find.text('If that email exists, a verification link was sent'), findsOneWidget);
   });
 
-  testWidgets('success goes to home; a null profile points at profile setup', (tester) async {
+  testWidgets('success with no profile yet goes to profile setup', (tester) async {
     await pumpApp(
       tester,
       (r) async => json({
@@ -130,7 +130,7 @@ void main() {
       }),
     );
     await fillAndSubmit(tester, 'sam.patel@example.com');
-    expect(find.text('Hi, Sam'), findsOneWidget);
-    expect(find.textContaining('set up your profile'), findsOneWidget);
+    expect(find.text('Set up your profile'), findsOneWidget);
+    expect(find.text('See my targets'), findsOneWidget);
   });
 }

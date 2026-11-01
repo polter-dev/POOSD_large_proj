@@ -122,7 +122,13 @@ class Api {
   // Restaurants
   Future<List<NearbyRestaurant>> nearby({required double lat, required double lng, int? radiusMiles}) async {
     final res = _map(
-      await _c.request('POST', '/restaurants/nearby', {'lat': lat, 'lng': lng, 'radiusMiles': ?radiusMiles}),
+      // The server asks OpenStreetMap's Overpass API, which can take over 30 s (its own limit is 25 s plus
+      // queueing), so wait longer than the usual 15 s.
+      await _c.request('POST', '/restaurants/nearby', {
+        'lat': lat,
+        'lng': lng,
+        'radiusMiles': ?radiusMiles,
+      }, const Duration(seconds: 60)),
     );
     return [for (final r in res['restaurants'] as List) NearbyRestaurant.fromJson(_map(r))];
   }
