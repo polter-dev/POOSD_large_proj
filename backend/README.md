@@ -22,7 +22,7 @@ npm run dev             # restarts on save; check http://localhost:5050/api/heal
 | `CLIENT_URL` | yes | Web origin used to build the verify and reset links. |
 | `SENDGRID_API_KEY`, `EMAIL_FROM` | server only | Leave both empty locally: emails are not sent, the link is printed to the console instead. |
 | `PORT` | no | Defaults to `5050`. |
-| `OVERPASS_URL` | no | Defaults to the public Overpass server (nearby search, no key). |
+| `OVERPASS_URL` | no | First Overpass server tried for nearby search (no key); defaults to overpass-api.de. If it fails, the public mirrors overpass.kumi.systems and overpass.private.coffee are tried before a 502. Results are cached in memory for 10 minutes. |
 
 ## Test it
 
