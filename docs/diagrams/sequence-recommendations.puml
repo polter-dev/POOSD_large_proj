@@ -1,0 +1,51 @@
+@startuml sequence-recommendations
+' Menu Macro Fitter -- nearby restaurants, then recommendations (issue #37)
+' Call order from backend/src/controllers/restaurants.js and recommendations.js. The student is already logged in.
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam sequenceLifeLineBorderColor #999999
+skinparam sequenceParticipantBackgroundColor #F5F9FF
+skinparam sequenceParticipantBorderColor #4A6FA5
+skinparam noteBackgroundColor #FFFBE6
+skinparam noteBorderColor #C9A227
+autonumber
+
+title Nearby Restaurants, Then Recommendations
+
+participant "Client\n(web / mobile)" as Client
+participant API
+database MongoDB
+participant "Overpass\n(OpenStreetMap)" as Overpass
+
+== Find nearby restaurants ==
+Client -> API : POST /api/restaurants/nearby\n{ lat, lng, radiusMiles? } + Bearer JWT
+opt radiusMiles omitted
+  API -> MongoDB : read user's saved searchRadius
+end
+API -> MongoDB : read all chain names
+API -> Overpass : restaurants within radius\nwhose name contains a chain name
+alt Overpass fails
+  API --> Client : 502 "Places lookup failed"
+else places found
+  Overpass --> API : places (name, address, location)
+  API -> API : sort by distance; match each\nplace name to a chain (or null)
+  API --> Client : 200 { restaurants: [ ..., chainId ] }
+end
+note right of Client : the location is never stored
+
+== Get recommendations ==
+Client -> API : POST /api/recommendations\n{ chainIds, mode?, mealCalorieLimit? } + Bearer JWT
+opt mode or mealCalorieLimit omitted
+  API -> MongoDB : read user's profile and preferences
+  API -> API : per-meal limit = saved limit,\nelse daily target / 3
+end
+API -> MongoDB : menu items at those chains,\n300 kcal to per-meal limit
+API -> API : score = protein (or carb) grams\nper 100 kcal; sort; keep top 10
+API --> Client : 200 { mode, mealCalorieLimit, items: [ ..., score ] }
+Client -> Client : top third by score = "Great fit",\nthe rest = "OK"
+
+@enduml

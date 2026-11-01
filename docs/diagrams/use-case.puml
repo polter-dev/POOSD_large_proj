@@ -1,0 +1,58 @@
+@startuml use-case
+' Menu Macro Fitter -- use case diagram (issue #37)
+' Protected use cases come from the requireAuth routes in backend/src/routes; menu search is public.
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam actorBorderColor #333333
+skinparam usecaseBackgroundColor #F5F9FF
+skinparam usecaseBorderColor #4A6FA5
+skinparam rectangleBorderColor #888888
+left to right direction
+
+title Menu Macro Fitter -- Use Cases
+
+actor "Student\n(web or mobile)" as Student
+
+rectangle "Menu Macro Fitter" {
+  usecase "Search menu items" as Search
+  usecase "Set up profile" as Profile
+  usecase "View calorie targets" as Targets
+  usecase "Manage favorites" as Favs
+  usecase "Get recommendations\n(high-protein / high-carb)" as Recs
+  usecase "Find nearby restaurants" as Nearby
+  usecase "Log in" as Login
+  usecase "Register" as Register
+  usecase "Verify email" as Verify
+  usecase "Reset password" as Reset
+}
+
+actor "Overpass /\nOpenStreetMap" as Overpass <<system>>
+actor "SendGrid\n(email)" as SendGrid <<system>>
+
+Student --> Search
+Student --> Profile
+Student --> Targets
+Student --> Favs
+Student --> Recs
+Student --> Nearby
+Student --> Register
+Student --> Verify
+Student --> Reset
+
+' Every protected endpoint needs the JWT that login returns, so the student reaches
+' "Log in" through these use cases (no separate Student -- Log in line, to keep it readable).
+Profile ..> Login : <<include>>
+Targets ..> Login : <<include>>
+Favs ..> Login : <<include>>
+Recs ..> Login : <<include>>
+Nearby ..> Login : <<include>>
+
+Nearby --> Overpass
+Register --> SendGrid
+Reset --> SendGrid
+
+@enduml

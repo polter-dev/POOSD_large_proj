@@ -1,0 +1,57 @@
+@startuml sequence-auth
+' Menu Macro Fitter -- register, verify email, log in (issue #37)
+' Endpoints, bodies and status codes from docs/api-contract.md "Auth" and backend/src/controllers/auth.js.
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam sequenceLifeLineBorderColor #999999
+skinparam sequenceParticipantBackgroundColor #F5F9FF
+skinparam sequenceParticipantBorderColor #4A6FA5
+skinparam noteBackgroundColor #FFFBE6
+skinparam noteBorderColor #C9A227
+autonumber
+
+title Register, Verify Email, Log In
+
+participant "Client\n(web / mobile)" as Client
+participant API
+database MongoDB
+participant SendGrid
+
+== Register ==
+Client -> API : POST /api/auth/register\n{ firstName, lastName, username, email, password }
+API -> MongoDB : insert user (isVerified: false,\nhashed password, hashed token)
+alt email or username already taken
+  API --> Client : 409 "Email already registered"\nor "Username already taken"
+else new account
+  API -> SendGrid : send "Verify your email" link
+  note right of SendGrid : link: /verify-email?token=...\nexpires in 24 hours
+  API --> Client : 201 "Verification email sent"
+end
+
+== Student clicks the link in the email ==
+Client -> API : GET /api/auth/verify-email?token=...
+API -> MongoDB : find user by token hash, not expired;\nset isVerified: true, clear token
+alt token found
+  API --> Client : 200 "Email verified"
+else invalid or expired
+  API --> Client : 400 "Invalid or expired token"
+end
+
+== Log in ==
+Client -> API : POST /api/auth/login\n{ login (email or username), password }
+API -> MongoDB : find user by email or username
+API -> API : bcrypt compare password
+alt wrong login or password
+  API --> Client : 401 "Invalid email/username or password"
+else correct, but not verified
+  API --> Client : 403 "Email not verified"
+else correct and verified
+  API --> Client : 200 { token: JWT, user }
+  note right of Client : JWT lasts 7 days; sent as\nAuthorization: Bearer <JWT>
+end
+
+@enduml

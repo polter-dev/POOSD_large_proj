@@ -1,0 +1,38 @@
+@startuml activity-recommendations
+' Menu Macro Fitter -- how POST /recommendations picks and ranks items (issue #37)
+' Rules from docs/api-contract.md "Recommendations", backend/src/services/recommendations.js
+' and the Fit pill rule in docs/design-spec.md (applied by the client).
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam activityBackgroundColor #F5F9FF
+skinparam activityBorderColor #4A6FA5
+skinparam activityDiamondBackgroundColor #FFFBE6
+skinparam activityDiamondBorderColor #C9A227
+
+title How Recommendations Are Ranked
+
+start
+:Student asks for recommendations;
+if (Request gives a per-meal limit?) then (yes)
+elseif (Saved limit or profile?) then (yes)
+  :Limit = saved limit,\nelse daily calorie target / 3;
+else (no)
+  :400 "Set your profile first";
+  stop
+endif
+if (Mode (request, else saved)?) then (protein)
+  :Rank by protein;
+else (carb)
+  :Rank by carbs;
+endif
+:Keep items at the chosen restaurants\nwith 300 kcal <= calories <= limit\nand a known protein/carb value;
+:Score = grams per 100 kcal;
+:Sort best score first, return top 10;
+:Client: top third = "Great fit", rest = "OK";
+stop
+
+@enduml
