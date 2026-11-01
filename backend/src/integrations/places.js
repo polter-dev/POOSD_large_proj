@@ -3,8 +3,8 @@ const METERS_PER_MILE = 1609.344;
 // Tried in order after OVERPASS_URL; the public servers are often overloaded, so one failing is routine.
 const MIRRORS = [
   "https://overpass-api.de/api/interpreter",
+  "https://overpass.openstreetmap.fr/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.private.coffee/api/interpreter",
 ];
 // 3 attempts x 15 s keeps the worst case near 45 s, under the mobile client's 60 s limit.
 const ATTEMPT_TIMEOUT_MS = 15000;
