@@ -76,6 +76,19 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  /// Sign up and Forgot password sit on top of this screen and come back to it ("Back to log in"),
+  /// so drop the old attempt's banner and password: they're about a different account or an old password.
+  Future<void> _open(Widget screen) async {
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
+    if (!mounted) return;
+    _password.clear();
+    setState(() {
+      _error = null;
+      _info = null;
+      _notVerified = false;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return AuthScaffold(
@@ -123,8 +136,7 @@ class _LoginScreenState extends State<LoginScreen> {
           child: TextButton(
             // No side padding, so the link lines up with the fields above it.
             style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: const Size(0, 44)),
-            onPressed: () =>
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ForgotPasswordScreen())),
+            onPressed: () => _open(const ForgotPasswordScreen()),
             child: const Text('Forgot password?'),
           ),
         ),
@@ -132,10 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text('No account?', style: TextStyle(fontSize: 14, color: AppColors.textMuted)),
-            TextButton(
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const SignUpScreen())),
-              child: const Text('Sign up'),
-            ),
+            TextButton(onPressed: () => _open(const SignUpScreen()), child: const Text('Sign up')),
           ],
         ),
       ],

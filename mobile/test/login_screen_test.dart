@@ -59,6 +59,19 @@ void main() {
     expect(find.text('Resend verification email'), findsNothing);
   });
 
+  testWidgets('coming back from Sign up clears the old error and password', (tester) async {
+    await pumpApp(tester, (r) async => json({'error': 'Invalid email or password'}, 401));
+    await fillAndSubmit(tester, 'jane.doe@example.com');
+    expect(find.text('Invalid email or password'), findsOneWidget);
+
+    await tester.tap(find.text('Sign up'));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(find.text('Invalid email or password'), findsNothing);
+    expect(tester.widget<EditableText>(find.byType(EditableText).at(1)).controller.text, isEmpty);
+  });
+
   testWidgets('a 403 that is not from the API (empty body) shows no Resend', (tester) async {
     // Seen for real: macOS AirPlay Receiver answers on port 5000 with an empty 403.
     await pumpApp(tester, (r) async => http.Response('', 403));
