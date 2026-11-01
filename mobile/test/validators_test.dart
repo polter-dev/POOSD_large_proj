@@ -18,6 +18,14 @@ void main() {
     expect(validateEmail('${'a' * 250}@x.co'), isNotNull); // over 254
   });
 
+  test('login takes an email or a username, told apart by "@"', () {
+    expect(validateLogin(' Jane.Doe@Example.com '), isNull);
+    expect(validateLogin('JaneDoe'), isNull);
+    expect(validateLogin(''), 'Email or username is required');
+    expect(validateLogin('jane@'), 'Email: enter a valid address');
+    expect(validateLogin('jd'), 'Username: 3 to 30 letters, numbers, _ or .');
+  });
+
   test('password needs 8 characters', () {
     expect(validatePassword('Password'), isNull);
     expect(validatePassword('Passwor'), isNotNull);

@@ -22,6 +22,13 @@ String? validateEmail(String? v) {
   return _email.hasMatch(s) && s.length <= 254 ? null : 'Email: enter a valid address';
 }
 
+/// Login takes either. Usernames can't contain "@", so an "@" means it's an email (same rule as the server).
+String? validateLogin(String? v) {
+  final s = normalizeLower(v);
+  if (s.isEmpty) return 'Email or username is required';
+  return s.contains('@') ? validateEmail(s) : validateUsername(s);
+}
+
 String? validatePassword(String? v) => (v ?? '').length >= 8 ? null : 'Password: at least 8 characters';
 
 /// The server trims and lowercases email and username before storing or comparing.
