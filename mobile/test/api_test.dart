@@ -47,10 +47,10 @@ void main() {
       (r) async => r.url.path.endsWith('/auth/login') ? json({'token': 'jwt-123', 'user': janeJson}) : json(janeJson),
     );
 
-    final res = await api.login(email: 'jane.doe@example.com', password: 'Password123!');
+    final res = await api.login(login: 'jane.doe@example.com', password: 'Password123!');
     expect(res.user.username, 'janedoe');
     expect(tokens.token, 'jwt-123');
-    expect(jsonDecode(sent[0].body), {'email': 'jane.doe@example.com', 'password': 'Password123!'});
+    expect(jsonDecode(sent[0].body), {'login': 'jane.doe@example.com', 'password': 'Password123!'});
     expect(sent[0].headers['Content-Type'], startsWith('application/json'));
     expect(sent[0].headers.containsKey('Authorization'), isFalse);
 
@@ -76,7 +76,7 @@ void main() {
   test("server errors become ApiError with the server's message", () async {
     final api = apiWith((r) async => json({'error': 'Email not verified'}, 403));
     await expectLater(
-      api.login(email: 'alex.kim@example.com', password: 'Password123!'),
+      api.login(login: 'alex.kim@example.com', password: 'Password123!'),
       throwsA(
         isA<ApiError>()
             .having((e) => e.status, 'status', 403)

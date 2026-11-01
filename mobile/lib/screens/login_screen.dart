@@ -10,7 +10,8 @@ import 'forgot_password_screen.dart';
 import 'home_screen.dart';
 import 'sign_up_screen.dart';
 
-/// First screen of the app (course requirement). Login is by email only: POST /auth/login takes { email, password }.
+/// First screen of the app (course requirement). POST /auth/login takes { login, password }, where login is an
+/// email or a username (#87), same as web LoginPage.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -20,7 +21,7 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _form = GlobalKey<FormState>();
-  final _email = TextEditingController();
+  final _login = TextEditingController();
   final _password = TextEditingController();
   bool _loading = false;
   String? _error;
@@ -30,7 +31,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
-    _email.dispose();
+    _login.dispose();
     _password.dispose();
     super.dispose();
   }
@@ -44,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _notVerified = false;
     });
     try {
-      final res = await ApiScope.of(context).login(email: normalizeLower(_email.text), password: _password.text);
+      final res = await ApiScope.of(context).login(login: normalizeLower(_login.text), password: _password.text);
       if (!mounted) return;
       Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => HomeScreen(user: res.user)));
     } on ApiError catch (e) {
@@ -62,7 +63,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_resending) return; // ignore double taps
     setState(() => _resending = true);
     try {
-      final msg = await ApiScope.of(context).resendVerification(normalizeLower(_email.text));
+      final msg = await ApiScope.of(context).resendVerification(normalizeLower(_login.text));
       if (!mounted) return;
       setState(() {
         _error = null;
@@ -108,11 +109,11 @@ class _LoginScreenState extends State<LoginScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 LabeledField(
-                  label: 'Email',
-                  controller: _email,
-                  validator: validateEmail,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
+                  label: 'Email or username',
+                  controller: _login,
+                  validator: validateLogin,
+                  keyboardType: TextInputType.emailAddress, // has "@" and no autocorrect, fine for usernames too
+                  autofillHints: const [AutofillHints.username, AutofillHints.email],
                   lowercase: true,
                 ),
                 const SizedBox(height: AppSpace.s4),

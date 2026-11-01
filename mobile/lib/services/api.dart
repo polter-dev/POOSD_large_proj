@@ -30,8 +30,9 @@ class Api {
     }),
   );
 
-  Future<LoginResponse> login({required String email, required String password}) async {
-    final res = _map(await _c.request('POST', '/auth/login', {'email': email, 'password': password}));
+  /// [login] is an email or a username (#87): the server looks it up as an email when it has an "@".
+  Future<LoginResponse> login({required String login, required String password}) async {
+    final res = _map(await _c.request('POST', '/auth/login', {'login': login, 'password': password}));
     final token = res['token'] as String;
     await _c.tokens.write(token);
     return LoginResponse(token: token, user: User.fromJson(_map(res['user'])));
@@ -44,8 +45,9 @@ class Api {
   Future<String> verifyEmail(String token) async =>
       _message(await _c.request('GET', '/auth/verify-email?token=${Uri.encodeQueryComponent(token)}'));
 
-  Future<String> resendVerification(String email) async =>
-      _message(await _c.request('POST', '/auth/resend-verification', {'email': email}));
+  /// [login] is an email or a username; the link goes to the account's email either way.
+  Future<String> resendVerification(String login) async =>
+      _message(await _c.request('POST', '/auth/resend-verification', {'login': login}));
 
   Future<String> forgotPassword(String email) async =>
       _message(await _c.request('POST', '/auth/forgot-password', {'email': email}));

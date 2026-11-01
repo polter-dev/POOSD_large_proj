@@ -38,18 +38,28 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('opens on Log in with an Email field, not Username', (tester) async {
+  testWidgets('opens on Log in with one Email or username field', (tester) async {
     await pumpApp(tester, (r) async => json({}));
     expect(find.text('Log in'), findsWidgets);
-    expect(find.text('Email'), findsOneWidget);
-    expect(find.text('Username'), findsNothing);
+    expect(find.text('Email or username'), findsOneWidget);
   });
 
-  testWidgets('bad email is caught before any request', (tester) async {
+  testWidgets('a bad email or username is caught before any request', (tester) async {
     final sent = await pumpApp(tester, (r) async => json({}));
-    await fillAndSubmit(tester, 'jane@');
+    await fillAndSubmit(tester, 'jane@'); // has "@": checked as an email
     expect(find.text('Email: enter a valid address'), findsOneWidget);
+    await fillAndSubmit(tester, 'jd'); // no "@": checked as a username
+    expect(find.text('Username: 3 to 30 letters, numbers, _ or .'), findsOneWidget);
+    await fillAndSubmit(tester, '');
+    expect(find.text('Email or username is required'), findsOneWidget);
     expect(sent, isEmpty);
+  });
+
+  testWidgets('logs in with a username, sent as login', (tester) async {
+    final sent = await pumpApp(tester, (r) async => json({'error': 'Invalid email/username or password'}, 401));
+    await fillAndSubmit(tester, 'JaneDoe');
+    expect(jsonDecode(sent.single.body), {'login': 'janedoe', 'password': 'Password123!'});
+    expect(find.text('Invalid email/username or password'), findsOneWidget);
   });
 
   testWidgets('401 shows the server message', (tester) async {
@@ -93,7 +103,7 @@ void main() {
     await tester.tap(find.text('Resend verification email'));
     await tester.pumpAndSettle();
     expect(sent.last.url.path, '/api/auth/resend-verification');
-    expect(jsonDecode(sent.last.body), {'email': 'alex.kim@example.com'});
+    expect(jsonDecode(sent.last.body), {'login': 'alex.kim@example.com'});
     expect(find.text('If that email exists, a verification link was sent'), findsOneWidget);
   });
 
