@@ -42,9 +42,12 @@ Client -> API : POST /api/recommendations\n{ chainIds, mode?, mealCalorieLimit? 
 opt mode or mealCalorieLimit omitted
   API -> MongoDB : read user's profile and preferences
   API -> API : per-meal limit = saved limit,\nelse daily target / 3
+  break no limit sent, no saved limit and no profile
+    API --> Client : 400 "Set your profile first"
+  end
 end
-API -> MongoDB : menu items at those chains,\n300 kcal to per-meal limit
-API -> API : score = protein (or carb) grams\nper 100 kcal; sort; keep top 10
+API -> MongoDB : menu items at those chains,\n300 kcal to per-meal limit,\nnot estimated (unless includeEstimates)
+API -> API : score = protein (or carb) grams\nper 100 kcal; sort; keep top 10 (default)
 API --> Client : 200 { mode, mealCalorieLimit, items: [ ..., score ] }
 Client -> Client : top third by score = "Great fit",\nthe rest = "OK"
 

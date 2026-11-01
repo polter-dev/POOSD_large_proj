@@ -29,9 +29,9 @@ if (Mode (request, else saved)?) then (protein)
 else (carb)
   :Rank by carbs;
 endif
-:Keep items at the chosen restaurants\nwith 300 kcal <= calories <= limit\nand a known protein/carb value;
+:Keep items at the chosen restaurants\nwith 300 kcal <= calories <= limit\nand a known protein/carb value\nand not estimated (unless includeEstimates);
 :Score = grams per 100 kcal;
-:Sort best score first, return top 10;
+:Sort best score first, return top 10 (default);
 :Client: top third = "Great fit", rest = "OK";
 stop
 
