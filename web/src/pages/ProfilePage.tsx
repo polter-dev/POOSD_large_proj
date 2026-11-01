@@ -27,6 +27,12 @@ interface Form {
   goal: Goal | '';
 }
 
+interface Shown {
+  heightIn: number | null;
+  weightLb: number | null;
+  boxes: Pick<Form, 'ft' | 'inch' | 'cm' | 'weight'>;
+}
+
 type Errors = Partial<Record<'height' | 'weight' | 'birthDate' | 'sex' | 'activityLevel' | 'goal', string | null>>;
 
 const EMPTY: Form = { ft: '', inch: '', cm: '', weight: '', birthDate: '', sex: '', activityLevel: '', goal: '' };
@@ -71,8 +77,15 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
   const saved = user!.profile;
   const savedUnits = user!.preferences.units;
   const [units, setUnits] = useState<Units>(savedUnits);
-  const [initial] = useState<Form>(() => toForm(saved, savedUnits));
-  const [form, setForm] = useState<Form>(initial);
+  const [form, setForm] = useState<Form>(() => toForm(saved, savedUnits));
+  // The inches and pounds behind what the boxes show, and the text they were shown as. Set when the page
+  // opens and on every units switch, so a box nobody has typed in gives its number back exactly:
+  // 160 lb shows as 72.6 kg, and 72.6 kg would be 160.1 lb.
+  const [shown, setShown] = useState<Shown>(() => ({
+    heightIn: saved?.heightIn ?? null,
+    weightLb: saved?.weightLb ?? null,
+    boxes: form,
+  }));
   const heightErrorId = useId();
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
@@ -99,15 +112,15 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
 
   const blur = (key: keyof Errors) => () => setErrors((e) => ({ ...e, [key]: check(form)[key] }));
 
-  // Inches and pounds for what's on screen. A box still showing the stored value gives the stored value
-  // exactly: 130 lb shows as 59 kg, and converting 59 kg back would give 130.1.
+  // Inches and pounds for what's on screen (see `shown`).
   function exactHeight(f: Form, u: Units) {
-    const same = u === 'metric' ? f.cm === initial.cm : f.ft === initial.ft && f.inch === initial.inch;
-    return saved && u === savedUnits && same ? saved.heightIn : heightIn(f, u);
+    const b = shown.boxes;
+    const same = u === 'metric' ? f.cm === b.cm : f.ft === b.ft && f.inch === b.inch;
+    return shown.heightIn !== null && same ? shown.heightIn : heightIn(f, u);
   }
 
   function exactWeight(f: Form, u: Units) {
-    return saved && u === savedUnits && f.weight === initial.weight ? saved.weightLb : weightLb(f, u);
+    return shown.weightLb !== null && f.weight === shown.boxes.weight ? shown.weightLb : weightLb(f, u);
   }
 
   // Keep what was typed when switching units: convert through inches and pounds.
@@ -115,8 +128,10 @@ export default function ProfilePage({ mode }: { mode: 'setup' | 'edit' }) {
     if (next === units) return;
     const h = exactHeight(form, units);
     const w = exactWeight(form, units);
+    const boxes = { ...heightFields(h), weight: weightField(w, next) };
     setUnits(next);
-    setForm((f) => ({ ...f, ...heightFields(h), weight: weightField(w, next) }));
+    setForm((f) => ({ ...f, ...boxes }));
+    setShown({ heightIn: h, weightLb: w, boxes });
     setErrors((e) => ({ ...e, height: null, weight: null }));
   }
 
