@@ -36,9 +36,20 @@ CH="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
 Use `--window-size=412,917` and `?frame=mobile-...` for mobile. Frame keys: `login`, `loginError`, `signup`,
 `checkEmail`, `profile`, `targets`, `nearby`, `picks`.
 
+## Figma
+
+The Figma file is **Menu Macro Fitter**, view access for anyone with the link:
+
+- Design file: https://www.figma.com/design/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter
+- Clickable prototype, web flow: https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=6-152&starting-point-node-id=6%3A152&scaling=min-zoom
+- Clickable prototype, mobile flow: https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=6-868&starting-point-node-id=6%3A868&scaling=min-zoom
+
+It has all 16 frames as editable layers (`Web / 01 Log in` ... `Mobile / 08 Best picks`), the links in the table
+below, and a **Web** and a **Mobile** flow, both starting at Log in.
+
 ## Getting it into Figma
 
-The rubric asks for Figma prototypes. The free **html.to.design** plugin turns `prototype.html` into
+How the file above was made, for redoing it after the screens change. The rubric asks for Figma prototypes. The free **html.to.design** plugin turns `prototype.html` into
 editable Figma frames (real text, shapes and auto layout, not screenshots):
 
 1. In Chrome, install the **html.to.design** extension. In its extension settings, turn on
@@ -71,4 +82,4 @@ Do it once for web and once for mobile, and set **Log in** as the flow's startin
 | Any app screen | Nearby / Best picks / Profile tab | That screen |
 | Best picks (mobile) | Back arrow | Restaurants near you |
 
-Press **Present** to click through it. Share the file (view access) and add the link here once it exists.
+Press **Present** to click through it.
