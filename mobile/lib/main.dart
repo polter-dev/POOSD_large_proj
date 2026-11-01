@@ -1,23 +1,26 @@
 import 'package:flutter/material.dart';
 
 import 'models/api_models.dart';
-import 'screens/home_screen.dart';
+import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api.dart';
+import 'services/location.dart';
 import 'theme.dart';
 import 'widgets/api_scope.dart';
 
 void main() => runApp(MenuMacroFitterApp(api: Api()));
 
 class MenuMacroFitterApp extends StatelessWidget {
-  const MenuMacroFitterApp({super.key, required this.api});
+  const MenuMacroFitterApp({super.key, required this.api, this.location = const DeviceLocation()});
 
   final Api api;
+  final LocationSource location;
 
   @override
   Widget build(BuildContext context) {
     return ApiScope(
       api: api,
+      location: location,
       child: MaterialApp(
         title: 'Menu Macro Fitter',
         debugShowCheckedModeBanner: false,
@@ -59,7 +62,7 @@ class _StartState extends State<_Start> {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
         }
         final user = snap.data;
-        return user == null ? const LoginScreen() : HomeScreen(user: user);
+        return user == null ? const LoginScreen() : homeFor(user);
       },
     );
   }
