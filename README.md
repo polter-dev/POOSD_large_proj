@@ -16,7 +16,7 @@ mobile client. Calorie targets are general estimates, not medical advice.
 
 | Folder | What lives there | Small-project equivalent |
 |---|---|---|
-| `backend/` | Express + Node REST API, Mongoose models, JWT auth, email (SendGrid/NodeMailer) | `API/` |
+| `backend/` | Express + Node REST API, Mongoose models, JWT auth, email (SendGrid) | `API/` |
 | `backend/src/services/` | Our own logic: calorie calculation and menu ranking (unit tested) | — (new) |
 | `backend/src/integrations/` | Maps/places API client for the nearby-restaurant search | — (new) |
 | `backend/db/` | Seed script and example queries | `API/sql/` |
@@ -27,15 +27,24 @@ mobile client. Calorie targets are general estimates, not medical advice.
 
 ## Requirements checklist
 
-- [ ] Login/Register is the first screen on web and mobile
-- [ ] Email verification before first login + password reset
-- [ ] JWT on every protected route
-- [ ] Server-side search API with partial matching
-- [ ] Web client uses async (AJAX) API calls, written in TypeScript + React
-- [ ] Flutter mobile app with the same design as the web app
-- [ ] Deployed (e.g. Digital Ocean) and reached by **domain name**, not an IP
-- [ ] SwaggerHub demo of 1–2 endpoints (at least one live)
-- [ ] Docs: Gantt, ERD, use-case, sequence/activity, mobile class diagram, unit + integration test results, web + mobile prototypes
+- [x] Login/Register is the first screen on web and mobile
+- [x] Email verification before first login + password reset
+- [x] JWT on every protected route
+- [x] Server-side search API with partial matching
+- [x] Web client uses async (AJAX) API calls, written in TypeScript + React
+- [x] Flutter mobile app with the same design as the web app
+- [x] Deployed (e.g. Digital Ocean) and reached by **domain name**, not an IP
+- SwaggerHub demo of 1–2 endpoints (at least one live)
+  - [x] OpenAPI spec: [`docs/swagger/menu-macro-fitter.yaml`](docs/swagger/menu-macro-fitter.yaml)
+  - [ ] Live SwaggerHub demo (done at the presentation)
+- Docs
+  - [x] Gantt: [`docs/diagrams/gantt.puml`](docs/diagrams/gantt.puml)
+  - [x] ERD: [`docs/diagrams/erd.puml`](docs/diagrams/erd.puml)
+  - [ ] Use-case
+  - [ ] Sequence/activity
+  - [ ] Mobile class diagram
+  - [x] Unit + integration test results: [`docs/test-results/`](docs/test-results/)
+  - [x] Web + mobile prototypes: [`docs/wireframes/`](docs/wireframes/) (Figma links in its README)
 
 ## Secrets
 
