@@ -72,7 +72,12 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
     }
     final api = ApiScope.of(context);
     try {
-      final here = _here ??= await ApiScope.locationOf(context).current();
+      var here = _here;
+      if (here == null) {
+        here = await ApiScope.locationOf(context).current();
+        if (!mounted || request != _request) return;
+        setState(() => _here = here); // the message moves on to "Finding restaurants"
+      }
       final restaurants = await api.nearby(lat: here.lat, lng: here.lng, radiusMiles: _radius);
       final chainIds = {for (final r in restaurants) ?r.chainId}.toList();
       Map<String, int>? fits = {};
@@ -155,7 +160,9 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
               ErrorBanner(message: _error!, actionLabel: 'Try again', onAction: _load)
             else if (_loading)
               StatusMessage(
-                message: _here == null ? 'Finding where you are…' : 'Finding restaurants near you…',
+                message: _here == null
+                    ? 'Finding where you are…'
+                    : 'Finding restaurants near you… This can take up to a minute.',
                 loading: true,
               )
             else if (restaurants!.isEmpty)

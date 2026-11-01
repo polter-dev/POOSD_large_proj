@@ -72,7 +72,12 @@ class ApiClient {
   final TokenStore tokens;
 
   /// Sends one request. Returns the decoded JSON body, or null for 204.
-  Future<dynamic> request(String method, String path, [Object? body]) async {
+  Future<dynamic> request(
+    String method,
+    String path, [
+    Object? body,
+    Duration timeout = const Duration(seconds: 15),
+  ]) async {
     final headers = <String, String>{};
     if (body != null) headers['Content-Type'] = 'application/json';
     final token = await tokens.read();
@@ -83,7 +88,7 @@ class ApiClient {
 
     final http.Response res;
     try {
-      res = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 15)));
+      res = await http.Response.fromStream(await _http.send(req).timeout(timeout));
     } catch (_) {
       throw const ApiError(networkErrorMessage, 0);
     }
