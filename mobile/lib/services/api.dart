@@ -42,6 +42,8 @@ class Api {
 
   Future<bool> hasToken() async => await _c.tokens.read() != null;
 
+  set onSessionExpired(void Function()? fn) => _c.onSessionExpired = fn;
+
   Future<String> verifyEmail(String token) async =>
       _message(await _c.request('GET', '/auth/verify-email?token=${Uri.encodeQueryComponent(token)}'));
 

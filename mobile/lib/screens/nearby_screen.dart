@@ -27,7 +27,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
   LatLng? _here; // kept while the screen is open, so changing the radius doesn't locate again
   LocationProblem? _problem;
   List<NearbyRestaurant>? _restaurants;
-  Map<String, int>? _fits; // chainId -> items that fit; null if the count failed
+  Map<String, int>? _fits; // chainId -> items that fit; null if the count failed, missing if unknown
   String? _error;
   bool _loading = true;
   int _request = 0;
@@ -84,9 +84,16 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
       // Empty chainIds would mean every chain, so skip the call when nothing nearby has data.
       if (chainIds.isNotEmpty) {
         try {
-          final res = await api.recommendations(chainIds: chainIds, limit: 50);
+          const limit = 50;
+          final res = await api.recommendations(chainIds: chainIds, limit: limit);
           for (final r in res.items) {
             fits[r.item.chainId] = (fits[r.item.chainId] ?? 0) + 1;
+          }
+          // A chain missing from a full page may just be outscored, so only a short page proves 0.
+          if (res.items.length < limit) {
+            for (final id in chainIds) {
+              fits.putIfAbsent(id, () => 0);
+            }
           }
         } on ApiError {
           fits = null; // still show the restaurants, just without counts
@@ -177,7 +184,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
                 if (i > 0) const SizedBox(height: AppSpace.s3),
                 _RestaurantCard(
                   restaurant: r,
-                  fits: r.chainId == null || _fits == null ? null : _fits![r.chainId] ?? 0,
+                  fits: r.chainId == null ? null : _fits?[r.chainId],
                   onTap: _open,
                 ),
               ],
@@ -231,7 +238,7 @@ class _RestaurantCard extends StatelessWidget {
   const _RestaurantCard({required this.restaurant, required this.fits, required this.onTap});
 
   final NearbyRestaurant restaurant;
-  final int? fits; // null: no nutrition data, or the count failed
+  final int? fits; // null: no nutrition data, or the count failed or is unknown
   final ValueChanged<NearbyRestaurant> onTap;
 
   @override
