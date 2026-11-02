@@ -12,6 +12,8 @@ const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 300;
 // shortcut: per-process memory, lost on restart and not shared between instances; move to Redis or a Mongo TTL collection if we run more than one.
 const cache = new Map(); // query string -> { at, data }
+// Identical lookups already running share one upstream request; overpass-api.de allows only a few concurrent slots per IP.
+const inflight = new Map(); // query string -> Promise<data>
 
 function placesError() {
   return Object.assign(new Error("Places lookup failed"), { status: 502 });
@@ -29,6 +31,14 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
 async function queryOverpass(query) {
   const hit = cache.get(query);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  if (inflight.has(query)) return inflight.get(query);
+  // Removed when settled, so a failure is not reused and the next caller retries.
+  const p = fetchOverpass(query).finally(() => inflight.delete(query));
+  inflight.set(query, p);
+  return p;
+}
+
+async function fetchOverpass(query) {
   // At most 3 attempts even when OVERPASS_URL is a fourth server, to keep the 45 s cap.
   for (const url of [...new Set([process.env.OVERPASS_URL, ...MIRRORS].filter(Boolean))].slice(0, 3)) {
     try {
@@ -70,8 +80,9 @@ async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
   const radiusM = Math.round(radiusMiles * METERS_PER_MILE);
   // 3 decimals is about 110 m, so a user standing still builds the same query and hits the cache.
   const [qLat, qLng] = [+lat.toFixed(3), +lng.toFixed(3)];
+  // [timeout:12] sits under the 15 s abort so Overpass can answer with its own timeout remark first.
   // JSON.stringify quotes the regex as a valid Overpass QL string literal.
-  const query = `[out:json][timeout:15];
+  const query = `[out:json][timeout:12];
 nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"~${JSON.stringify(pattern)},i](around:${radiusM},${qLat},${qLng});
 out center;`;
 
@@ -98,4 +109,10 @@ out center;`;
     .sort((a, b) => a.distanceMiles - b.distanceMiles);
 }
 
-module.exports = { findNearbyChainLocations };
+// Test-only: reset the cache and in-flight requests between tests.
+function _clearCache() {
+  cache.clear();
+  inflight.clear();
+}
+
+module.exports = { findNearbyChainLocations, _clearCache };
