@@ -1,15 +1,15 @@
 const { test, afterEach } = require("node:test");
 const assert = require("node:assert");
-const { findNearbyChainLocations } = require("../../src/integrations/places");
+const { findNearbyChainLocations, _clearCache } = require("../../src/integrations/places");
 
 const realFetch = global.fetch;
 const realOverpassUrl = process.env.OVERPASS_URL;
 afterEach(() => {
+  _clearCache();
   global.fetch = realFetch;
   if (realOverpassUrl === undefined) delete process.env.OVERPASS_URL;
   else process.env.OVERPASS_URL = realOverpassUrl;
 });
-// Results are cached per query, so each test below uses its own coordinates.
 const okBody = (name) => ({ ok: true, json: async () => ({ elements: [{ type: "node", id: 9, lat: 1, lon: 1, tags: { name } }] }) });
 
 test("maps nodes and ways (center) and sends the radius in meters", async () => {
@@ -109,4 +109,40 @@ test("a repeat lookup within the TTL, even after moving a few meters, is served 
   const rows = await findNearbyChainLocations({ ...args, lat: 3.0002 });
   assert.strictEqual(calls, 1);
   assert.strictEqual(rows[0].name, "Taco Bell");
+});
+
+test("concurrent identical lookups share one upstream request", async () => {
+  let calls = 0;
+  let release;
+  const gate = new Promise((resolve) => { release = () => resolve(okBody("Arby's")); });
+  global.fetch = () => {
+    calls++;
+    return gate;
+  };
+  const args = { lat: 4, lng: 4, radiusMiles: 5, chainNames: ["Arby's"] };
+  const both = Promise.all([findNearbyChainLocations(args), findNearbyChainLocations(args)]);
+  await new Promise(setImmediate);
+  release();
+  const [a, b] = await both;
+  assert.strictEqual(calls, 1);
+  assert.deepStrictEqual(a, b);
+  assert.strictEqual(a[0].name, "Arby's");
+});
+
+test("a failed in-flight lookup is not reused; the next identical call fetches again", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return { ok: false, status: 429 };
+  };
+  const args = { lat: 4, lng: 4, radiusMiles: 5, chainNames: ["Arby's"] };
+  await assert.rejects(findNearbyChainLocations(args), { status: 502 });
+  const failedCalls = calls;
+  global.fetch = async () => {
+    calls++;
+    return okBody("Arby's");
+  };
+  const rows = await findNearbyChainLocations(args);
+  assert.strictEqual(calls, failedCalls + 1);
+  assert.strictEqual(rows[0].name, "Arby's");
 });
