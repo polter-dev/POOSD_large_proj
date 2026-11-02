@@ -71,6 +71,9 @@ class ApiClient {
   final String baseUrl;
   final TokenStore tokens;
 
+  /// Called when a request that carried a token gets 401: the session expired or the token is bad.
+  void Function()? onSessionExpired;
+
   /// Sends one request. Returns the decoded JSON body, or null for 204.
   Future<dynamic> request(
     String method,
@@ -93,6 +96,8 @@ class ApiClient {
       throw const ApiError(networkErrorMessage, 0);
     }
 
+    // Same as web/src/api/client.ts. Not for /auth/*: there a 401 is a wrong password, not a session.
+    if (res.statusCode == 401 && token != null && !path.startsWith('/auth/')) onSessionExpired?.call();
     if (res.statusCode == 204) return null;
     final ok = res.statusCode >= 200 && res.statusCode < 300;
     dynamic data;

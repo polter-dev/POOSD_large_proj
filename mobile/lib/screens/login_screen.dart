@@ -13,7 +13,9 @@ import 'sign_up_screen.dart';
 /// First screen of the app (course requirement). POST /auth/login takes { login, password }, where login is an
 /// email or a username (#87), same as web LoginPage.
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  const LoginScreen({super.key, this.info});
+
+  final String? info; // e.g. why we're back here
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -27,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _error;
   bool _notVerified = false; // 403: offer "Resend verification email"
   bool _resending = false;
-  String? _info;
+  late String? _info = widget.info;
 
   @override
   void dispose() {

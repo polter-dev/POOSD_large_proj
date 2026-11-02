@@ -10,6 +10,8 @@ import 'widgets/api_scope.dart';
 
 void main() => runApp(MenuMacroFitterApp(api: Api()));
 
+final _navigator = GlobalKey<NavigatorState>();
+
 class MenuMacroFitterApp extends StatelessWidget {
   const MenuMacroFitterApp({super.key, required this.api, this.location = const DeviceLocation()});
 
@@ -18,11 +20,20 @@ class MenuMacroFitterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Like web AuthContext: a 401 mid-session forgets the token and goes back to Log in.
+    api.onSessionExpired = () async {
+      await api.logout();
+      _navigator.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen(info: 'Your session expired. Log in again.')),
+        (_) => false,
+      );
+    };
     return ApiScope(
       api: api,
       location: location,
       child: MaterialApp(
         title: 'Menu Macro Fitter',
+        navigatorKey: _navigator,
         debugShowCheckedModeBanner: false,
         theme: buildTheme(),
         home: const _Start(),

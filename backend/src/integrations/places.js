@@ -1,5 +1,17 @@
 // OpenStreetMap Overpass: free, no key, no card (decision on #27).
 const METERS_PER_MILE = 1609.344;
+// Tried in order after OVERPASS_URL; the public servers are often overloaded, so one failing is routine.
+const MIRRORS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.openstreetmap.fr/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter",
+];
+// 3 attempts x 15 s keeps the worst case near 45 s, under the mobile client's 60 s limit.
+const ATTEMPT_TIMEOUT_MS = 15000;
+const CACHE_TTL_MS = 10 * 60 * 1000;
+const CACHE_MAX = 300;
+// shortcut: per-process memory, lost on restart and not shared between instances; move to Redis or a Mongo TTL collection if we run more than one.
+const cache = new Map(); // query string -> { at, data }
 
 function placesError() {
   return Object.assign(new Error("Places lookup failed"), { status: 502 });
@@ -11,6 +23,36 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
     Math.sin(rad(lat2 - lat1) / 2) ** 2 +
     Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lng2 - lng1) / 2) ** 2;
   return 2 * 3958.8 * Math.asin(Math.sqrt(a));
+}
+
+// POST the query to each server in turn; first good body wins and is cached.
+async function queryOverpass(query) {
+  const hit = cache.get(query);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  // At most 3 attempts even when OVERPASS_URL is a fourth server, to keep the 45 s cap.
+  for (const url of [...new Set([process.env.OVERPASS_URL, ...MIRRORS].filter(Boolean))].slice(0, 3)) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        // overpass-api.de answers 406 to Node's default "node" User-Agent.
+        headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "MenuMacroFitter/1.0 (POOSD student project)" },
+        body: new URLSearchParams({ data: query }),
+        signal: AbortSignal.timeout(ATTEMPT_TIMEOUT_MS),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      if (!Array.isArray(data?.elements)) continue;
+      // Overpass reports a timeout as 200 with a remark and partial results.
+      if (data.remark && /error/i.test(data.remark)) continue;
+      cache.delete(query); // re-insert at the end so the oldest entry is first
+      if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+      cache.set(query, { at: Date.now(), data });
+      return data;
+    } catch {
+      // network error, timeout or bad JSON: try the next server
+    }
+  }
+  throw placesError();
 }
 
 // Places within radiusMiles whose name contains one of chainNames, nearest first.
@@ -26,27 +68,14 @@ async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
     .map((n) => n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/'/g, "['’]?"))
     .join("|");
   const radiusM = Math.round(radiusMiles * METERS_PER_MILE);
+  // 3 decimals is about 110 m, so a user standing still builds the same query and hits the cache.
+  const [qLat, qLng] = [+lat.toFixed(3), +lng.toFixed(3)];
   // JSON.stringify quotes the regex as a valid Overpass QL string literal.
-  const query = `[out:json][timeout:25];
-nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"~${JSON.stringify(pattern)},i](around:${radiusM},${lat},${lng});
+  const query = `[out:json][timeout:15];
+nwr["amenity"~"^(restaurant|fast_food|cafe)$"]["name"~${JSON.stringify(pattern)},i](around:${radiusM},${qLat},${qLng});
 out center;`;
 
-  let data;
-  try {
-    const res = await fetch(process.env.OVERPASS_URL || "https://overpass-api.de/api/interpreter", {
-      method: "POST",
-      // overpass-api.de answers 406 to Node's default "node" User-Agent.
-      headers: { "Content-Type": "application/x-www-form-urlencoded", "User-Agent": "MenuMacroFitter/1.0 (POOSD student project)" },
-      body: new URLSearchParams({ data: query }),
-    });
-    if (!res.ok) throw placesError();
-    data = await res.json();
-  } catch {
-    throw placesError();
-  }
-  // Overpass reports a timeout as 200 with a remark and partial results.
-  if (!Array.isArray(data?.elements)) throw placesError();
-  if (data.remark && /error/i.test(data.remark)) throw placesError();
+  const data = await queryOverpass(query);
 
   return data.elements
     // Nodes carry lat/lon; ways and relations only have a center with "out center". Drop any with neither.

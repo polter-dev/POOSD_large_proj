@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:menu_macro_fitter/main.dart';
 import 'package:menu_macro_fitter/models/api_models.dart';
 import 'package:menu_macro_fitter/screens/app_shell.dart';
 import 'package:menu_macro_fitter/services/api.dart';
@@ -297,6 +298,25 @@ void main() {
       expect(location.calls, 1);
     });
 
+    testWidgets('a full page of results leaves a missing chain unknown, still tappable', (tester) async {
+      await pumpHome(tester, userJson());
+      tester.view.physicalSize = const Size(600 * 3, 2400 * 3); // the test font is wide: room for "50 options…"
+      nearbyRoutes();
+      server.routes['POST /recommendations'] = (r) => recs([
+        if ((jsonDecode(r.body) as Map)['chainIds'].length == 2) // the combined count: c1 fills all 50
+          for (var i = 0; i < 50; i++) item('a$i', 'c1', 'Item $i')
+        else
+          item('w', 'c2', 'Wrap'),
+      ]);
+      await tapText(tester, 'Nearby');
+      expect(find.text('50 options fit your goal'), findsNWidgets(2));
+      expect(find.text('Nothing fits your goal'), findsNothing);
+
+      await tapText(tester, 'Chipotle');
+      expect(server.lastBody('POST /recommendations'), containsPair('chainIds', ['c2']));
+      expect(find.text('Wrap'), findsOneWidget);
+    });
+
     testWidgets('without permission it explains why and asks again on tap', (tester) async {
       await pumpHome(tester, userJson());
       nearbyRoutes();
@@ -319,6 +339,23 @@ void main() {
       await tapText(tester, 'Open settings');
       expect(location.opened, [LocationProblem.blocked]);
     });
+  });
+
+  testWidgets('a 401 mid-session forgets the token and goes back to Log in', (tester) async {
+    server = FakeServer();
+    server.routes['GET /users/me'] = (_) => userJson();
+    server.routes['GET /users/me/calories'] = (_) => json({'error': 'Invalid or expired session'}, 401);
+    final tokens = MemoryTokenStore()..token = 'old';
+    await tester.pumpWidget(
+      MenuMacroFitterApp(
+        api: Api(ApiClient(httpClient: MockClient(server.handle), baseUrl: 'http://test/api', tokens: tokens)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Your session expired. Log in again.'), findsOneWidget);
+    expect(find.text('Email or username'), findsOneWidget);
+    expect(find.text('Your targets'), findsNothing);
+    expect(tokens.token, isNull);
   });
 
   group('search', () {

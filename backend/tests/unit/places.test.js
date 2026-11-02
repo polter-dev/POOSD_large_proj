@@ -3,9 +3,14 @@ const assert = require("node:assert");
 const { findNearbyChainLocations } = require("../../src/integrations/places");
 
 const realFetch = global.fetch;
+const realOverpassUrl = process.env.OVERPASS_URL;
 afterEach(() => {
   global.fetch = realFetch;
+  if (realOverpassUrl === undefined) delete process.env.OVERPASS_URL;
+  else process.env.OVERPASS_URL = realOverpassUrl;
 });
+// Results are cached per query, so each test below uses its own coordinates.
+const okBody = (name) => ({ ok: true, json: async () => ({ elements: [{ type: "node", id: 9, lat: 1, lon: 1, tags: { name } }] }) });
 
 test("maps nodes and ways (center) and sends the radius in meters", async () => {
   let query;
@@ -61,4 +66,47 @@ test("bad Overpass bodies throw 502, coordinate-less elements are dropped, no ch
   for (const lat of ["0);out;nwr(1", null]) {
     await assert.rejects(findNearbyChainLocations({ ...args, lat }), { status: 400 });
   }
+});
+
+test("a failing server falls through to the next one, each attempt with a timeout signal", async () => {
+  const calls = [];
+  global.fetch = async (url, opts) => {
+    calls.push(url);
+    assert.ok(opts.signal instanceof AbortSignal);
+    if (calls.length === 1) throw new TypeError("fetch failed");
+    return okBody("Wendy's");
+  };
+  const rows = await findNearbyChainLocations({ lat: 1, lng: 1, radiusMiles: 5, chainNames: ["Wendy's"] });
+  assert.strictEqual(calls.length, 2);
+  assert.notStrictEqual(calls[0], calls[1]);
+  assert.strictEqual(rows[0].name, "Wendy's");
+});
+
+test("all servers failing is still 502 Places lookup failed, OVERPASS_URL tried first, at most 3 attempts", async () => {
+  process.env.OVERPASS_URL = "https://overpass.example.test/api/interpreter";
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(url);
+    return { ok: false, status: 502 };
+  };
+  await assert.rejects(
+    findNearbyChainLocations({ lat: 2, lng: 2, radiusMiles: 5, chainNames: ["Subway"] }),
+    { status: 502, message: "Places lookup failed" },
+  );
+  assert.strictEqual(calls[0], process.env.OVERPASS_URL);
+  assert.strictEqual(calls.length, 3);
+  assert.strictEqual(new Set(calls).size, 3); // 3 distinct servers, each tried once
+});
+
+test("a repeat lookup within the TTL, even after moving a few meters, is served from cache", async () => {
+  let calls = 0;
+  global.fetch = async () => {
+    calls++;
+    return okBody("Taco Bell");
+  };
+  const args = { lat: 3.0001, lng: 3.0001, radiusMiles: 5, chainNames: ["Taco Bell"] };
+  await findNearbyChainLocations(args);
+  const rows = await findNearbyChainLocations({ ...args, lat: 3.0002 });
+  assert.strictEqual(calls, 1);
+  assert.strictEqual(rows[0].name, "Taco Bell");
 });
