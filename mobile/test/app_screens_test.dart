@@ -300,7 +300,7 @@ void main() {
 
     testWidgets('a full page of results leaves a missing chain unknown, still tappable', (tester) async {
       await pumpHome(tester, userJson());
-      tester.view.physicalSize = const Size(600 * 3, 2400 * 3); // the test font is wide: room for "50 options…"
+      tester.view.physicalSize = const Size(600 * 3, 2400 * 3); // the test font is wide: room for "50+ options…"
       nearbyRoutes();
       server.routes['POST /recommendations'] = (r) => recs([
         if ((jsonDecode(r.body) as Map)['chainIds'].length == 2) // the combined count: c1 fills all 50
@@ -309,12 +309,25 @@ void main() {
           item('w', 'c2', 'Wrap'),
       ]);
       await tapText(tester, 'Nearby');
-      expect(find.text('50 options fit your goal'), findsNWidgets(2));
+      expect(find.text('50+ options fit your goal'), findsNWidgets(2));
       expect(find.text('Nothing fits your goal'), findsNothing);
 
       await tapText(tester, 'Chipotle');
       expect(server.lastBody('POST /recommendations'), containsPair('chainIds', ['c2']));
       expect(find.text('Wrap'), findsOneWidget);
+    });
+
+    testWidgets('a full page makes every count a lower bound: N+', (tester) async {
+      await pumpHome(tester, userJson());
+      tester.view.physicalSize = const Size(600 * 3, 2400 * 3); // the test font is wide
+      nearbyRoutes();
+      server.routes['POST /recommendations'] = (_) => recs([
+        for (var i = 0; i < 47; i++) item('a$i', 'c1', 'Item $i'),
+        for (var i = 0; i < 3; i++) item('b$i', 'c2', 'Bowl $i'),
+      ]);
+      await tapText(tester, 'Nearby');
+      expect(find.text('47+ options fit your goal'), findsNWidgets(2));
+      expect(find.text('3+ options fit your goal'), findsOneWidget);
     });
 
     testWidgets('without permission it explains why and asks again on tap', (tester) async {

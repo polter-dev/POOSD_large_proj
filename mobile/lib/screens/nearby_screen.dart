@@ -28,6 +28,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
   LocationProblem? _problem;
   List<NearbyRestaurant>? _restaurants;
   Map<String, int>? _fits; // chainId -> items that fit; null if the count failed, missing if unknown
+  bool _fitsFull = false; // the page was full, so every count is a lower bound
   String? _error;
   bool _loading = true;
   int _request = 0;
@@ -81,6 +82,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
       final restaurants = await api.nearby(lat: here.lat, lng: here.lng, radiusMiles: _radius);
       final chainIds = {for (final r in restaurants) ?r.chainId}.toList();
       Map<String, int>? fits = {};
+      var full = false;
       // Empty chainIds would mean every chain, so skip the call when nothing nearby has data.
       if (chainIds.isNotEmpty) {
         try {
@@ -89,8 +91,10 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
           for (final r in res.items) {
             fits[r.item.chainId] = (fits[r.item.chainId] ?? 0) + 1;
           }
-          // A chain missing from a full page may just be outscored, so only a short page proves 0.
-          if (res.items.length < limit) {
+          // On a full page a chain may have more items that were outscored (or all of them, if
+          // missing), so only a short page gives exact counts and proves 0.
+          full = res.items.length >= limit;
+          if (!full) {
             for (final id in chainIds) {
               fits.putIfAbsent(id, () => 0);
             }
@@ -103,6 +107,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
       setState(() {
         _restaurants = restaurants;
         _fits = fits;
+        _fitsFull = full;
         _loading = false;
       });
     } on LocationException catch (e) {
@@ -185,6 +190,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
                 _RestaurantCard(
                   restaurant: r,
                   fits: r.chainId == null ? null : _fits?[r.chainId],
+                  atLeast: _fitsFull,
                   onTap: _open,
                 ),
               ],
@@ -235,10 +241,11 @@ class _RadiusChip extends StatelessWidget {
 /// Restaurant card (spec): name, distance, address when there is one, and the fit badge. Only cards
 /// with something that fits open Best picks; "No nutrition data" isn't tappable.
 class _RestaurantCard extends StatelessWidget {
-  const _RestaurantCard({required this.restaurant, required this.fits, required this.onTap});
+  const _RestaurantCard({required this.restaurant, required this.fits, required this.atLeast, required this.onTap});
 
   final NearbyRestaurant restaurant;
   final int? fits; // null: no nutrition data, or the count failed or is unknown
+  final bool atLeast; // fits is a lower bound: show "3+"
   final ValueChanged<NearbyRestaurant> onTap;
 
   @override
@@ -255,7 +262,7 @@ class _RestaurantCard extends StatelessWidget {
       badge = const Pill(text: 'Nothing fits your goal', bg: AppColors.surface, fg: AppColors.textMuted);
     } else {
       badge = Pill(
-        text: '$fits ${fits == 1 ? 'option fits' : 'options fit'} your goal',
+        text: '$fits${atLeast ? '+' : ''} ${fits == 1 && !atLeast ? 'option fits' : 'options fit'} your goal',
         icon: Icons.check,
         bg: AppColors.fitGreatBg,
         fg: AppColors.fitGreatText,
