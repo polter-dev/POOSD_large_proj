@@ -8,6 +8,7 @@ PlantUML sources, each rendered to a PNG with the same name (for the slides, #42
 | [`sequence-auth.puml`](sequence-auth.puml) | Register, verification email, verify, log in: endpoints, status codes and the "not verified" branch. |
 | [`sequence-recommendations.puml`](sequence-recommendations.puml) | A logged-in student finds nearby restaurants (Overpass + chain matching), then gets recommendations for them. |
 | [`activity-recommendations.puml`](activity-recommendations.puml) | How recommendations are picked and ranked: per-meal limit, protein or carb mode, score, "Great fit". |
+| [`class-mobile.puml`](class-mobile.puml) | The Flutter app's classes: screens and how each opens the next, the Api and location services behind `ApiScope`, and the API models (#38). |
 | [`erd.puml`](erd.puml) | Database collections and relations (#39). |
 | [`gantt.puml`](gantt.puml) | Project schedule (#40). |
 
