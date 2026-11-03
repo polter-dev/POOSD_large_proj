@@ -134,9 +134,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
                         ),
                       ),
                       const SizedBox(width: AppSpace.s3),
+                      // Own node and tap, as on Nearby's Save: excludeSemantics drops the button's.
                       Semantics(
+                        container: true,
                         button: true,
                         label: 'Remove ${f.label ?? 'saved restaurant'}',
+                        onTap: _removing == f.id ? null : () => _remove(f),
                         excludeSemantics: true,
                         child: TextButton(
                           onPressed: _removing == f.id ? null : () => _remove(f),

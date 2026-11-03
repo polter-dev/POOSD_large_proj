@@ -329,6 +329,24 @@ void main() {
       expect(find.text('Save'), findsNWidgets(3));
     });
 
+    testWidgets('a screen reader reaches Save as its own button, not the card', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      server.routes['POST /favorites'] = (r) => json({
+        'id': 'f1',
+        ...jsonDecode(r.body) as Map<String, dynamic>,
+        'createdAt': '2026-11-03T15:00:00.000Z',
+      }, 201);
+      await tapText(tester, 'Nearby');
+      tester.semantics.tap(find.semantics.byLabel('Save Chick-fil-A Express'));
+      await tester.pumpAndSettle();
+      expect(server.to('POST /favorites'), hasLength(1));
+      expect(find.text('Best picks'), findsNothing); // the card's tap didn't fire
+      expect(find.semantics.byLabel('Save Lazy Moon Pizza'), findsOne); // no picks link, still saveable
+      semantics.dispose();
+    });
+
     testWidgets('a full page of results leaves a missing chain unknown, still tappable', (tester) async {
       await pumpHome(tester, userJson());
       tester.view.physicalSize = const Size(600 * 3, 2400 * 3); // the test font is wide: room for "50+ options…"
@@ -400,10 +418,12 @@ void main() {
       expect(find.text('Saved Nov 3, 2026'), findsOneWidget);
       expect(find.text('Saved restaurant'), findsOneWidget); // no label
 
-      await tester.tap(find.text('Remove').first);
+      final semantics = tester.ensureSemantics();
+      tester.semantics.tap(find.semantics.byLabel('Remove Chick-fil-A')); // as a screen reader would
       await tester.pumpAndSettle();
       expect(server.to('DELETE /favorites/f1'), hasLength(1));
       expect(find.text('Chick-fil-A'), findsNothing);
+      semantics.dispose();
     });
 
     testWidgets('empty: points to Nearby, and reloads each time the tab opens', (tester) async {
@@ -493,6 +513,34 @@ void main() {
       await tester.pumpAndSettle();
       expect(server.to('GET /menu-items/search'), hasLength(1));
       expect(find.textContaining('Search every restaurant'), findsOneWidget);
+    });
+
+    testWidgets('Show more during the typing pause still searches the newer query', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /menu-items/search'] = (r) {
+        final q = r.url.queryParameters['q']!;
+        final skip = int.parse(r.url.queryParameters['skip']!);
+        return {
+          'items': [for (var i = skip; i < skip + 20 && i < 25; i++) item('$q$i', 'c1', '$q $i')],
+          'total': 25,
+          'limit': 20,
+          'skip': skip,
+        };
+      };
+      await tapText(tester, 'Search');
+      await tester.enterText(find.byType(TextField), 'chi');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'chicken');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.scrollUntilVisible(find.text('Show more'), 500, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Show more'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final sent = [for (final r in server.to('GET /menu-items/search')) r.url.queryParameters['q']];
+      expect(sent.last, 'chicken');
+      expect(find.textContaining('chicken '), findsWidgets); // its results replaced the older query's
+      expect(find.textContaining('chi '), findsNothing);
     });
 
     test('searchable follows the server normalize()', () {

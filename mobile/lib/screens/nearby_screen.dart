@@ -367,10 +367,14 @@ class _RestaurantCard extends StatelessWidget {
             children: [
               Flexible(child: badge),
               const SizedBox(width: AppSpace.s2),
+              // Its own node with its own tap: excludeSemantics drops the button's, and without container
+              // the label merges into the card, whose tap opens Best picks.
               Semantics(
+                container: true,
                 button: true,
                 toggled: saved,
                 label: saved ? 'Saved: ${r.name}. Remove from saved' : 'Save ${r.name}',
+                onTap: saving ? null : onToggleSaved,
                 excludeSemantics: true,
                 child: TextButton.icon(
                   onPressed: saving ? null : onToggleSaved,

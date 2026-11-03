@@ -53,7 +53,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   /// A new search, or [more] for the next page of the same one.
   Future<void> _search({bool more = false}) async {
-    _timer?.cancel();
+    if (!more) _timer?.cancel(); // Show more mid-pause keeps the newer query's pending search
     final q = more ? _shownQuery! : _q.text.trim();
     if (!searchable(q)) return;
     final request = ++_request;
