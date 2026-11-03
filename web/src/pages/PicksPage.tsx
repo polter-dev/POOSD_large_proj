@@ -27,7 +27,16 @@ export default function PicksPage() {
   const [res, setRes] = useState<RecommendationsResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0); // only the newest answer is shown when the mode is switched quickly
-  const firstMode = useRef(mode);
+  const modeRef = useRef(mode); // kept in step by chooseMode, for the reload when the chain changes
+  const [shownChain, setShownChain] = useState(chainId);
+
+  // /picks and /picks?chain= are one route, so a nav click keeps this mounted and only changes chainId.
+  // Clear the previous restaurant's items here; the effect below reloads with the mode selected now.
+  if (shownChain !== chainId) {
+    setShownChain(chainId);
+    setRes(null);
+    setError(null);
+  }
 
   const load = useCallback(
     async (m: RecommendationMode) => {
@@ -43,11 +52,12 @@ export default function PicksPage() {
   );
 
   useEffect(() => {
-    void load(firstMode.current);
+    void load(modeRef.current);
   }, [load]);
 
   function chooseMode(m: RecommendationMode) {
     if (m === mode) return;
+    modeRef.current = m;
     setMode(m);
     setRes(null);
     setError(null);
