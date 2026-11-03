@@ -2,10 +2,12 @@ import type { ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 
-// Prototype screens 06-08: top bar with the app's sections, initials on the right. #34 adds
-// Best picks and Search here as those pages land.
+// Prototype screens 06-08: top bar with the app's sections, initials on the right.
 const NAV = [
   { to: '/home', label: 'Nearby' },
+  { to: '/picks', label: 'Best picks' },
+  { to: '/search', label: 'Search' },
+  { to: '/favorites', label: 'Saved' },
   { to: '/targets', label: 'Profile', also: ['/profile'] },
 ];
 
@@ -23,7 +25,8 @@ export default function AppShell({ children, nav = true }: { children: ReactNode
         <div className="mx-auto flex max-w-[1040px] flex-wrap items-center gap-x-8 px-4 sm:h-16 sm:flex-nowrap sm:px-6">
           <p className="py-4 text-lg font-bold whitespace-nowrap sm:py-0">Menu Macro Fitter</p>
           {nav && (
-            <nav aria-label="Main" className="order-last flex h-12 w-full gap-6 sm:order-none sm:h-full sm:w-auto">
+            // Five sections: a narrow phone scrolls the row sideways rather than squeezing the labels.
+            <nav aria-label="Main" className="order-last -mx-4 flex h-12 w-[calc(100%+2rem)] gap-5 overflow-x-auto px-4 whitespace-nowrap sm:order-none sm:mx-0 sm:h-full sm:w-auto sm:gap-6 sm:overflow-visible sm:px-0">
               {NAV.map((item) => (
                 <NavLink
                   key={item.to}

@@ -222,3 +222,15 @@ class AppColors {
 - **Restaurant `address`**: the contract and `web/src/types/api.ts` say string, but the Overpass
   client (#61) returns `null` when OpenStreetMap has no address (17 of 121 in its live check). The
   card handles a missing address; the contract should say `string | null`.
+
+## 8. M6 screens
+
+Layouts come from the prototypes in #114; shapes and rules from the M6 sections of
+[`docs/api-contract.md`](api-contract.md).
+
+- **Tracker**: day and week totals against targets (`GET /meal-logs`).
+- **Plan**: day or week plan, add picked items as planned (`GET /meal-plans`).
+- **Photo confirm**: edit the recognized items, then log them (`POST /photo-analyses`).
+- **Suggest correction / Add item / Add restaurant**: `POST /submissions`.
+- **My submissions**: `GET /submissions/mine`.
+- **Admin review**: `GET` / `PATCH /admin/submissions`.
