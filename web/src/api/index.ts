@@ -1,9 +1,9 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
+  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
   MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
-  RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
-  UpdateProfileBody, User,
+  RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody, SearchMenuItemsResponse, SubmissionStatus,
+  UpdateGoalBody, UpdatePreferencesBody, UpdateProfileBody, User,
 } from '../types/api';
 
 export { ApiError, setSessionExpiredHandler } from './client';
@@ -42,3 +42,9 @@ export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/re
 export const getFavorites = () => request<FavoritesResponse>('GET', '/favorites');
 export const addFavorite = (body: AddFavoriteBody) => request<Favorite>('POST', '/favorites', body);
 export const removeFavorite = (id: string) => request<void>('DELETE', `/favorites/${encodeURIComponent(id)}`);
+
+// Admin (403 "Admin only" for everyone else; defaults match the server's)
+export const getAdminSubmissions = (status: SubmissionStatus = 'pending', limit = 20, skip = 0) =>
+  request<AdminSubmissionsResponse>('GET', `/admin/submissions?${new URLSearchParams({ status, limit: String(limit), skip: String(skip) })}`);
+export const reviewSubmission = (id: string, body: ReviewSubmissionBody) =>
+  request<AdminSubmission>('PATCH', `/admin/submissions/${encodeURIComponent(id)}`, body);
