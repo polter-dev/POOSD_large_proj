@@ -1,0 +1,56 @@
+@startuml sequence-photo-log
+' Menu Macro Fitter -- log a meal from a photo (issue #122)
+' From backend/src/routes/photoAnalyses.js, controllers/photoAnalyses.js, integrations/claudeVision.js
+' and docs/api-contract.md "Photo analysis" / "Meal logs". The student is already logged in.
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam sequenceLifeLineBorderColor #999999
+skinparam sequenceParticipantBackgroundColor #F5F9FF
+skinparam sequenceParticipantBorderColor #4A6FA5
+skinparam noteBackgroundColor #FFFBE6
+skinparam noteBorderColor #C9A227
+autonumber
+
+title Log a Meal From a Photo
+
+participant "Client\n(web / mobile)" as Client
+participant API
+database MongoDB
+participant "Claude Haiku 5.5\n(Anthropic)" as Claude
+
+== Analyze the photo ==
+Client -> API : POST /api/photo-analyses\n{ imageBase64, mediaType } + Bearer JWT
+alt no or bad JWT
+  API --> Client : 401
+else body over 3 MiB
+  API --> Client : 413 "Image too large"
+else bad body (413 if imageBase64 over 3,000,000 chars)
+  API --> Client : 400
+else no API key on the server
+  API --> Client : 503 "Photo analysis unavailable"
+else 20 analyses today (UTC)
+  API --> Client : 429 "Daily photo limit reached"
+end
+API -> MongoDB : read all menu items\n(id, chain, name, macros)
+API -> Claude : image + system prompt (rules + menu, cached)\noutput: JSON schema of items
+alt request fails, not end_turn, or bad JSON
+  API --> Client : 502 "Photo analysis failed"
+  note right of Client : a failed call does not\nuse up a daily slot
+else model answered
+  Claude --> API : { items: [ menuItemId?, name, servings,\ncalories, macros, confidence ] }
+end
+API -> API : DB trust: keep at most 10 items;\nmenuItemId not in MongoDB -> unmatched (null);\nmatched -> name, chain, macros from MongoDB;\nclamp servings 0.25-10, calories 0-5000, macros >= 0
+API --> Client : 200 { items: PhotoItem[] }
+note right of Client : nothing is saved;\nthe image is never stored
+
+== Confirm and log ==
+Client -> Client : confirm / edit screen\n(matched items: servings only)
+Client -> API : POST /api/meal-logs (contract endpoint)\n{ entries: [ ..., source: "photo" ] } + Bearer JWT
+API -> MongoDB : insert meal logs
+API --> Client : 201 { entries: MealLog[] }
+
+@enduml

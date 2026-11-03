@@ -1,0 +1,71 @@
+@startuml activity-moderation
+' Menu Macro Fitter -- community submissions and admin review (issue #122)
+' From backend/src/controllers/submissions.js, services/moderation.js, controllers/admin.js
+' and docs/api-contract.md "Community submissions" / "Admin".
+
+skinparam defaultFontName Verdana
+scale 2
+skinparam defaultFontSize 14
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam activityBackgroundColor #F5F9FF
+skinparam activityBorderColor #4A6FA5
+skinparam activityDiamondBackgroundColor #FFFBE6
+skinparam activityDiamondBorderColor #C9A227
+skinparam noteBackgroundColor #FFFBE6
+skinparam noteBorderColor #C9A227
+
+title Community Submissions and Moderation
+
+start
+:Student sends POST /submissions\n{ kind, targetId, payload };
+if (Payload valid?) then (no)
+  :400;
+  stop
+elseif (10 in the last 24 h?) then (yes)
+  :429 "Too many\nsubmissions today";
+  stop
+elseif (Target exists?) then (no)
+  :404 "Menu item not found"\nor "Restaurant not found";
+  stop
+elseif (Name already taken?) then (yes)
+  :409 "Item already exists"\nor "Restaurant already exists";
+  stop
+else (ok)
+endif
+:flagsFor(submission);
+note right
+  new_chain, verified_item, renamed,
+  large_change (> 30%), macros_mismatch,
+  new_account (< 24 h), untrusted_user
+  (2+ rejected), url_in_name
+end note
+if (Any flag?) then (no)
+  :Apply change now\n201, status **auto_applied**;
+  note left : applied items are community estimates\n(isEstimate: true, source: community)
+else (yes)
+  :201, status **pending**;
+  :Admin: PATCH /admin/submissions/:id;
+  if (Decision?) then (approve)
+    if (Target still exists, name still free?) then (yes)
+      :Apply change\nstatus **approved**;
+    else (no)
+      :404 / 409, stays **pending**;
+      stop
+    endif
+  else (reject)
+    :status **rejected**;
+    stop
+  endif
+endif
+if (Admin reverts?) then (yes)
+  if (Target still there and unchanged,\nold name free, no menu items?) then (yes)
+    :Undo: restore the edit, or delete\nthe new item / restaurant\nstatus **reverted**;
+  else (no)
+    :404 (target gone) or 409 "Item changed since this submission",\n"Item already exists" or\n"Restaurant has menu items"; status unchanged;
+  endif
+else (no)
+endif
+stop
+
+@enduml
