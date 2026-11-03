@@ -29,9 +29,10 @@ function mealPlan(items, logs, { target, perMeal }, { dates, mode, chainIds = []
   return dates.map((date) => {
     const dayLogs = logs.filter((l) => l.date === date); // planned and eaten alike
     const logged = dayLogs.reduce((sum, l) => sum + l.calories * l.servings, 0);
-    const remainingCalories = Math.max(0, Math.round(target - logged));
+    const remaining = Math.max(0, target - logged);
+    const remainingCalories = Math.round(remaining); // reported rounded; the limit uses the real value
     const slots = Math.max(1, MEALS_PER_DAY - dayLogs.length);
-    const mealCalorieLimit = Math.min(perMeal, Math.floor(remainingCalories / slots));
+    const mealCalorieLimit = Math.min(perMeal, Math.floor(remaining / slots));
     // rankItems drops everything under 300 kcal, so a limit under 300 leaves the day empty.
     const ranked = rankItems(pool, { mode, mealCalorieLimit, limit: Infinity });
 

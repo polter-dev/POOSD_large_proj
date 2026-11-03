@@ -42,7 +42,7 @@ async function getMealPlan(req, res, next) {
     const filter = { calories: { $gte: MIN_CALORIES, $lte: cal.perMeal }, [MACROS[mode]]: { $ne: null }, isEstimate: false };
     if (chainIds.length) filter.chainId = { $in: chainIds };
     const [items, logs] = await Promise.all([
-      MenuItem.find(filter, toMenuItemJSON.fields).lean(),
+      MenuItem.find(filter, toMenuItemJSON.fields).sort({ _id: 1 }).lean(), // fixed order, so ties pick the same item
       MealLog.find({ userId: req.userId, date: { $gte: dates[0], $lte: dates.at(-1) } }, { date: 1, calories: 1, servings: 1 }).lean(),
     ]);
 

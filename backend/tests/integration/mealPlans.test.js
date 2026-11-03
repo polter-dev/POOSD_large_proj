@@ -4,6 +4,7 @@ const app = require("../../src/app");
 const MealLog = require("../../src/models/MealLog");
 const MenuItem = require("../../src/models/MenuItem");
 const User = require("../../src/models/User");
+const { calories } = require("../../src/services/calories");
 const { signJwt } = require("../../src/services/tokens");
 
 const USER_ID = "64b0000000000000000000aa";
@@ -55,7 +56,7 @@ const items = [
 function stub({ user = { profile: PROFILE, preferences: PREFERENCES }, logs = [] } = {}) {
   const seen = {};
   mock.method(User, "findById", () => ({ lean: async () => user }));
-  mock.method(MenuItem, "find", (filter) => ((seen.items = filter), { lean: async () => items }));
+  mock.method(MenuItem, "find", (filter) => ((seen.items = filter), { sort: () => ({ lean: async () => items }) }));
   mock.method(MealLog, "find", (filter) => ((seen.logs = filter), { lean: async () => logs }));
   return seen;
 }
@@ -84,7 +85,8 @@ test("janedoe gets 3 items from 3 chains on an empty day", async () => {
     "calories", "carbsG", "category", "chainId", "chainName", "fatG", "id", "isEstimate", "name", "proteinG", "score",
   ]);
   assert.deepStrictEqual(day.totals, { calories: 1010, proteinG: 59, carbsG: 128, fatG: 31, incomplete: false });
-  assert.deepStrictEqual(seen.items, { calories: { $gte: 300, $lte: day.mealCalorieLimit }, carbsG: { $ne: null }, isEstimate: false });
+  const { perMeal } = calories(PROFILE, PREFERENCES);
+  assert.deepStrictEqual(seen.items, { calories: { $gte: 300, $lte: perMeal }, carbsG: { $ne: null }, isEstimate: false });
   assert.deepStrictEqual(seen.logs, { userId: USER_ID, date: { $gte: "2026-11-03", $lte: "2026-11-03" } });
 });
 

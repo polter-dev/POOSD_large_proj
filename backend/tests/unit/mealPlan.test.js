@@ -59,6 +59,15 @@ test("a day with under 300 kcal per slot returns no items; remaining never goes 
   assert.deepStrictEqual(over.items, []);
 });
 
+test("the limit uses the real remaining calories, not the rounded one", () => {
+  // 263 x 2.5 + a 0 kcal entry: 900.5 left over 1 slot. Reported as 901, but a 901 kcal item must not fit.
+  const big = [item("A", 901, 90), item("B", 900, 60)];
+  const [day] = mealPlan(big, [log(263, 2.5), log(0)], { target: 1558, perMeal: 1000 }, { dates: [WEEK[0]], mode: "protein" });
+  assert.strictEqual(day.remainingCalories, 901);
+  assert.strictEqual(day.mealCalorieLimit, 900);
+  assert.deepStrictEqual(day.items.map((i) => i.calories), [900]);
+});
+
 test("only another day's logs leave this day alone", () => {
   const [day] = plan([log(1500, 1, WEEK[1])]);
   assert.strictEqual(day.remainingCalories, 1558);
