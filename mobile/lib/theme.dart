@@ -52,7 +52,9 @@ ThemeData buildTheme() {
     labelSmall: TextStyle(fontSize: 12, height: 16 / 12, fontWeight: FontWeight.w500), // caption
     labelLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w600), // buttons
   );
-  final themedText = textTheme.apply(bodyColor: AppColors.text, displayColor: AppColors.text);
+  // Merged onto Material's full set: Flutter's own widgets use styles the spec leaves out (the dropdown
+  // uses titleMedium, the date picker headlineLarge), and a missing one draws its text near-white.
+  final themedText = base.textTheme.merge(textTheme).apply(bodyColor: AppColors.text, displayColor: AppColors.text);
 
   OutlineInputBorder outline(Color color, double width) => OutlineInputBorder(
     borderRadius: BorderRadius.circular(AppRadius.md),

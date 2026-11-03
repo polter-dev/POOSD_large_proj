@@ -120,7 +120,12 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
     } on ApiError catch (e) {
       if (mounted && request == _request) {
         setState(() {
-          _error = e.message;
+          // The API's own 502 is "Places lookup failed": every OpenStreetMap server it tried was busy or down.
+          // nginx also answers 502 (its HTML page, not fromApi) when the API itself is down; that keeps its message.
+          _error = e.status == 502 && e.fromApi
+              ? "Couldn't load restaurants. The map service is busy, so try again in a minute. "
+                    'Best picks and Search still work.'
+              : e.message;
           _loading = false;
         });
       }
