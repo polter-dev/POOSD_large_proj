@@ -363,7 +363,8 @@ test("approving a new chain whose name is already a chain's name or alternate na
   mock.method(Chain, "exists", async (f) => ((filter = f), { _id: CHAIN_ID }));
   storeSubmission(submission({ kind: "new_chain", targetId: null, payload: newChain }));
   assert.deepStrictEqual(await patch({ status: "approved" }, 409), { error: "Restaurant already exists" });
-  assert.deepStrictEqual(filter, { $or: [{ nameKey: "raising canes" }, { alternateNames: "raising canes" }] });
+  const keys = ["raising canes", "canes"]; // the name and every alternate, normalized and deduplicated
+  assert.deepStrictEqual(filter, { $or: [{ nameKey: { $in: keys } }, { alternateNames: { $in: keys } }] });
 });
 
 test("reverting a new chain deletes it only when it has no menu items", async () => {

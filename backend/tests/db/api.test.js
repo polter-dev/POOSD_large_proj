@@ -239,7 +239,8 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
         const added = await res.json();
         ids.push(added.id);
         itemId = added.resultId;
-        assert.deepStrictEqual([added.status, added.flags], ["auto_applied", []]);
+        assert.strictEqual(added.status, "auto_applied");
+        assert.ok(!("flags" in added));
         assert.strictEqual((await api("POST", "/submissions", { kind: "new_item", targetId: String(subway._id), payload }, token)).status, 409);
 
         const found = (await (await api("GET", "/menu-items/search?q=db%20test%20protein")).json()).items;
@@ -258,7 +259,8 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
         res = await api("POST", "/submissions", { kind: "edit_item", targetId: String(bigMac._id), payload: { calories: 600 } }, token);
         const waiting = await res.json();
         ids.push(waiting.id);
-        assert.deepStrictEqual([waiting.status, waiting.flags], ["pending", ["verified_item"]]);
+        assert.strictEqual(waiting.status, "pending");
+        assert.deepStrictEqual((await submissions.findOne({ _id: new mongoose.Types.ObjectId(waiting.id) })).flags, ["verified_item"]);
         assert.deepStrictEqual(await items.findOne({ _id: bigMac._id }), bigMac);
 
         const mine = await (await api("GET", "/submissions/mine", undefined, token)).json();

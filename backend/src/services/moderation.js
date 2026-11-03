@@ -22,6 +22,13 @@ async function orConflict(write, message) {
   }
 }
 
+// A new chain clashes when its name or any alternate name is already some chain's nameKey or alternate name;
+// otherwise Nearby's { $or: [{ nameKey }, { alternateNames }] } lookup could match two chains.
+function chainNameTaken(payload) {
+  const keys = [...new Set([payload.name, ...(payload.alternateNames || [])].map(normalize))];
+  return Chain.exists({ $or: [{ nameKey: { $in: keys } }, { alternateNames: { $in: keys } }] });
+}
+
 // Writes the submission's change. Returns the { before, resultId } to store on the submission.
 async function apply(s) {
   if (s.kind === "edit_item") {
@@ -41,8 +48,8 @@ async function apply(s) {
     return { before: null, resultId: item._id };
   }
   // new_chain. alternateNames has no unique index, so it is checked here; name_key_unique still catches a race.
+  if (await chainNameTaken(s.payload)) throw httpError(409, "Restaurant already exists");
   const nameKey = normalize(s.payload.name);
-  if (await Chain.exists({ $or: [{ nameKey }, { alternateNames: nameKey }] })) throw httpError(409, "Restaurant already exists");
   const doc = {
     name: s.payload.name,
     nameKey,
@@ -175,4 +182,4 @@ function flagsFor({ kind, payload, current, user, rejectedCount, now }) {
   return Object.keys(flags).filter((f) => flags[f]);
 }
 
-module.exports = { apply, revert, validatePayload, flagsFor };
+module.exports = { apply, revert, chainNameTaken, validatePayload, flagsFor };

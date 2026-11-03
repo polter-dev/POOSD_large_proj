@@ -246,7 +246,7 @@ void main() {
     };
     final api = apiWith(
       (r) async => r.method == 'POST'
-          ? json({...sub, 'flags': []}, 201)
+          ? json(sub, 201)
           : json({
               'submissions': [
                 {...sub, 'kind': 'new_chain', 'targetId': null, 'before': null, 'status': 'pending'},

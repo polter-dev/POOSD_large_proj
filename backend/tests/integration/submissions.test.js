@@ -95,14 +95,15 @@ test("a clean edit on an estimate item is auto_applied: the item changes and bef
   assert.deepStrictEqual(store.created[0].before, { calories: 590, isEstimate: true, source: "draft", lastVerified: null });
   assert.deepStrictEqual(body, {
     id: SUB_ID, kind: "edit_item", targetId: ITEM_ID, payload: { calories: 600 }, before: { calories: 590 }, resultId: null,
-    status: "auto_applied", flags: [], reviewNote: null, createdAt: created.toISOString(), updatedAt: created.toISOString(),
+    status: "auto_applied", reviewNote: null, createdAt: created.toISOString(), updatedAt: created.toISOString(),
   });
 });
 
 test("an edit to a verified item is pending and doesn't change it", async () => {
   const item = storeItem({ ...estimate, isEstimate: false, source: "official", lastVerified: created });
   const body = await post({ kind: "edit_item", targetId: ITEM_ID, payload: { calories: 600 } }, 201);
-  assert.deepStrictEqual([body.status, body.flags, body.before], ["pending", ["verified_item"], null]);
+  assert.deepStrictEqual([body.status, body.before, store.created[0].flags], ["pending", null, ["verified_item"]]);
+  assert.ok(!("flags" in body)); // moderation reasons stay with the admins
   assert.strictEqual(item.updateOne.mock.callCount(), 0);
   assert.strictEqual(item.doc.calories, 590);
 });
@@ -110,7 +111,9 @@ test("an edit to a verified item is pending and doesn't change it", async () => 
 test("a flagged user's clean-looking edit is pending too", async () => {
   storeItem(estimate);
   counts.rejected = 2;
-  assert.deepStrictEqual((await post({ kind: "edit_item", targetId: ITEM_ID, payload: { calories: 600 } }, 201)).flags, ["untrusted_user"]);
+  const body = await post({ kind: "edit_item", targetId: ITEM_ID, payload: { calories: 600 } }, 201);
+  assert.deepStrictEqual([body.status, store.created[0].flags], ["pending", ["untrusted_user"]]);
+  assert.ok(!("flags" in body)); // the submitter isn't told they're untrusted
 });
 
 test("the 11th submission in 24 hours is 429 and nothing is written", async () => {
@@ -162,7 +165,7 @@ test("a new chain is always pending and isn't created", async () => {
   const create = mock.method(Chain, "create", async () => assert.fail("created a chain"));
   const payload = { name: "Raising Cane's", nutritionSourceUrl: "https://www.raisingcanes.com/nutrition" };
   const body = await post({ kind: "new_chain", targetId: null, payload }, 201);
-  assert.deepStrictEqual([body.status, body.flags, body.targetId, body.resultId], ["pending", ["new_chain"], null, null]);
+  assert.deepStrictEqual([body.status, store.created[0].flags, body.targetId, body.resultId], ["pending", ["new_chain"], null, null]);
   assert.strictEqual(create.mock.callCount(), 0);
 });
 
@@ -171,7 +174,17 @@ test("a new chain whose name is a chain's name or alternate name is 409", async 
   mock.method(Chain, "exists", async (f) => ((filter = f), { _id: CHAIN_ID }));
   const payload = { name: "Chick-fil-A", nutritionSourceUrl: "https://www.chick-fil-a.com/nutrition" };
   assert.deepStrictEqual(await post({ kind: "new_chain", payload }, 409), { error: "Restaurant already exists" });
-  assert.deepStrictEqual(filter, { $or: [{ nameKey: "chick fil a" }, { alternateNames: "chick fil a" }] });
+  assert.deepStrictEqual(filter, { $or: [{ nameKey: { $in: ["chick fil a"] } }, { alternateNames: { $in: ["chick fil a"] } }] });
+});
+
+test("a new chain whose alternate name is already a chain's name is 409, so Nearby never matches two chains", async () => {
+  let filter;
+  mock.method(Chain, "exists", async (f) => ((filter = f), { _id: CHAIN_ID }));
+  const payload = { name: "Panda Bowl House", nutritionSourceUrl: "https://example.com/nutrition", alternateNames: ["Subway", "Panda Bowl"] };
+  assert.deepStrictEqual(await post({ kind: "new_chain", payload }, 409), { error: "Restaurant already exists" });
+  const keys = ["panda bowl house", "subway", "panda bowl"];
+  assert.deepStrictEqual(filter, { $or: [{ nameKey: { $in: keys } }, { alternateNames: { $in: keys } }] });
+  assert.strictEqual(store.created.length, 0);
 });
 
 test("a missing target is 404", async () => {

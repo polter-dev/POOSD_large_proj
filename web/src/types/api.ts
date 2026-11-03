@@ -111,7 +111,7 @@ export interface Submission {
   updatedAt: string;
 }
 
-// GET /submissions/mine leaves out flags: users see the status and review note, not moderation reasons.
+// POST /submissions and GET /submissions/mine leave out flags: users see the status and review note, not moderation reasons.
 export type MySubmission = Omit<Submission, 'flags'>;
 
 export interface UserRef {
