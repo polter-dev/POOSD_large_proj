@@ -136,6 +136,27 @@ test("400, not 500, when the request has no body", async () => {
   assert.deepStrictEqual(await res.json(), { error: "lat must be a number from -90 to 90" });
 });
 
+test("every map server down near UCF: 200 from the snapshot, each place matched to its chain", async () => {
+  stubChains();
+  places._clearCache();
+  // Overpass fails; this test's own requests to the API still go through.
+  const realFetch = global.fetch;
+  mock.method(global, "fetch", (url, opts) => (String(url).startsWith(base) ? realFetch(url, opts) : { ok: false, status: 502 }));
+  const log = mock.method(console, "error", () => {});
+
+  const res = await post({ lat: 28.6024, lng: -81.2001, radiusMiles: 5 });
+  assert.strictEqual(res.status, 200);
+  const { restaurants } = await res.json();
+  assert.ok(restaurants.length > 2, `${restaurants.length} restaurants`);
+  // Same response shape as a live answer, and only the stubbed chains (Panda Express, Subway).
+  assert.deepStrictEqual(Object.keys(restaurants[0]), ["placeId", "name", "address", "distanceMiles", "chainId"]);
+  for (const r of restaurants) {
+    assert.strictEqual(r.chainId, r.name === "Subway" ? chains[1]._id : chains[0]._id, r.name);
+    assert.ok(r.distanceMiles <= 5);
+  }
+  assert.match(log.mock.calls[0].arguments[0], /answered from the snapshot/);
+});
+
 test("Overpass failure surfaces as 502 Places lookup failed", async () => {
   stubChains();
   mock.method(places, "findNearbyChainLocations", async () => {

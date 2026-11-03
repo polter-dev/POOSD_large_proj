@@ -28,13 +28,16 @@ opt radiusMiles omitted
 end
 API -> MongoDB : read all chain names
 API -> Overpass : restaurants within radius\nwhose name contains a chain name
-alt Overpass fails
-  API --> Client : 502 "Places lookup failed"
-else places found
+alt a server answers
   Overpass --> API : places (name, address, location)
-  API -> API : sort by distance; match each\nplace name to a chain (or null)
-  API --> Client : 200 { restaurants: [ ..., chainId ] }
+else every server fails (at most 3 tried)
+  break no cached answer, nothing in the snapshot within\nthe radius, and more than 20 mi from UCF
+    API --> Client : 502 "Places lookup failed"
+  end
+  API -> API : last cached answer for this search (even if expired),\nelse db/places-snapshot.json within the radius,\nsame chain names (#128)
 end
+API -> API : sort by distance; match each\nplace name to a chain (or null)
+API --> Client : 200 { restaurants: [ ..., chainId ] }
 note right of Client : the location is never stored
 
 == Get recommendations ==

@@ -18,6 +18,8 @@
 //   - alternateNames: other spellings Google Places might return for it
 //     (without apostrophes/hyphens is the common one). The chain's own name
 //     is matched automatically; don't repeat it here.
+//   - Then run `node scripts/capture-places-snapshot.js` (from backend/) and
+//     commit db/places-snapshot.json, so Nearby's fallback knows its locations.
 
 const CHAINS = [
   {

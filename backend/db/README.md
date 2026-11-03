@@ -7,8 +7,10 @@ Database name: **`MenuMacroFitter`** (MongoDB 5.0+)
 | `schema.js` | Creates the 6 collections with validation rules and indexes | `sql/schema.sql` |
 | `seed.js` | Deletes everything, then inserts test users, chains, menu items, favorites, meal logs, submissions | `sql/database/seed.sql` |
 | `menu-data/chains.js` | Restaurant chains + menu items (edit this to add or verify food) | — |
+| `places-snapshot.json` | Nearby's fallback when every Overpass server is down: OpenStreetMap places of the seeded chains within 20 miles of UCF. Not loaded into MongoDB; the API reads the file (#128) | — |
 | `queries.md` | Demo queries for the GTA, with expected results | `sql/database/queries.md` |
 | `../scripts/make-admin.js` | Grants or revokes the admin role (the only way to make an admin) | — |
+| `../scripts/capture-places-snapshot.js` | Re-captures `places-snapshot.json`; run it after adding a chain (backend README, "Nearby fallback snapshot") | — |
 
 ## Running it (PuTTY → server)
 
