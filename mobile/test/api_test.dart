@@ -230,4 +230,40 @@ void main() {
     expect(items[1].servings, 0.5);
     expect(items[1].confidence, PhotoConfidence.low);
   });
+
+  test('createSubmission sends kind as JSON and getMySubmissions parses the list', () async {
+    final sub = {
+      'id': 's1',
+      'kind': 'edit_item',
+      'targetId': 'i1',
+      'payload': {'calories': 600},
+      'before': {'calories': 590},
+      'resultId': null,
+      'status': 'auto_applied',
+      'reviewNote': null,
+      'createdAt': '2026-11-03T12:00:00.000Z',
+      'updatedAt': '2026-11-03T12:00:00.000Z',
+    };
+    final api = apiWith(
+      (r) async => r.method == 'POST'
+          ? json({...sub, 'flags': []}, 201)
+          : json({
+              'submissions': [
+                {...sub, 'kind': 'new_chain', 'targetId': null, 'before': null, 'status': 'pending'},
+              ],
+              'total': 1,
+            }),
+    );
+    final created = await api.createSubmission(kind: SubmissionKind.editItem, targetId: 'i1', payload: {'calories': 600});
+    expect(jsonDecode(sent[0].body), {
+      'kind': 'edit_item',
+      'targetId': 'i1',
+      'payload': {'calories': 600},
+    });
+    expect([created.status, created.before], [SubmissionStatus.autoApplied, {'calories': 590}]);
+
+    final mine = await api.getMySubmissions();
+    expect(sent[1].url.toString(), 'http://test/api/submissions/mine?limit=50&skip=0');
+    expect([mine.total, mine.submissions.single.kind, mine.submissions.single.targetId], [1, SubmissionKind.newChain, null]);
+  });
 }
