@@ -1,14 +1,18 @@
 @startuml erd
-' Menu Macro Fitter -- entity relationship diagram (MongoDB)
+' Menu Macro Fitter -- entity relationship diagram (MongoDB), #39 + #121
 ' Traced from backend/db/schema.js. Embedded sub-documents (profile,
 ' preferences) are drawn inside users because they are not collections.
+' "?" = may be null; M6 marks what the tracker / community features added.
 
 !theme plain
 
 skinparam defaultFontName Verdana
+scale 2
 skinparam defaultFontSize 13
 skinparam shadowing false
 skinparam linetype ortho
+skinparam nodesep 60
+skinparam ranksep 70
 skinparam ClassBackgroundColor White
 skinparam ClassBorderColor #333333
 skinparam ArrowColor #333333
@@ -30,6 +34,7 @@ entity "users" as users {
   verificationTokenExpires : date?
   resetTokenHash : string? (SHA-256)
   resetTokenExpires : date?
+  role : user | admin (M6; missing = user)
   * createdAt : date
   * updatedAt : date
   ..profile (embedded, null until filled in)..
@@ -44,13 +49,14 @@ entity "users" as users {
   * searchRadius : 5 | 10 | 15 | 20
   * recommendationMode : protein | carb
   * mealCalorieLimit : number? (100-3000)
+  trackedNutrients : string[] (M6; 1-4 of calories, protein, carbs, fat)
 }
 
 entity "favorites" as favorites {
   * _id : ObjectId <<PK>>
   --
   * userId : ObjectId <<FK users>>
-  * placeId : string (Google place ID)
+  * placeId : string (nearby result, osm-node-...)
   label : string? (max 50)
   * createdAt : date
   --
@@ -81,23 +87,76 @@ entity "menuItems" as menuItems {
   carbsG : number? (null = unknown)
   fatG : number? (null = unknown)
   * isEstimate : bool
-  * source : string
+  * source : string ("official", or "community" from a submission)
   lastVerified : date? (required when isEstimate = false)
   --
   unique (chainId, searchName)
 }
 
+entity "mealLogs (M6)" as mealLogs {
+  * _id : ObjectId <<PK>>
+  --
+  * userId : ObjectId <<FK users>>
+  * date : string (YYYY-MM-DD, user's own day)
+  * status : planned | eaten
+  menuItemId : ObjectId? <<FK menuItems>> (null = custom food)
+  * name : string (copied)
+  chainName : string? (copied)
+  * servings : number (0.25-10)
+  * calories : number (one serving)
+  proteinG : number? (one serving)
+  carbsG : number? (one serving)
+  fatG : number? (one serving)
+  * source : search | plan | photo | custom
+  * createdAt : date
+  --
+  index (userId, date)
+}
+
+entity "submissions (M6)" as submissions {
+  * _id : ObjectId <<PK>>
+  --
+  * userId : ObjectId <<FK users>> (author)
+  * kind : edit_item | new_item | new_chain
+  targetId : ObjectId? (menu item, or chain; null for new_chain)
+  * payload : object (the change)
+  before : object? (what an applied edit replaced)
+  resultId : ObjectId? (item or chain it created)
+  * status : auto_applied | pending | approved | rejected | reverted
+  * flags : string[] (why it needs review)
+  reviewedBy : ObjectId? <<FK users>> (admin)
+  reviewNote : string? (max 300)
+  * createdAt : date
+  * updatedAt : date
+  --
+  index (status, createdAt)
+  index (userId, createdAt)
+}
+
 users ||--o{ favorites : saves
+users ||--o{ mealLogs : logs
+users ||--o{ submissions : writes
+users |o--o{ submissions : "reviews\n(reviewedBy)"
 chains ||--o{ menuItems : serves
+menuItems |o--o{ mealLogs : "copied from\n(snapshot)"
+menuItems |o..o{ submissions : "target / result\n(edit_item, new_item)"
+chains |o..o{ submissions : "target / result\n(new_item, new_chain)"
 
 note bottom of favorites
   Spec N4: only user + place ID + label.
   No address or coordinates are stored.
 end note
 
-note bottom of menuItems
-  No link to users: the app
-  does not log meals.
+note bottom of mealLogs
+  A snapshot: name, chain and macros are copied when
+  the entry is made, so menuItemId may point at an
+  item that was later edited or deleted.
+end note
+
+note bottom of submissions
+  Dashed lines: targetId / resultId point at a menu
+  item or a chain depending on kind (checked by the API).
+  Community items land in menuItems as estimates.
 end note
 
 @enduml
