@@ -19,6 +19,9 @@ export function formatWeight(weightLb: number, units: Units) {
 
 export const formatCalories = (n: number) => n.toLocaleString('en-US');
 
+// Grams as the chains publish them: whole numbers, or one decimal (1.5 g fat).
+export const formatGrams = (n: number) => String(round1(n));
+
 // Profile form select, and the short form on the targets page.
 export const ACTIVITY_LEVELS: { value: ActivityLevel; label: string; short: string }[] = [
   { value: 'sedentary', label: 'Sedentary: little or no exercise', short: 'Sedentary' },
