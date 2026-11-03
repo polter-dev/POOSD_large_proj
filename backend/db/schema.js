@@ -57,6 +57,9 @@ const usersSchema = {
     verificationTokenExpires: { bsonType: ["date", "null"] },
     resetTokenHash: { bsonType: ["string", "null"], description: "SHA-256 of the password-reset token" },
     resetTokenExpires: { bsonType: ["date", "null"] },
+    // M6 (#107). Optional, so accounts from before it still pass strict validation. Missing = "user".
+    // Never writable through the API: only scripts/make-admin.js sets it.
+    role: { enum: ["user", "admin"], description: "admins can review community submissions" },
     // Height and weight are always stored imperial; the API converts for
     // display when preferences.units is "metric".
     profile: {
@@ -85,6 +88,14 @@ const usersSchema = {
           minimum: 100,
           maximum: 3000,
           description: "per-meal limit the user set; null = use daily target / 3",
+        },
+        // M6 (#107): which totals the tracker shows. Optional (not in required); missing = ["calories", "protein"].
+        trackedNutrients: {
+          bsonType: "array",
+          minItems: 1,
+          maxItems: 4,
+          uniqueItems: true,
+          items: { enum: ["calories", "protein", "carbs", "fat"] },
         },
       },
     },
@@ -199,6 +210,74 @@ const favoritesSchema = {
 };
 
 // ---------------------------------------------------------------------------
+// mealLogs (M6, #107; shapes from #106 §A)
+// ---------------------------------------------------------------------------
+// One food a user ate or plans to eat on a day. A SNAPSHOT: name, chain and
+// macros are copied in (from the menu item when menuItemId is set), so the
+// log stays right if the item is later edited or deleted. menuItemId may
+// therefore point at an item that no longer exists. Macros are for ONE
+// serving; totals multiply by servings. Unknown macros are null, never 0.
+const date = { bsonType: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" };
+const mealLogsSchema = {
+  bsonType: "object",
+  required: ["userId", "date", "status", "menuItemId", "name", "chainName", "servings", "calories", "proteinG", "carbsG", "fatG", "source", "createdAt"],
+  additionalProperties: false,
+  properties: {
+    _id: { bsonType: "objectId" },
+    userId: { bsonType: "objectId", description: "users._id" },
+    // The user's own calendar day, sent by the client; the server never converts time zones.
+    // The pattern can't reject 2026-02-30, so the API checks for a real date.
+    date: { ...date, description: "YYYY-MM-DD in the user's time zone" },
+    status: { enum: ["planned", "eaten"] },
+    menuItemId: { bsonType: ["objectId", "null"], description: "menuItems._id, or null for custom food" },
+    name: { bsonType: "string", minLength: 1, maxLength: 150 },
+    chainName: { bsonType: ["string", "null"], minLength: 1, maxLength: 100 },
+    servings: { ...number, minimum: 0.25, maximum: 10 },
+    calories: { ...number, minimum: 0, maximum: 5000 },
+    proteinG: { ...numberOrNull, minimum: 0 },
+    carbsG: { ...numberOrNull, minimum: 0 },
+    fatG: { ...numberOrNull, minimum: 0 },
+    source: { enum: ["search", "plan", "photo", "custom"], description: "where the entry came from" },
+    createdAt: { bsonType: "date" },
+  },
+};
+
+// ---------------------------------------------------------------------------
+// submissions (M6, #107; shapes from #106 §A)
+// ---------------------------------------------------------------------------
+// A community edit: fix a menu item, add one, or add a restaurant. Auto-
+// moderation either applies it at once (auto_applied) or queues it (pending)
+// for an admin. payload is the change itself; its shape depends on kind and
+// is checked by the API, so here it only has to be an object. before holds
+// what an applied edit replaced, so it can be reverted.
+const FLAGS = ["new_chain", "verified_item", "renamed", "large_change", "macros_mismatch", "new_account", "untrusted_user", "url_in_name"];
+const submissionsSchema = {
+  bsonType: "object",
+  required: ["userId", "kind", "targetId", "payload", "before", "resultId", "status", "flags", "reviewedBy", "reviewNote", "createdAt", "updatedAt"],
+  additionalProperties: false,
+  properties: {
+    _id: { bsonType: "objectId" },
+    userId: { bsonType: "objectId", description: "users._id of the author" },
+    kind: { enum: ["edit_item", "new_item", "new_chain"] },
+    targetId: { bsonType: ["objectId", "null"], description: "menu item (edit_item) or chain (new_item); null for new_chain" },
+    payload: { bsonType: "object" },
+    before: { bsonType: ["object", "null"], description: "previous values of what an applied edit changed" },
+    resultId: { bsonType: ["objectId", "null"], description: "the menu item or chain a new_item/new_chain created" },
+    status: { enum: ["auto_applied", "pending", "approved", "rejected", "reverted"] },
+    flags: { bsonType: "array", uniqueItems: true, items: { enum: FLAGS }, description: "why it needs review; empty = auto_applied" },
+    reviewedBy: { bsonType: ["objectId", "null"], description: "users._id of the admin who last changed its status" },
+    reviewNote: { bsonType: ["string", "null"], minLength: 1, maxLength: 300 },
+    createdAt: { bsonType: "date" },
+    updatedAt: { bsonType: "date" },
+  },
+};
+
+// new_chain has no target; the other kinds always point at something.
+const targetMatchesKind = {
+  $expr: { $eq: [{ $eq: ["$kind", "new_chain"] }, { $eq: [{ $type: "$targetId" }, "null"] }] },
+};
+
+// ---------------------------------------------------------------------------
 // Create or update each collection
 // ---------------------------------------------------------------------------
 function ensureCollection(name, schema, extraRules = {}) {
@@ -224,6 +303,8 @@ ensureCollection("users", usersSchema, ageRule);
 ensureCollection("chains", chainsSchema);
 ensureCollection("menuItems", menuItemsSchema, verifiedNeedsDate);
 ensureCollection("favorites", favoritesSchema);
+ensureCollection("mealLogs", mealLogsSchema);
+ensureCollection("submissions", submissionsSchema, targetMatchesKind);
 
 // ---------------------------------------------------------------------------
 // Indexes
@@ -261,5 +342,12 @@ db.menuItems.createIndex({ calories: 1, carbsG: -1 }, { name: "calories_carbs" }
 
 // One favorite per place per user; the userId prefix also serves "my favorites".
 db.favorites.createIndex({ userId: 1, placeId: 1 }, { unique: true, name: "user_place_unique" });
+
+// Tracker (#108): one user's entries for a date range, already in date order.
+db.mealLogs.createIndex({ userId: 1, date: 1 }, { name: "user_date" });
+// Admin queue (#109): pending (or any status), newest or oldest first.
+db.submissions.createIndex({ status: 1, createdAt: -1 }, { name: "status_created" });
+// "My submissions" and the 10-per-24-hours limit (#110).
+db.submissions.createIndex({ userId: 1, createdAt: -1 }, { name: "user_created" });
 
 print("schema.js done");

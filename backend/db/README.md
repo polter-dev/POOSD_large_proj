@@ -4,10 +4,11 @@ Database name: **`MenuMacroFitter`** (MongoDB 5.0+)
 
 | File | What it does | Small-project equivalent |
 |---|---|---|
-| `schema.js` | Creates the 4 collections with validation rules and indexes | `sql/schema.sql` |
-| `seed.js` | Deletes everything, then inserts test users, chains, menu items, favorites | `sql/database/seed.sql` |
+| `schema.js` | Creates the 6 collections with validation rules and indexes | `sql/schema.sql` |
+| `seed.js` | Deletes everything, then inserts test users, chains, menu items, favorites, meal logs, submissions | `sql/database/seed.sql` |
 | `menu-data/chains.js` | Restaurant chains + menu items (edit this to add or verify food) | — |
 | `queries.md` | Demo queries for the GTA, with expected results | `sql/database/queries.md` |
+| `../scripts/make-admin.js` | Grants or revokes the admin role (the only way to make an admin) | — |
 
 ## Running it (PuTTY → server)
 
@@ -30,18 +31,42 @@ Database name: **`MenuMacroFitter`** (MongoDB 5.0+)
 
 Every test account's password is **`Password123!`**; see the top of `seed.js`
 for each username and which state it's in (verified, unverified, profile null,
-reset pending).
+reset pending). Meal-log dates are relative to the day `seed.js` runs, so
+re-run it on the morning of a demo.
+
+### Admins (M6)
+
+- **Locally or in CI** there's a seed admin, but only when you ask for it:
+  ```bash
+  SEED_ADMIN=1 mongosh "<connection string>" schema.js seed.js
+  ```
+  It's `siteadmin` / `admin@example.com`, password `Password123!`.
+- **Never on production.** This repo is public, so a seeded admin there would
+  let anyone approve, reject or revert community edits. Make a teammate's own
+  account the admin instead, from `backend/` on the server:
+  ```bash
+  node scripts/make-admin.js <username>            # role: "admin"
+  node scripts/make-admin.js <username> --revoke   # back to a normal user
+  ```
+  It reads `MONGODB_URI` from `backend/.env` and exits with an error if the
+  username doesn't exist. There's no API route for it.
 
 ## Collections
 
 **`users`**: one per account.
 `firstName, lastName, username (unique), email (unique), passwordHash, isVerified,
-verificationTokenHash/Expires, resetTokenHash/Expires, profile, preferences,
+verificationTokenHash/Expires, resetTokenHash/Expires, role?, profile, preferences,
 createdAt, updatedAt`.
+- `role` (M6) = `"user"` or `"admin"`, optional: missing means `"user"`. Only
+  `scripts/make-admin.js` sets it.
 - `profile` = `{ heightIn, weightLb, birthDate, sex, activityLevel, goal }`, or
   `null` until the user fills it in. Users must be 18–120 years old.
-- `preferences` = `{ units, searchRadius, recommendationMode, mealCalorieLimit }`,
+- `preferences` = `{ units, searchRadius, recommendationMode, mealCalorieLimit, trackedNutrients? }`,
   set to defaults at registration (`imperial`, `5`, `protein`, `null`).
+  `trackedNutrients` (M6) is 1–4 of `calories`, `protein`, `carbs`, `fat`,
+  optional: missing means `["calories", "protein"]`.
+- `role` and `trackedNutrients` aren't in `required`, so accounts created
+  before M6 still pass the validator and can still be updated.
 
 **`chains`**: one per restaurant brand (not per location).
 `name, nameKey (unique), alternateNames, nutritionSourceUrl, createdAt, updatedAt`.
@@ -53,9 +78,39 @@ Unique on (chainId, searchName).
 **`favorites`**: `userId → users._id, placeId, label, createdAt`.
 Unique on (userId, placeId).
 
+**`mealLogs`** (M6): one food a user ate or plans to eat on a day.
+`userId → users._id, date, status, menuItemId → menuItems._id | null, name,
+chainName, servings, calories, proteinG, carbsG, fatG, source, createdAt`.
+Index (userId, date).
+- `date` is `YYYY-MM-DD` in the **user's** time zone, sent by the client. The
+  database only checks the format, so the API checks it's a real date.
+- `status` is `planned` or `eaten`; `source` is `search`, `plan`, `photo` or `custom`.
+- The macros are for **one serving**: totals multiply by `servings` (0.25–10).
+  Unknown macros are `null`, never 0, so a day's totals can be "at least".
+- It's a **snapshot**: name, chain and macros are copied from the menu item
+  when the entry is made. Later edits to the item don't change past logs, and
+  `menuItemId` can point at an item that has since been deleted.
+
+**`submissions`** (M6): a community edit waiting for, or past, moderation.
+`userId → users._id, kind, targetId, payload, before, resultId, status, flags,
+reviewedBy → users._id | null, reviewNote, createdAt, updatedAt`.
+Indexes (status, createdAt) and (userId, createdAt).
+- `kind` is `edit_item` (targetId = a menu item), `new_item` (targetId = a
+  chain) or `new_chain` (targetId = null; the database enforces this pairing).
+- `status` is `auto_applied`, `pending`, `approved`, `rejected` or `reverted`.
+- `flags` lists why it needs review (`verified_item`, `large_change`, ...);
+  an empty list is what let it apply on its own.
+- `payload` is the change. Its fields depend on `kind`, so the API checks them.
+  `before` keeps what an applied edit replaced, so it can be reverted.
+  `resultId` is the menu item or chain a `new_item`/`new_chain` created.
+- Community menu items go into `menuItems` with `source: "community"` and
+  `isEstimate: true`, so recommendations hide them (R4) until verified.
+
 ```
 users 1 ──── * favorites          chains 1 ──── * menuItems
-(no link between users and food: the app does not log meals)
+users 1 ──── * mealLogs * ──── 0..1 menuItems   (snapshot; the item may be gone)
+users 1 ──── * submissions ──── 0..1 menuItems or chains (target / result)
+users 1 ──── * submissions it reviewed (reviewedBy)
 ```
 
 The ERD is `docs/diagrams/erd.puml`.
@@ -91,7 +146,16 @@ The ERD is `docs/diagrams/erd.puml`.
     tops the carb list and Chipotle's plain "Chicken (4 oz)" outranks its full
     burrito bowl for protein (queries 16–17). One floor fixes both and
     answers the open question in #32. Search (#31) should not use the floor.
-- **Deleting a user** must also run `favorites.deleteMany({ userId })`.
+- **Deleting a user** must also run `favorites.deleteMany({ userId })`, and
+  (M6) `mealLogs.deleteMany({ userId })`. Their submissions stay, since applied
+  edits already changed shared data.
+- **Meal logs (#108).** A range read is `mealLogs.find({ userId, date: { $gte: from, $lte: to } })`
+  on the `user_date` index (`YYYY-MM-DD` strings sort like dates). Day totals:
+  query 23 in `queries.md` does it in the database.
+- **Submissions (#109, #110).** The admin queue is query 24 (`status_created`);
+  "my submissions" and the 10-per-24-hours limit read `user_created`.
+- **Role and tracked nutrients** may be missing on any user: treat a missing
+  `role` as `"user"` and a missing `trackedNutrients` as `["calories", "protein"]`.
   MongoDB has no `ON DELETE CASCADE`.
 - **Verifying a menu item:** `$set` `isEstimate: false`, `source: "official"`
   and `lastVerified: new Date()` together (query 20). The database refuses
@@ -168,3 +232,17 @@ The ERD is `docs/diagrams/erd.puml`.
 - **`schema.js` checks every command.** `runCommand` doesn't throw on failure,
   so `schema.js` checks `ok` itself; a rejected validator stops the script
   instead of silently keeping the old one.
+- **Meal logs are snapshots, not live links (M6).** Each entry copies the name,
+  chain and macros when it's made. If a community edit later fixes the item, or
+  a reverted submission deletes it, yesterday's totals don't silently change.
+  Same idea as `chainName` on menu items, for history instead of speed.
+- **New fields are optional, not required (M6).** Strict validation applies to
+  every update, so making `role` or `trackedNutrients` required would block
+  updates to every account created before M6. Missing values have defaults.
+- **Admins can't be made through the API or the seed (M6).** The seed admin is
+  opt-in (`SEED_ADMIN=1`) because this repo, and its passwords, are public;
+  production admins come from `make-admin.js`, which needs shell access.
+- **The database checks what it can about submissions.** `payload` changes
+  shape with `kind`, so the API validates it, but the database still rejects
+  unknown kinds, statuses and flags, and a `new_chain` with a target (or any
+  other kind without one).
