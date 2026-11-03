@@ -104,6 +104,8 @@ Weekly goals are computed by the client: daily × 7.
 ```
 `before` is returned with **only the payload's fields** (`name`, `category`, `calories`, macros). The server also stores the previous `searchName`, `isEstimate`, `source` and `lastVerified` in `before` so revert is exact, but strips them from responses.
 
+`GET /submissions/mine` omits `flags`: users see the status and review note, not moderation reasons such as `untrusted_user`. Admins still see `flags`.
+
 Admin listings and the admin PATCH response add `user: { id, username }` and `reviewedBy: { id, username } | null`.
 
 `PhotoItem`: `{ menuItemId, name, chainName, servings, calories, proteinG, carbsG, fatG, confidence }`. `confidence` is `"high"` \| `"medium"` \| `"low"`. `menuItemId` is null for unmatched food.
@@ -213,32 +215,32 @@ GET details:
 
 Nothing is stored. For each day:
 1. `remainingCalories` = `Calories.target` minus that day's logged calories × servings, planned and eaten together. Floor at 0.
-2. `slots` = 3 if the day has no entries, otherwise `max(1, 3 - entryCount)`.
+2. `slots` = `max(1, 3 - entryCount)`.
 3. `mealCalorieLimit` = `min(perMeal, floor(remainingCalories / slots))`.
-4. Fill each slot with the best `rankItems` result (existing `services/recommendations.js`, verified items only) under that limit. Skip items already used anywhere in this plan. Prefer a chain not yet used that day; fall back to the top item.
+4. Fill each slot with the best `rankItems` result (existing `services/recommendations.js`, verified items only) under that limit. Skip items already used anywhere in this plan. Prefer a chain not yet used that day; fall back to the top item. When unused items run out, the remaining slots stay empty, so the day just has fewer items.
 5. If `mealCalorieLimit < 300`, `items` is empty.
 
 `totals` is the sum of the picked items, one serving each.
 
 Opting in is done by the client: it sends the picked items to `POST /meal-logs` with `status: "planned"`, `source: "plan"`, `menuItemId`. "Ate it" is `PATCH /meal-logs/:id { status: "eaten" }`.
 
-### Photo analysis
+### Photo analysis (all auth yes)
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"` (`imageBase64` over 3,000,000 chars, or a body over 3 MB); 429 `"Daily photo limit reached"` (20 per user per UTC day; counted per server process, so it resets on restart/deploy); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | `analyzePhoto` |
+| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"` (`imageBase64` over 3,000,000 chars, or a body over 3 MiB: `express.json({ limit: "3mb" })`, 3,145,728 bytes); 429 `"Daily photo limit reached"` (20 per user per UTC day; only successful analyses count, 502s don't; counted per server process, so it resets on restart/deploy); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | `analyzePhoto` |
 
 - Nothing is saved, and the image is never stored or logged.
 - The 413 uses the normal `{ error }` shape: the route has its own JSON parser mounted before the global one (#112).
 - A returned `menuItemId` always exists in `menuItems`, and its name, chain and macros are the database values, not the model's.
-- Clients show the items on a confirm/edit screen, then call `POST /meal-logs` with `source: "photo"`.
+- Clients show the items on a confirm/edit screen, then call `POST /meal-logs` with `source: "photo"`. A matched item may change only `servings`. If the user edits its name or macros, the client sends it as a custom entry, with `menuItemId` omitted and `source: "photo"`.
 
 ### Community submissions (all auth yes)
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
 | POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`) | 400 invalid; 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
-| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }`, newest first, max 50 | 401 | `getMySubmissions` |
+| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }` (without `flags`), newest first, max 50 | 401 | `getMySubmissions` |
 
 Payload by `kind`:
 
@@ -276,13 +278,18 @@ Duplicate checks use `normalize()`:
 
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/admin/submissions` | admin | `status` (default `pending`), `limit` (default 20, max 100), `skip` (default 0) | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | `getAdminSubmissions` (web only) |
-| PATCH | `/admin/submissions/:id` | admin | `{ status, reviewNote? }` | 200 `Submission` (with user, reviewedBy) | 400; 403; 404; 409 `"Can't change a <from> submission to <to>"`, `"Item already exists"` / `"Restaurant already exists"` (approve), `"Item changed since this submission"` or `"Restaurant has menu items"` (revert) | `reviewSubmission` (web only) |
+| GET | `/admin/submissions` | yes (admin) | `status` (default `pending`), `limit` (default 20, max 100), `skip` (default 0) | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | `getAdminSubmissions` (web only) |
+| PATCH | `/admin/submissions/:id` | yes (admin) | `{ status, reviewNote? }` | 200 `Submission` (with user, reviewedBy) | 400; 403; 404 submission not found, or `"Menu item not found"` / `"Restaurant not found"` (target no longer exists); 409 `"Can't change a submission from <from> to <to>"`, `"Item already exists"` / `"Restaurant already exists"` (approve, or revert of a rename), `"Item changed since this submission"` (revert of an edit or new item) or `"Restaurant has menu items"` (revert of a new chain) | `reviewSubmission` (web only) |
 
 Allowed status changes:
 - `pending` → `approved` (applies the change)
 - `pending` → `rejected`
-- `auto_applied` or `approved` → `reverted`: an edit restores `before`, unless the item's current values for the edited fields no longer equal the submission's payload: then 409 `"Item changed since this submission"` (no silent overwrites); a new item is deleted; a new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
+- `auto_applied` or `approved` → `reverted`:
+  - An edit restores `before`, unless the item's current values for the edited fields no longer equal the submission's payload: then 409 `"Item changed since this submission"` (no silent overwrites). Reverting a rename re-checks duplicates like approve does: 409 `"Item already exists"` if the old name was taken since.
+  - A new item is deleted, unless its current values no longer equal what the submission created: then 409 `"Item changed since this submission"`. An applied edit therefore blocks reverting the item it edited, and nothing is silently thrown away.
+  - A new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
+
+Approving or reverting a submission whose target no longer exists returns 404 `"Menu item not found"` / `"Restaurant not found"`. On every 404 and 409 above, the submission's status stays unchanged.
 
 `reviewedBy` is set to the admin on every change.
 

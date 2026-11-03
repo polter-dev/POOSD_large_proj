@@ -7,7 +7,10 @@ maintain, or gain weight while eating near campus. Users enter their height,
 weight, age, sex, and activity level; the app calculates their daily
 maintenance calories and a goal target. They then search restaurants within
 5, 10, 15, or 20 miles and see menu items that fit, ranked as high-protein or
-high-carb options under a per-meal calorie limit. They can also log meals and track daily calories and macros, get a day or week meal plan, log a meal from a photo, and suggest menu corrections, new items or new restaurants for admin review.
+high-carb options under a per-meal calorie limit. They can also log meals and
+track daily calories and macros, get a day or week meal plan, log a meal from
+a photo, and suggest menu corrections, new items or new restaurants for admin
+review.
 
 Built on the MERN stack (MongoDB, Express, React, Node.js) with a Flutter
 mobile client. Calorie targets are general estimates, not medical advice.
