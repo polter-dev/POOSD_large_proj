@@ -21,6 +21,8 @@ enum RecommendationMode { protein, carb }
 
 enum Category { entree, side, breakfast, salad, drink, dessert }
 
+enum PhotoConfidence { high, medium, low }
+
 const searchRadii = [5, 10, 15, 20];
 
 T _enum<T extends Enum>(List<T> values, Object? raw) => values.byName(raw as String);
@@ -222,6 +224,43 @@ class NearbyRestaurant {
     address: j['address'] as String?,
     distanceMiles: (j['distanceMiles'] as num).toDouble(),
     chainId: j['chainId'] as String?,
+  );
+}
+
+// A draft entry from a meal photo; macros are per serving. Nothing is logged until the user confirms.
+class PhotoItem {
+  const PhotoItem({
+    required this.menuItemId,
+    required this.name,
+    required this.chainName,
+    required this.servings,
+    required this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    required this.confidence,
+  });
+
+  final String? menuItemId; // null = not on our menu
+  final String name;
+  final String? chainName;
+  final double servings;
+  final double calories;
+  final double? proteinG; // null = unknown, never treat as 0
+  final double? carbsG;
+  final double? fatG;
+  final PhotoConfidence confidence;
+
+  factory PhotoItem.fromJson(Map<String, dynamic> j) => PhotoItem(
+    menuItemId: j['menuItemId'] as String?,
+    name: j['name'] as String,
+    chainName: j['chainName'] as String?,
+    servings: (j['servings'] as num).toDouble(),
+    calories: (j['calories'] as num).toDouble(),
+    proteinG: _numOrNull(j['proteinG']),
+    carbsG: _numOrNull(j['carbsG']),
+    fatG: _numOrNull(j['fatG']),
+    confidence: _enum(PhotoConfidence.values, j['confidence']),
   );
 }
 

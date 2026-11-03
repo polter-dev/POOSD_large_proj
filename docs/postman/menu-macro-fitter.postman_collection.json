@@ -1216,6 +1216,54 @@
           ]
         }
       ]
+    },
+    {
+      "name": "Photo analysis",
+      "item": [
+        {
+          "name": "Analyze photo (bad mediaType)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/photo-analyses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "photo-analyses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageBase64\": \"iVBORw0KGgo=\",\n  \"mediaType\": \"image/gif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validation runs before the API key check, so this needs no ANTHROPIC_API_KEY and costs nothing.",
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error names the media types\", () => pm.expect(pm.response.json().error).to.eql(\"mediaType must be image/jpeg, image/png or image/webp\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
     }
   ]
 }

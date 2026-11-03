@@ -1,6 +1,6 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
+  AddFavoriteBody, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
   MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
   RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
   UpdateProfileBody, User,
@@ -42,3 +42,6 @@ export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/re
 export const getFavorites = () => request<FavoritesResponse>('GET', '/favorites');
 export const addFavorite = (body: AddFavoriteBody) => request<Favorite>('POST', '/favorites', body);
 export const removeFavorite = (id: string) => request<void>('DELETE', `/favorites/${encodeURIComponent(id)}`);
+
+// Photo analysis (nothing is saved; the client logs the confirmed items with POST /meal-logs)
+export const analyzePhoto = (body: AnalyzePhotoBody) => request<AnalyzePhotoResponse>('POST', '/photo-analyses', body);
