@@ -12,11 +12,12 @@ import 'picks_screen.dart';
 /// #35, prototype screen 07: restaurants within 5 to 20 miles (POST /restaurants/nearby), each with
 /// how many of its items fit the goal. The count is one POST /recommendations for all of them
 /// (spec, Restaurant card). Asks for location the first time it opens; the position is only used
-/// for the request, never stored (spec N4).
+/// for the request, never stored (spec N4). Each card can be saved to favorites (Saved tab).
 class NearbyScreen extends StatefulWidget {
-  const NearbyScreen({super.key, required this.user});
+  const NearbyScreen({super.key, required this.user, this.active = true});
 
   final User user;
+  final bool active; // this tab is showing; coming back re-reads favorites, which the Saved tab can change
 
   @override
   State<NearbyScreen> createState() => _NearbyScreenState();
@@ -32,12 +33,16 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
   String? _error;
   bool _loading = true;
   int _request = 0;
+  Map<String, String> _saved = {}; // placeId -> favorite id
+  final _saving = <String>{}; // placeIds with a save or remove in flight
+  String? _saveError;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    _loadSaved();
   }
 
   @override
@@ -60,6 +65,44 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
   void didUpdateWidget(NearbyScreen old) {
     super.didUpdateWidget(old);
     if (old.user != widget.user) _load();
+    if (widget.active && !old.active) _loadSaved();
+  }
+
+  // Without them the Save buttons just start empty.
+  Future<void> _loadSaved() async {
+    try {
+      final favorites = await ApiScope.of(context).getFavorites();
+      if (mounted) setState(() => _saved = {for (final f in favorites) f.placeId: f.id});
+    } on ApiError {
+      // keep what we had
+    }
+  }
+
+  Future<void> _toggleSaved(NearbyRestaurant r) async {
+    if (!_saving.add(r.placeId)) return;
+    setState(() => _saveError = null);
+    final api = ApiScope.of(context);
+    final favoriteId = _saved[r.placeId];
+    try {
+      if (favoriteId != null) {
+        await api.removeFavorite(favoriteId);
+        if (mounted) setState(() => _saved.remove(r.placeId));
+      } else {
+        // The label is 1-50 characters or null.
+        final label = r.name.length > 50 ? r.name.substring(0, 50) : r.name;
+        final f = await api.addFavorite(placeId: r.placeId, label: label.isEmpty ? null : label);
+        if (mounted) setState(() => _saved[r.placeId] = f.id);
+      }
+    } on ApiError catch (e) {
+      // 409: saved already, 404: removed already (on another device). Either way, re-read the true state.
+      if (e.status == 409 || e.status == 404) {
+        await _loadSaved();
+      } else if (mounted) {
+        setState(() => _saveError = e.message);
+      }
+    } finally {
+      if (mounted) setState(() => _saving.remove(r.placeId));
+    }
   }
 
   Future<void> _load() async {
@@ -120,7 +163,12 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
     } on ApiError catch (e) {
       if (mounted && request == _request) {
         setState(() {
-          _error = e.message;
+          // The API's own 502 is "Places lookup failed": every OpenStreetMap server it tried was busy or down.
+          // nginx also answers 502 (its HTML page, not fromApi) when the API itself is down; that keeps its message.
+          _error = e.status == 502 && e.fromApi
+              ? "Couldn't load restaurants. The map service is busy, so try again in a minute. "
+                    'Best picks and Search still work.'
+              : e.message;
           _loading = false;
         });
       }
@@ -131,6 +179,9 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
     if (r == _radius) return;
     setState(() => _radius = r);
     _load();
+    // Remembered for next time; the search doesn't wait on it, so a failed save stays quiet. Not handed up
+    // to AppShell: only this screen reads searchRadius, and a new User would reload every tab.
+    ApiScope.of(context).updatePreferences(searchRadius: r).then<void>((_) {}, onError: (Object _) {});
   }
 
   void _open(NearbyRestaurant r) => Navigator.of(context).push(
@@ -162,6 +213,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
               ),
             ),
             const SizedBox(height: AppSpace.s4),
+            if (_saveError != null) ...[ErrorBanner(message: _saveError!), const SizedBox(height: AppSpace.s4)],
             if (_problem != null)
               _LocationHelp(
                 problem: _problem!,
@@ -192,6 +244,9 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
                   fits: r.chainId == null ? null : _fits?[r.chainId],
                   atLeast: _fitsFull,
                   onTap: _open,
+                  saved: _saved.containsKey(r.placeId),
+                  saving: _saving.contains(r.placeId),
+                  onToggleSaved: () => _toggleSaved(r),
                 ),
               ],
           ],
@@ -239,14 +294,25 @@ class _RadiusChip extends StatelessWidget {
 }
 
 /// Restaurant card (spec): name, distance, address when there is one, and the fit badge. Only cards
-/// with something that fits open Best picks; "No nutrition data" isn't tappable.
+/// with something that fits open Best picks; "No nutrition data" isn't tappable. Any card can be saved.
 class _RestaurantCard extends StatelessWidget {
-  const _RestaurantCard({required this.restaurant, required this.fits, required this.atLeast, required this.onTap});
+  const _RestaurantCard({
+    required this.restaurant,
+    required this.fits,
+    required this.atLeast,
+    required this.onTap,
+    required this.saved,
+    required this.saving,
+    required this.onToggleSaved,
+  });
 
   final NearbyRestaurant restaurant;
   final int? fits; // null: no nutrition data, or the count failed or is unknown
   final bool atLeast; // fits is a lower bound: show "3+"
   final ValueChanged<NearbyRestaurant> onTap;
+  final bool saved;
+  final bool saving;
+  final VoidCallback onToggleSaved;
 
   @override
   Widget build(BuildContext context) {
@@ -301,7 +367,28 @@ class _RestaurantCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: AppSpace.s3),
-          badge,
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Flexible(child: badge),
+              const SizedBox(width: AppSpace.s2),
+              // Its own node with its own tap: excludeSemantics drops the button's, and without container
+              // the label merges into the card, whose tap opens Best picks.
+              Semantics(
+                container: true,
+                button: true,
+                toggled: saved,
+                label: saved ? 'Saved: ${r.name}. Remove from saved' : 'Save ${r.name}',
+                onTap: saving ? null : onToggleSaved,
+                excludeSemantics: true,
+                child: TextButton.icon(
+                  onPressed: saving ? null : onToggleSaved,
+                  icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, size: 18),
+                  label: Text(saved ? 'Saved' : 'Save'),
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );

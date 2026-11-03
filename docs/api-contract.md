@@ -48,7 +48,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | `users.role` | optional; `"user"` \| `"admin"`; missing = `"user"`. Never writable through the API. |
 | `users.preferences.trackedNutrients` | optional array, 1-4 unique values from `"calories"`, `"protein"`, `"carbs"`, `"fat"`; missing = `["calories","protein"]` |
 | **`mealLogs`** | `_id, userId (objectId), date (string ^\d{4}-\d{2}-\d{2}$), status ("planned"\|"eaten"), menuItemId (objectId\|null), name (string 1-150), chainName (string 1-100\|null), servings (number 0.25-10), calories (number 0-5000), proteinG/carbsG/fatG (number >= 0 \| null), source ("search"\|"plan"\|"photo"\|"custom"), createdAt (date)`; all required. Index `{ userId: 1, date: 1 }` (`user_date`). |
-| **`submissions`** | `_id, userId, kind ("edit_item"\|"new_item"\|"new_chain"), targetId (objectId\|null), payload (object), before (object\|null), resultId (objectId\|null), status ("auto_applied"\|"pending"\|"approved"\|"rejected"\|"reverted"), flags (array of string), reviewedBy (objectId\|null), reviewNote (string 1-300\|null), createdAt, updatedAt`; all required. Indexes `{ status: 1, createdAt: -1 }` (`status_created`) and `{ userId: 1, createdAt: -1 }` (`user_created`). |
+| **`submissions`** | `_id, userId, kind ("edit_item"\|"new_item"\|"new_chain"), targetId (objectId\|null; null exactly when kind is "new_chain"), payload (object), before (object\|null), resultId (objectId\|null), status ("auto_applied"\|"pending"\|"approved"\|"rejected"\|"reverted"), flags (array of unique values from the Auto-moderation flag table), reviewedBy (objectId\|null), reviewNote (string 1-300\|null), createdAt, updatedAt`; all required. Indexes `{ status: 1, createdAt: -1 }` (`status_created`) and `{ userId: 1, createdAt: -1 }` (`user_created`). |
 | `menuItems` (no change) | community rows use `source: "community"`, `isEstimate: true`, `lastVerified: null` |
 
 `date` is the **user's local calendar day**, sent by the client. The server never converts time zones.
@@ -211,7 +211,7 @@ GET details:
 
 | Method | Path | Auth | Query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required, a real calendar date: `2026-02-30` is a 400, same check as `birthDate`); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | `getMealPlan` |
+| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required, a real calendar date: `2026-02-30` is a 400, same check as `birthDate`); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 `"start must be a date (YYYY-MM-DD)"`, `"days must be 1 or 7"`, `"chainIds must be comma-separated chain ids"`, `"mode must be protein or carb"`; 400 `"Set your profile first"`; 404 `"User not found"` (account deleted) | `getMealPlan` |
 
 Nothing is stored. For each day:
 1. `remainingCalories` = `Calories.target` minus that day's logged calories × servings, planned and eaten together. Floor at 0.
@@ -279,13 +279,13 @@ Duplicate checks use `normalize()`:
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
 | GET | `/admin/submissions` | yes (admin) | `status` (default `pending`), `limit` (default 20, max 100), `skip` (default 0) | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | `getAdminSubmissions` (web only) |
-| PATCH | `/admin/submissions/:id` | yes (admin) | `{ status, reviewNote? }` | 200 `Submission` (with user, reviewedBy) | 400; 403; 404 submission not found, or `"Menu item not found"` / `"Restaurant not found"` (target no longer exists); 409 `"Can't change a submission from <from> to <to>"`, `"Item already exists"` / `"Restaurant already exists"` (approve, or revert of a rename), `"Item changed since this submission"` (revert of an edit or new item) or `"Restaurant has menu items"` (revert of a new chain) | `reviewSubmission` (web only) |
+| PATCH | `/admin/submissions/:id` | yes (admin) | `{ status, reviewNote? }` | 200 `Submission` (with user, reviewedBy) | 400; 403; 404 submission not found, or `"Menu item not found"` / `"Restaurant not found"` (target no longer exists); 409 `"Can't change a submission from <from> to <to>"`, `"Item already exists"` / `"Restaurant already exists"` (approve, or revert of a rename), `"Item changed since this submission"` (revert of an edit or new item, or of an edit when a later edit of the same item was applied) or `"Restaurant has menu items"` (revert of a new chain) | `reviewSubmission` (web only) |
 
 Allowed status changes:
 - `pending` → `approved` (applies the change)
 - `pending` → `rejected`
 - `auto_applied` or `approved` → `reverted`:
-  - An edit restores `before`, unless the item's current values for the edited fields no longer equal the submission's payload: then 409 `"Item changed since this submission"` (no silent overwrites). Reverting a rename re-checks duplicates like approve does: 409 `"Item already exists"` if the old name was taken since.
+  - An edit restores `before`, unless the item's current values for the edited fields no longer equal the submission's payload: then 409 `"Item changed since this submission"` (no silent overwrites). The same 409 applies while another `edit_item` on the same item was applied (`auto_applied` or `approved`) at or after this one, even of other fields: `before` also restores `isEstimate`/`source`/`lastVerified`, which would label that edit's values verified. Reverting a rename re-checks duplicates like approve does: 409 `"Item already exists"` if the old name was taken since.
   - A new item is deleted, unless its current values no longer equal what the submission created: then 409 `"Item changed since this submission"`. An applied edit therefore blocks reverting the item it edited, and nothing is silently thrown away.
   - A new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
 

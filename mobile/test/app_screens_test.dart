@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:menu_macro_fitter/main.dart';
 import 'package:menu_macro_fitter/models/api_models.dart';
 import 'package:menu_macro_fitter/screens/app_shell.dart';
+import 'package:menu_macro_fitter/screens/search_screen.dart';
 import 'package:menu_macro_fitter/services/api.dart';
 import 'package:menu_macro_fitter/services/location.dart';
 import 'package:menu_macro_fitter/theme.dart';
@@ -260,6 +261,11 @@ void main() {
         ],
       };
       server.routes['POST /recommendations'] = (_) => recs([item('a', 'c1', 'Tenders'), item('b', 'c1', 'Nuggets')]);
+      server.routes['GET /favorites'] = (_) => {
+        'favorites': [
+          {'id': 'f2', 'placeId': 'osm-node-2', 'label': 'Chipotle', 'createdAt': '2026-11-01T15:00:00.000Z'},
+        ],
+      };
     }
 
     testWidgets('one recommendations call counts what fits at each restaurant', (tester) async {
@@ -296,6 +302,49 @@ void main() {
       await tapText(tester, '20 mi');
       expect(server.lastBody('POST /restaurants/nearby'), containsPair('radiusMiles', 20));
       expect(location.calls, 1);
+      expect(server.lastBody('PATCH /users/me/preferences'), {'searchRadius': 20}); // remembered for next time
+    });
+
+    testWidgets('Save adds a favorite with the name as its label; Saved removes it', (tester) async {
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      server.routes['POST /favorites'] = (r) => json({
+        'id': 'f1',
+        ...jsonDecode(r.body) as Map<String, dynamic>,
+        'createdAt': '2026-11-03T15:00:00.000Z',
+      }, 201);
+      server.routes['DELETE /favorites/f1'] = (_) => http.Response('', 204);
+      await tapText(tester, 'Nearby');
+      expect(find.text('Saved'), findsNWidgets(2)); // Chipotle's card, and the tab label
+      expect(find.text('Save'), findsNWidgets(3));
+
+      await tapText(tester, 'Save'); // the last card: Chick-fil-A Express
+      expect(server.lastBody('POST /favorites'), {'placeId': 'osm-node-4', 'label': 'Chick-fil-A Express'});
+      expect(find.text('Save'), findsNWidgets(2));
+
+      await tester.ensureVisible(find.text('Saved').at(1));
+      await tester.tap(find.text('Saved').at(1)); // the card just saved, not the tab
+      await tester.pumpAndSettle();
+      expect(server.to('DELETE /favorites/f1'), hasLength(1));
+      expect(find.text('Save'), findsNWidgets(3));
+    });
+
+    testWidgets('a screen reader reaches Save as its own button, not the card', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      server.routes['POST /favorites'] = (r) => json({
+        'id': 'f1',
+        ...jsonDecode(r.body) as Map<String, dynamic>,
+        'createdAt': '2026-11-03T15:00:00.000Z',
+      }, 201);
+      await tapText(tester, 'Nearby');
+      tester.semantics.tap(find.semantics.byLabel('Save Chick-fil-A Express'));
+      await tester.pumpAndSettle();
+      expect(server.to('POST /favorites'), hasLength(1));
+      expect(find.text('Best picks'), findsNothing); // the card's tap didn't fire
+      expect(find.semantics.byLabel('Save Lazy Moon Pizza'), findsOne); // no picks link, still saveable
+      semantics.dispose();
     });
 
     testWidgets('a full page of results leaves a missing chain unknown, still tappable', (tester) async {
@@ -344,6 +393,27 @@ void main() {
       expect(find.text('Chipotle'), findsOneWidget);
     });
 
+    testWidgets('a busy map service (502) explains itself, and Try again recovers', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['POST /restaurants/nearby'] = (_) => json({'error': 'Places lookup failed'}, 502);
+      await tapText(tester, 'Nearby');
+      expect(find.textContaining('The map service is busy'), findsOneWidget);
+      expect(find.text('Places lookup failed'), findsNothing);
+
+      nearbyRoutes();
+      await tapText(tester, 'Try again');
+      expect(find.text('Chipotle'), findsOneWidget);
+    });
+
+    testWidgets("nginx's own 502 (the API is down) doesn't blame the map service", (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['POST /restaurants/nearby'] = (_) =>
+          http.Response('<html><center><h1>502 Bad Gateway</h1></center></html>', 502);
+      await tapText(tester, 'Nearby');
+      expect(find.textContaining('The map service is busy'), findsNothing);
+      expect(find.text('Request failed'), findsOneWidget);
+    });
+
     testWidgets('blocked: offers the app settings', (tester) async {
       await pumpHome(tester, userJson());
       location.problem = LocationProblem.blocked;
@@ -351,6 +421,44 @@ void main() {
       expect(find.text('Location is blocked'), findsOneWidget);
       await tapText(tester, 'Open settings');
       expect(location.opened, [LocationProblem.blocked]);
+    });
+  });
+
+  group('saved', () {
+    testWidgets('lists favorites by label and removes one', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /favorites'] = (_) => {
+        'favorites': [
+          {'id': 'f1', 'placeId': 'osm-node-1', 'label': 'Chick-fil-A', 'createdAt': '2026-11-03T15:00:00.000Z'},
+          {'id': 'f2', 'placeId': 'osm-node-2', 'label': null, 'createdAt': '2026-10-28T15:00:00.000Z'},
+        ],
+      };
+      server.routes['DELETE /favorites/f1'] = (_) => http.Response('', 204);
+      await tapText(tester, 'Saved');
+      expect(find.text('Chick-fil-A'), findsOneWidget);
+      expect(find.text('Saved Nov 3, 2026'), findsOneWidget);
+      expect(find.text('Saved restaurant'), findsOneWidget); // no label
+
+      final semantics = tester.ensureSemantics();
+      tester.semantics.tap(find.semantics.byLabel('Remove Chick-fil-A')); // as a screen reader would
+      await tester.pumpAndSettle();
+      expect(server.to('DELETE /favorites/f1'), hasLength(1));
+      expect(find.text('Chick-fil-A'), findsNothing);
+      semantics.dispose();
+    });
+
+    testWidgets('empty: points to Nearby, and reloads each time the tab opens', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /favorites'] = (_) => {'favorites': <Object>[]};
+      await tapText(tester, 'Saved');
+      expect(find.text('Nothing saved yet'), findsOneWidget);
+      await tapText(tester, 'Search');
+      await tapText(tester, 'Saved');
+      expect(server.to('GET /favorites'), hasLength(2));
+
+      server.routes['POST /restaurants/nearby'] = (_) => {'restaurants': <Object>[]};
+      await tapText(tester, 'Find restaurants near me');
+      expect(find.text('No restaurants found'), findsOneWidget);
     });
   });
 
@@ -401,6 +509,68 @@ void main() {
       await tester.scrollUntilVisible(find.text('Mystery Chicken'), 300);
       expect(find.text('Macros unknown'), findsOneWidget);
       expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets('updates as you type, after a short pause, and never sends a query the server would reject', (
+      tester,
+    ) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /menu-items/search'] = (r) => {
+        'items': [item('i1', 'c1', 'Chicken Wrap')],
+        'total': 1,
+        'limit': 20,
+        'skip': 0,
+      };
+      await tapText(tester, 'Search');
+      await tester.enterText(find.byType(TextField), 'ch');
+      await tester.enterText(find.byType(TextField), 'chi');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(server.to('GET /menu-items/search').single.url.queryParameters['q'], 'chi'); // one request, not two
+      expect(find.text('1 result for "chi"'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'ø');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(server.to('GET /menu-items/search'), hasLength(1));
+      expect(find.textContaining('Search every restaurant'), findsOneWidget);
+    });
+
+    testWidgets('Show more during the typing pause still searches the newer query', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /menu-items/search'] = (r) {
+        final q = r.url.queryParameters['q']!;
+        final skip = int.parse(r.url.queryParameters['skip']!);
+        return {
+          'items': [for (var i = skip; i < skip + 20 && i < 25; i++) item('$q$i', 'c1', '$q $i')],
+          'total': 25,
+          'limit': 20,
+          'skip': skip,
+        };
+      };
+      await tapText(tester, 'Search');
+      await tester.enterText(find.byType(TextField), 'chi');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'chicken');
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.scrollUntilVisible(find.text('Show more'), 500, scrollable: find.byType(Scrollable).first);
+      await tester.tap(find.text('Show more'));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      final sent = [for (final r in server.to('GET /menu-items/search')) r.url.queryParameters['q']];
+      expect(sent.last, 'chicken');
+      expect(find.textContaining('chicken '), findsWidgets); // its results replaced the older query's
+      expect(find.textContaining('chi '), findsNothing);
+    });
+
+    test('searchable follows the server normalize()', () {
+      for (final q in ['chicken', 'Café', '&', '7up', 'K']) {
+        expect(searchable(q), isTrue, reason: q);
+      }
+      for (final q in ['', '  ', 'ø', '鸡', '!!', "'"]) {
+        expect(searchable(q), isFalse, reason: q);
+      }
     });
   });
 }
