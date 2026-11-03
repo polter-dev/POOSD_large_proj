@@ -356,6 +356,15 @@ void main() {
       expect(find.text('Chipotle'), findsOneWidget);
     });
 
+    testWidgets("nginx's own 502 (the API is down) doesn't blame the map service", (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['POST /restaurants/nearby'] = (_) =>
+          http.Response('<html><center><h1>502 Bad Gateway</h1></center></html>', 502);
+      await tapText(tester, 'Nearby');
+      expect(find.textContaining('The map service is busy'), findsNothing);
+      expect(find.text('Request failed'), findsOneWidget);
+    });
+
     testWidgets('blocked: offers the app settings', (tester) async {
       await pumpHome(tester, userJson());
       location.problem = LocationProblem.blocked;
