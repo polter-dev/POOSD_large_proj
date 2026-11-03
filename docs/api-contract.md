@@ -94,7 +94,7 @@ Weekly goals are computed by the client: daily × 7.
 ```
 { id, date, status, menuItemId, name, chainName, servings, calories, proteinG, carbsG, fatG, source, createdAt }
 ```
-`calories`/`proteinG`/`carbsG`/`fatG` are for **one serving**. Totals multiply by `servings`.
+`calories`/`proteinG`/`carbsG`/`fatG` are for **one serving**. Totals multiply by `servings`. A log is a snapshot: `menuItemId` may refer to an item that no longer exists, so clients must not assume it resolves. Reverting a submission does not touch logs.
 
 `Totals`: `{ calories, proteinG, carbsG, fatG, incomplete }`. Sums of `value * servings`. `calories` is an integer; macros have 1 decimal. A null macro adds nothing and sets `incomplete: true`, so the UI can show "at least".
 
@@ -186,13 +186,13 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/meal-logs?from=&to=` | yes | both `YYYY-MM-DD`, real dates, `from <= to`, at most 31 days inclusive | 200 `{ entries: MealLog[], days: [{ date, eaten: Totals, planned: Totals }] }` | 400 `"from and to must be dates (YYYY-MM-DD), at most 31 days apart"` | `getMealLogs` |
+| GET | `/meal-logs?from=&to=` | yes | both `YYYY-MM-DD`, real calendar dates (`2026-02-30` is a 400, same check as `birthDate`), `from <= to`, at most 31 days inclusive | 200 `{ entries: MealLog[], days: [{ date, eaten: Totals, planned: Totals }] }` | 400 `"from and to must be dates (YYYY-MM-DD), at most 31 days apart"` | `getMealLogs` |
 | POST | `/meal-logs` | yes | `{ entries: Entry[] }`, 1-50 | 201 `{ entries: MealLog[] }` | 400 (first invalid entry: `"entries[i]: <message>"`); 404 `"entries[i]: menu item not found"` | `addMealLogs` |
 | PATCH | `/meal-logs/:id` | yes | any subset (at least one) of `{ status, servings }` | 200 `MealLog` | 400 invalid or empty; 404 not found / not yours / malformed id | `updateMealLog` |
 | DELETE | `/meal-logs/:id` | yes | none | 204 | 404 not found / not yours / malformed id | `deleteMealLog` |
 
 `Entry` fields:
-- `date` (required)
+- `date` (required): a real calendar date (`2026-02-30` is a 400, same check as `birthDate`)
 - `status` (default `"eaten"`)
 - `servings` (default 1)
 - `source` (required): `"search"`, `"plan"`, `"photo"` or `"custom"`
@@ -209,7 +209,7 @@ GET details:
 
 | Method | Path | Auth | Query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | `getMealPlan` |
+| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required, a real calendar date: `2026-02-30` is a 400, same check as `birthDate`); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | `getMealPlan` |
 
 Nothing is stored. For each day:
 1. `remainingCalories` = `Calories.target` minus that day's logged calories × servings, planned and eaten together. Floor at 0.
@@ -226,7 +226,7 @@ Opting in is done by the client: it sends the picked items to `POST /meal-logs` 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"` (`imageBase64` over 3,000,000 chars, or a body over 3 MB); 429 `"Daily photo limit reached"` (20 per user per UTC day); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | `analyzePhoto` |
+| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"` (`imageBase64` over 3,000,000 chars, or a body over 3 MB); 429 `"Daily photo limit reached"` (20 per user per UTC day; counted per server process, so it resets on restart/deploy); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | `analyzePhoto` |
 
 - Nothing is saved, and the image is never stored or logged.
 - The 413 uses the normal `{ error }` shape: the route has its own JSON parser mounted before the global one (#112).
@@ -286,7 +286,7 @@ Allowed status changes:
 
 `reviewedBy` is set to the admin on every change.
 
-Admins are granted only on the server: `node scripts/make-admin.js <username>` (and `--revoke`). Same login as everyone else; no separate admin login.
+Admins are granted only on the server: `node scripts/make-admin.js <username>` (and `--revoke`). Same login as everyone else; no separate admin login. `seed.js` creates a seed admin only with `SEED_ADMIN=1` (local and CI), never in production.
 
 ### Ops
 
