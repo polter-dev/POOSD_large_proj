@@ -1,9 +1,10 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite,
-  FavoritesResponse, LoginBody, LoginResponse, MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse,
-  RecommendationsBody, RecommendationsResponse, RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody,
-  SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody, UpdatePreferencesBody, UpdateProfileBody, User,
+  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, CreateSubmissionBody,
+  EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse, MealPlanQuery, MealPlanResponse, MessageResponse, MySubmission,
+  MySubmissionsResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse, RegisterBody,
+  ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody, SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody,
+  UpdatePreferencesBody, UpdateProfileBody, User,
 } from '../types/api';
 
 export { ApiError, setSessionExpiredHandler } from './client';
@@ -54,6 +55,11 @@ export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {
 
 // Photo analysis (nothing is saved; the client logs the confirmed items with POST /meal-logs)
 export const analyzePhoto = (body: AnalyzePhotoBody) => request<AnalyzePhotoResponse>('POST', '/photo-analyses', body);
+
+// Community submissions (10 per rolling 24 h, else 429; defaults match the server's)
+export const createSubmission = (body: CreateSubmissionBody) => request<MySubmission>('POST', '/submissions', body);
+export const getMySubmissions = (limit = 50, skip = 0) =>
+  request<MySubmissionsResponse>('GET', `/submissions/mine?${new URLSearchParams({ limit: String(limit), skip: String(skip) })}`);
 
 // Admin (403 "Admin only" for everyone else; defaults match the server's)
 export const getAdminSubmissions = (status: SubmissionStatus = 'pending', limit = 20, skip = 0) =>

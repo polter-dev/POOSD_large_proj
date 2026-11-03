@@ -79,6 +79,7 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /menu-items/search` | #31 | done |
 | `POST /recommendations` | #32 | done |
 | `/favorites` | #33 | done |
+| `POST /submissions`, `GET /submissions/mine` | #110 | done |
 | `GET /admin/submissions`, `PATCH /admin/submissions/:id` | #109 | done |
 
 Update this table when you add an endpoint.
@@ -145,6 +146,9 @@ Follow the existing routes and controllers:
   values, so a later edit is never overwritten. Reverting an edit is also 409 `"Item changed since this submission"`
   while a later applied edit of the same item exists, even of other fields: `before` restores `isEstimate`/`source`/
   `lastVerified` too, which would label that edit's values verified. Each review replaces `reviewNote` (omitted or blank = `null`).
+- **Submissions:** `validatePayload` and `flagsFor` in `services/moderation.js` are pure; with no flags the
+  controller calls the same `apply()` as the admin approve, so `before`/`resultId` and the 409 on a unique-index clash
+  match. The 10-per-24-hours limit counts the `submissions` collection (rolling window, any status), so it survives deploys.
 - **Known limits:**
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.

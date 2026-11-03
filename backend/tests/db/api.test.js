@@ -28,7 +28,7 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
     server = app.listen(0);
     await new Promise((resolve) => server.once("listening", resolve));
     base = `http://localhost:${server.address().port}/api`;
-    for (const name of ["jane.doe", "sam.patel"]) {
+    for (const name of ["jane.doe", "sam.patel", "kevin.nguyen"]) {
       const res = await api("POST", "/auth/login", { email: `${name}@example.com`, password: "Password123!" });
       assert.strictEqual(res.status, 200, `seed login ${name}; did seed.js run?`);
       tokens[name] = (await res.json()).token;
@@ -219,6 +219,59 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       }
       const after = (await (await api("GET", "/favorites", undefined, token)).json()).favorites;
       assert.strictEqual(after.length, before.length);
+    });
+  });
+
+  describe("submissions", () => {
+    test("kevinn's new item and its edit apply at once, show in search, stay out of recommendations; a verified edit waits", async () => {
+      const token = tokens["kevin.nguyen"];
+      const items = mongoose.connection.db.collection("menuItems");
+      const submissions = mongoose.connection.db.collection("submissions");
+      const subway = await mongoose.connection.db.collection("chains").findOne({ nameKey: "subway" });
+      const bigMac = await items.findOne({ chainName: "McDonald's", name: "Big Mac" });
+      const ids = [];
+      let itemId;
+      try {
+        // 4*40 + 4*50 + 9*15.5 = 499.5, close to 500: no flags.
+        const payload = { name: "DB Test Protein Bowl", category: "entree", calories: 500, proteinG: 40, carbsG: 50, fatG: 15.5 };
+        let res = await api("POST", "/submissions", { kind: "new_item", targetId: String(subway._id), payload }, token);
+        assert.strictEqual(res.status, 201);
+        const added = await res.json();
+        ids.push(added.id);
+        itemId = added.resultId;
+        assert.strictEqual(added.status, "auto_applied");
+        assert.ok(!("flags" in added));
+        assert.strictEqual((await api("POST", "/submissions", { kind: "new_item", targetId: String(subway._id), payload }, token)).status, 409);
+
+        const found = (await (await api("GET", "/menu-items/search?q=db%20test%20protein")).json()).items;
+        assert.deepStrictEqual(found.map((i) => [i.id, i.isEstimate]), [[itemId, true]]);
+        const recs = async (includeEstimates) => (await (await api("POST", "/recommendations",
+          { chainIds: [String(subway._id)], mode: "protein", mealCalorieLimit: 800, limit: 50, includeEstimates }, token)).json()).items.map((i) => i.id);
+        assert.ok(!(await recs(false)).includes(itemId));
+        assert.ok((await recs(true)).includes(itemId));
+
+        res = await api("POST", "/submissions", { kind: "edit_item", targetId: itemId, payload: { calories: 510 } }, token);
+        const edit = await res.json();
+        ids.push(edit.id);
+        assert.deepStrictEqual([edit.status, edit.before], ["auto_applied", { calories: 500 }]);
+        assert.strictEqual((await items.findOne({ _id: new mongoose.Types.ObjectId(itemId) })).calories, 510);
+
+        res = await api("POST", "/submissions", { kind: "edit_item", targetId: String(bigMac._id), payload: { calories: 600 } }, token);
+        const waiting = await res.json();
+        ids.push(waiting.id);
+        assert.strictEqual(waiting.status, "pending");
+        assert.deepStrictEqual((await submissions.findOne({ _id: new mongoose.Types.ObjectId(waiting.id) })).flags, ["verified_item"]);
+        assert.deepStrictEqual(await items.findOne({ _id: bigMac._id }), bigMac);
+
+        const mine = await (await api("GET", "/submissions/mine", undefined, token)).json();
+        assert.deepStrictEqual(mine.submissions.slice(0, 3).map((s) => s.id), [...ids].reverse());
+        assert.ok(!("flags" in mine.submissions[0]));
+        const sams = await (await api("GET", "/submissions/mine", undefined, tokens["sam.patel"])).json();
+        assert.ok(sams.submissions.every((s) => !ids.includes(s.id)));
+      } finally {
+        if (itemId) await items.deleteOne({ _id: new mongoose.Types.ObjectId(itemId) });
+        await submissions.deleteMany({ _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } });
+      }
     });
   });
 

@@ -182,4 +182,25 @@ class Api {
     );
     return [for (final i in res['items'] as List) PhotoItem.fromJson(_map(i))];
   }
+
+  // Community submissions (10 per rolling 24 h, else 429 "Too many submissions today")
+  /// [targetId] is the menu item (editItem), the chain (newItem) or null (newChain); [payload] is shaped by
+  /// [kind] (see Submission). A macro sent as null means unknown, so leave a key out rather than send null by accident.
+  Future<Submission> createSubmission({
+    required SubmissionKind kind,
+    required String? targetId,
+    required Map<String, dynamic> payload,
+  }) async => Submission.fromJson(
+    _map(await _c.request('POST', '/submissions', {'kind': kind.json, 'targetId': targetId, 'payload': payload})),
+  );
+
+  /// The caller's own submissions, newest first (defaults match the server's; limit is at most 50).
+  Future<MySubmissionsResponse> getMySubmissions({int limit = 50, int skip = 0}) async {
+    final query = Uri(queryParameters: {'limit': '$limit', 'skip': '$skip'}).query;
+    final res = _map(await _c.request('GET', '/submissions/mine?$query'));
+    return MySubmissionsResponse(
+      submissions: [for (final s in res['submissions'] as List) Submission.fromJson(_map(s))],
+      total: (res['total'] as num).toInt(),
+    );
+  }
 }
