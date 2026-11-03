@@ -1,9 +1,9 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
-  MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
-  RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody, SearchMenuItemsResponse, SubmissionStatus,
-  UpdateGoalBody, UpdatePreferencesBody, UpdateProfileBody, User,
+  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite,
+  FavoritesResponse, LoginBody, LoginResponse, MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse,
+  RecommendationsBody, RecommendationsResponse, RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody,
+  SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody, UpdatePreferencesBody, UpdateProfileBody, User,
 } from '../types/api';
 
 export { ApiError, setSessionExpiredHandler } from './client';
@@ -42,6 +42,18 @@ export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/re
 export const getFavorites = () => request<FavoritesResponse>('GET', '/favorites');
 export const addFavorite = (body: AddFavoriteBody) => request<Favorite>('POST', '/favorites', body);
 export const removeFavorite = (id: string) => request<void>('DELETE', `/favorites/${encodeURIComponent(id)}`);
+
+// Meal plans (omitted fields use the server's defaults)
+export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {
+  const query = new URLSearchParams({ start });
+  if (days) query.set('days', String(days));
+  if (chainIds?.length) query.set('chainIds', chainIds.join(','));
+  if (mode) query.set('mode', mode);
+  return request<MealPlanResponse>('GET', `/meal-plans?${query}`);
+};
+
+// Photo analysis (nothing is saved; the client logs the confirmed items with POST /meal-logs)
+export const analyzePhoto = (body: AnalyzePhotoBody) => request<AnalyzePhotoResponse>('POST', '/photo-analyses', body);
 
 // Admin (403 "Admin only" for everyone else; defaults match the server's)
 export const getAdminSubmissions = (status: SubmissionStatus = 'pending', limit = 20, skip = 0) =>

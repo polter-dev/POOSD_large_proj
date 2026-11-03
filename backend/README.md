@@ -21,6 +21,8 @@ npm run dev             # restarts on save; check http://localhost:5050/api/heal
 | `JWT_SECRET` | yes | Signs login tokens. Without it login returns 500. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
 | `CLIENT_URL` | yes | Web origin used to build the verify and reset links. |
 | `SENDGRID_API_KEY`, `EMAIL_FROM` | server only | Leave both empty locally: emails are not sent, the link is printed to the console instead. |
+| `ANTHROPIC_API_KEY` | server only | Key for `POST /photo-analyses` (Claude). Leave empty locally: that endpoint answers 503. |
+| `PHOTO_MODEL` | no | Claude model for photo analysis. Defaults to `claude-haiku-5-5`. |
 | `PORT` | no | Defaults to `5050`. |
 | `OVERPASS_URL` | no | First Overpass server tried for nearby search (no key). After it, the public servers in `places.js` are tried in order (overpass-api.de, overpass.openstreetmap.fr, overpass.kumi.systems), at most 3 attempts before a 502. Results are cached in memory for 10 minutes. |
 
@@ -31,7 +33,7 @@ npm test
 ```
 
 Runs the unit and integration tests (`node:test`, in `tests/`). They need no MongoDB, SendGrid account or
-internet: the models, `sgMail.send` and the Overpass client are stubbed.
+internet: the models, `sgMail.send`, the Overpass client and the Claude SDK are stubbed.
 
 `tests/db/` runs the API end to end against a real MongoDB loaded with `db/schema.js` and `db/seed.js`, so every
 write must also pass the collection validators. It writes data (and puts it back), so it is skipped unless

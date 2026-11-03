@@ -56,11 +56,12 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
    ```bash
    cd /var/www/POOSD_large_proj
    cp backend/.env.example backend/.env
-   nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>, JWT_SECRET=<random, see .env.example>, SENDGRID_API_KEY, EMAIL_FROM
+   nano backend/.env   # PORT=5050, MONGODB_URI=<from step 4>, CLIENT_URL=https://<domain>, JWT_SECRET=<random, see .env.example>, SENDGRID_API_KEY, EMAIL_FROM, ANTHROPIC_API_KEY
    chmod 600 backend/.env
    echo 'VITE_API_URL=/api' > web/.env   # same-origin, so no domain or IP baked into the build
    ```
    `CLIENT_URL` must be `https://<domain>` (the HTTPS origin browsers use).
+   Without `ANTHROPIC_API_KEY`, `POST /api/photo-analyses` answers 503; everything else works.
    Without `SENDGRID_API_KEY` no email is sent: the verify and reset links only show in the server log
    (`pm2 logs api`). `EMAIL_FROM` must be a Single Sender verified in SendGrid.
    Load the database once: see `backend/db/README.md`.
@@ -96,6 +97,21 @@ It pulls the current branch, installs backend deps, builds the web app into
 `web/dist` (which nginx serves), and reloads the API with pm2. If only
 `backend/.env` changed, run `pm2 reload api`. If only `web/.env` changed,
 re-run the script: Vite bakes `VITE_API_URL` into the build.
+
+### Photo analysis key (#112)
+
+`POST /api/photo-analyses` needs an Anthropic API key; without it the endpoint answers 503.
+```bash
+cd /var/www/POOSD_large_proj
+nano backend/.env       # ANTHROPIC_API_KEY=<key>; optional PHOTO_MODEL (default claude-haiku-5-5)
+chmod 600 backend/.env
+pm2 restart api
+```
+The same change raised nginx's body limit for `/api/` to 4 MB (`client_max_body_size` in
+`deploy/nginx.conf`) so a 3 MB photo reaches Express. `deploy.sh` doesn't touch nginx, so on an
+existing droplet add the line by hand to the `location /api/` block of
+`/etc/nginx/sites-available/app` (re-running the step 7 `sed` would drop certbot's HTTPS block),
+then `sudo nginx -t && sudo systemctl reload nginx`.
 
 ## Auto-deploy
 

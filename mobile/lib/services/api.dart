@@ -145,4 +145,41 @@ class Api {
       Favorite.fromJson(_map(await _c.request('POST', '/favorites', {'placeId': placeId, 'label': label})));
 
   Future<void> removeFavorite(String id) => _c.request('DELETE', '/favorites/${Uri.encodeComponent(id)}');
+
+  // Meal plans (omitted values use the server's defaults)
+  /// [start] is the user's local day, YYYY-MM-DD; [days] is 1 or 7.
+  Future<MealPlanResponse> getMealPlan({
+    required String start,
+    int? days,
+    List<String>? chainIds,
+    RecommendationMode? mode,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'start': start,
+        'days': ?days?.toString(),
+        if (chainIds != null && chainIds.isNotEmpty) 'chainIds': chainIds.join(','),
+        'mode': ?mode?.name,
+      },
+    ).query;
+    final res = _map(await _c.request('GET', '/meal-plans?$query'));
+    return MealPlanResponse(
+      mode: RecommendationMode.values.byName(res['mode'] as String),
+      days: [for (final d in res['days'] as List) MealPlanDay.fromJson(_map(d))],
+    );
+  }
+
+  // Photo analysis
+  /// [imageBase64] is plain base64 (no data: prefix, at most 3,000,000 chars); [mediaType] is
+  /// image/jpeg, image/png or image/webp. Nothing is saved: log the confirmed items with POST /meal-logs.
+  Future<List<PhotoItem>> analyzePhoto({required String imageBase64, required String mediaType}) async {
+    final res = _map(
+      // The server waits on Claude (up to ~50 s with one retry), so wait longer than the usual 15 s.
+      await _c.request('POST', '/photo-analyses', {
+        'imageBase64': imageBase64,
+        'mediaType': mediaType,
+      }, const Duration(seconds: 60)),
+    );
+    return [for (final i in res['items'] as List) PhotoItem.fromJson(_map(i))];
+  }
 }

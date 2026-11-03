@@ -60,6 +60,23 @@ export interface RecommendedItem extends MenuItem {
   score: number;
 }
 
+// Sums of value * servings; calories is an integer, macros have 1 decimal.
+export interface Totals {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  incomplete: boolean; // a macro was unknown, so show "at least"
+}
+
+export interface MealPlanDay {
+  date: string; // YYYY-MM-DD
+  remainingCalories: number;
+  mealCalorieLimit: number;
+  items: RecommendedItem[]; // empty when under 300 kcal per slot is left
+  totals: Totals;
+}
+
 export interface Favorite {
   id: string;
   placeId: string;
@@ -155,6 +172,13 @@ export interface RecommendationsBody {
   includeEstimates?: boolean;
 }
 
+export interface MealPlanQuery {
+  start: string; // YYYY-MM-DD, the user's local day
+  days?: 1 | 7;
+  chainIds?: string[];
+  mode?: RecommendationMode;
+}
+
 export interface NearbyBody {
   lat: number;
   lng: number;
@@ -170,6 +194,27 @@ export interface AddFavoriteBody {
 export interface ReviewSubmissionBody {
   status: 'approved' | 'rejected' | 'reverted';
   reviewNote?: string | null;
+}
+
+export type PhotoMediaType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+// imageBase64: plain base64 (no data: prefix), at most 3,000,000 chars.
+export interface AnalyzePhotoBody {
+  imageBase64: string;
+  mediaType: PhotoMediaType;
+}
+
+// A draft entry from a meal photo; macros are per serving. menuItemId null = not on our menu.
+export interface PhotoItem {
+  menuItemId: string | null;
+  name: string;
+  chainName: string | null;
+  servings: number;
+  calories: number;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  confidence: 'high' | 'medium' | 'low';
 }
 
 // Response wrappers
@@ -196,6 +241,11 @@ export interface RecommendationsResponse {
   items: RecommendedItem[];
 }
 
+export interface MealPlanResponse {
+  mode: RecommendationMode;
+  days: MealPlanDay[];
+}
+
 export interface NearbyResponse {
   restaurants: NearbyRestaurant[];
 }
@@ -207,4 +257,8 @@ export interface FavoritesResponse {
 export interface AdminSubmissionsResponse {
   submissions: AdminSubmission[];
   total: number;
+}
+
+export interface AnalyzePhotoResponse {
+  items: PhotoItem[];
 }
