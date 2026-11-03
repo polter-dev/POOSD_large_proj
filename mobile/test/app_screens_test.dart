@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:menu_macro_fitter/main.dart';
 import 'package:menu_macro_fitter/models/api_models.dart';
 import 'package:menu_macro_fitter/screens/app_shell.dart';
+import 'package:menu_macro_fitter/screens/search_screen.dart';
 import 'package:menu_macro_fitter/services/api.dart';
 import 'package:menu_macro_fitter/services/location.dart';
 import 'package:menu_macro_fitter/theme.dart';
@@ -260,6 +261,11 @@ void main() {
         ],
       };
       server.routes['POST /recommendations'] = (_) => recs([item('a', 'c1', 'Tenders'), item('b', 'c1', 'Nuggets')]);
+      server.routes['GET /favorites'] = (_) => {
+        'favorites': [
+          {'id': 'f2', 'placeId': 'osm-node-2', 'label': 'Chipotle', 'createdAt': '2026-11-01T15:00:00.000Z'},
+        ],
+      };
     }
 
     testWidgets('one recommendations call counts what fits at each restaurant', (tester) async {
@@ -296,6 +302,31 @@ void main() {
       await tapText(tester, '20 mi');
       expect(server.lastBody('POST /restaurants/nearby'), containsPair('radiusMiles', 20));
       expect(location.calls, 1);
+      expect(server.lastBody('PATCH /users/me/preferences'), {'searchRadius': 20}); // remembered for next time
+    });
+
+    testWidgets('Save adds a favorite with the name as its label; Saved removes it', (tester) async {
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      server.routes['POST /favorites'] = (r) => json({
+        'id': 'f1',
+        ...jsonDecode(r.body) as Map<String, dynamic>,
+        'createdAt': '2026-11-03T15:00:00.000Z',
+      }, 201);
+      server.routes['DELETE /favorites/f1'] = (_) => http.Response('', 204);
+      await tapText(tester, 'Nearby');
+      expect(find.text('Saved'), findsNWidgets(2)); // Chipotle's card, and the tab label
+      expect(find.text('Save'), findsNWidgets(3));
+
+      await tapText(tester, 'Save'); // the last card: Chick-fil-A Express
+      expect(server.lastBody('POST /favorites'), {'placeId': 'osm-node-4', 'label': 'Chick-fil-A Express'});
+      expect(find.text('Save'), findsNWidgets(2));
+
+      await tester.ensureVisible(find.text('Saved').at(1));
+      await tester.tap(find.text('Saved').at(1)); // the card just saved, not the tab
+      await tester.pumpAndSettle();
+      expect(server.to('DELETE /favorites/f1'), hasLength(1));
+      expect(find.text('Save'), findsNWidgets(3));
     });
 
     testWidgets('a full page of results leaves a missing chain unknown, still tappable', (tester) async {
@@ -354,6 +385,42 @@ void main() {
     });
   });
 
+  group('saved', () {
+    testWidgets('lists favorites by label and removes one', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /favorites'] = (_) => {
+        'favorites': [
+          {'id': 'f1', 'placeId': 'osm-node-1', 'label': 'Chick-fil-A', 'createdAt': '2026-11-03T15:00:00.000Z'},
+          {'id': 'f2', 'placeId': 'osm-node-2', 'label': null, 'createdAt': '2026-10-28T15:00:00.000Z'},
+        ],
+      };
+      server.routes['DELETE /favorites/f1'] = (_) => http.Response('', 204);
+      await tapText(tester, 'Saved');
+      expect(find.text('Chick-fil-A'), findsOneWidget);
+      expect(find.text('Saved Nov 3, 2026'), findsOneWidget);
+      expect(find.text('Saved restaurant'), findsOneWidget); // no label
+
+      await tester.tap(find.text('Remove').first);
+      await tester.pumpAndSettle();
+      expect(server.to('DELETE /favorites/f1'), hasLength(1));
+      expect(find.text('Chick-fil-A'), findsNothing);
+    });
+
+    testWidgets('empty: points to Nearby, and reloads each time the tab opens', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /favorites'] = (_) => {'favorites': <Object>[]};
+      await tapText(tester, 'Saved');
+      expect(find.text('Nothing saved yet'), findsOneWidget);
+      await tapText(tester, 'Search');
+      await tapText(tester, 'Saved');
+      expect(server.to('GET /favorites'), hasLength(2));
+
+      server.routes['POST /restaurants/nearby'] = (_) => {'restaurants': <Object>[]};
+      await tapText(tester, 'Find restaurants near me');
+      expect(find.text('No restaurants found'), findsOneWidget);
+    });
+  });
+
   testWidgets('a 401 mid-session forgets the token and goes back to Log in', (tester) async {
     server = FakeServer();
     server.routes['GET /users/me'] = (_) => userJson();
@@ -401,6 +468,40 @@ void main() {
       await tester.scrollUntilVisible(find.text('Mystery Chicken'), 300);
       expect(find.text('Macros unknown'), findsOneWidget);
       expect(find.text('Show more'), findsNothing);
+    });
+
+    testWidgets('updates as you type, after a short pause, and never sends a query the server would reject', (
+      tester,
+    ) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /menu-items/search'] = (r) => {
+        'items': [item('i1', 'c1', 'Chicken Wrap')],
+        'total': 1,
+        'limit': 20,
+        'skip': 0,
+      };
+      await tapText(tester, 'Search');
+      await tester.enterText(find.byType(TextField), 'ch');
+      await tester.enterText(find.byType(TextField), 'chi');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(server.to('GET /menu-items/search').single.url.queryParameters['q'], 'chi'); // one request, not two
+      expect(find.text('1 result for "chi"'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), 'ø');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      expect(server.to('GET /menu-items/search'), hasLength(1));
+      expect(find.textContaining('Search every restaurant'), findsOneWidget);
+    });
+
+    test('searchable follows the server normalize()', () {
+      for (final q in ['chicken', 'Café', '&', '7up', 'K']) {
+        expect(searchable(q), isTrue, reason: q);
+      }
+      for (final q in ['', '  ', 'ø', '鸡', '!!', "'"]) {
+        expect(searchable(q), isFalse, reason: q);
+      }
     });
   });
 }
