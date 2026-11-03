@@ -24,7 +24,7 @@ npm run dev             # restarts on save; check http://localhost:5050/api/heal
 | `ANTHROPIC_API_KEY` | server only | Key for `POST /photo-analyses` (Claude). Leave empty locally: that endpoint answers 503. |
 | `PHOTO_MODEL` | no | Claude model for photo analysis. Defaults to `claude-haiku-5-5`. |
 | `PORT` | no | Defaults to `5050`. |
-| `OVERPASS_URL` | no | First Overpass server tried for nearby search (no key). After it, the public servers in `places.js` are tried in order (overpass-api.de, overpass.openstreetmap.fr, overpass.kumi.systems), at most 3 attempts before a 502. Results are cached in memory for 10 minutes. |
+| `OVERPASS_URL` | no | First Overpass server tried for nearby search (no key). After it, the public servers in `places.js` are tried in order (overpass-api.de, overpass.openstreetmap.fr, overpass.kumi.systems), at most 3 attempts. Results are cached in memory for 10 minutes. If every attempt fails, see [Nearby fallback snapshot](#nearby-fallback-snapshot). |
 
 ## Test it
 
@@ -74,7 +74,7 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /health` | #10 | done |
 | `POST /auth/register`, `POST /auth/login` | #12, #13 | done |
 | `GET /auth/verify-email`, `POST /auth/resend-verification`, `/auth/forgot-password`, `/auth/reset-password` | #21 | done |
-| `POST /restaurants/nearby` | #30 | done |
+| `POST /restaurants/nearby` (with the stale-cache and snapshot fallback) | #30, #128 | done |
 | `/users/me`, profile, goal, preferences, calories | #23, #24 | done |
 | `GET /menu-items/search` | #31 | done |
 | `POST /recommendations` | #32 | done |
@@ -84,6 +84,27 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /admin/submissions`, `PATCH /admin/submissions/:id` | #109 | done |
 
 Update this table when you add an endpoint.
+
+## Nearby fallback snapshot
+
+`POST /restaurants/nearby` always asks Overpass first. When every attempt fails (#128), it answers from the last
+cached result for the same search, even if it's past its 10 minutes, and otherwise from `db/places-snapshot.json`:
+the OpenStreetMap places of the seeded chains within 20 miles of UCF, captured with the API's own query. The
+snapshot is filtered by the request's radius and chain names exactly like a live answer and returned in the same
+shape (no "source" field), so clients can't tell the difference. Each fallback logs one `[places] ...` line, which
+`pm2 logs api` shows. Far from UCF (nothing within the radius, and more than 20 miles away) it is still 502
+`"Places lookup failed"`. Fallback answers are never cached, so the next request tries Overpass again.
+
+Re-capture it after adding a chain to `db/menu-data/chains.js`, or to refresh it, then commit the file:
+
+```bash
+node scripts/capture-places-snapshot.js
+```
+
+It needs internet but no database: it reads the chain names from `chains.js`, tries `OVERPASS_URL` and then the
+public servers with a 2-minute timeout (a 20-mile query takes about 30 s on a busy server), and leaves the file
+alone if none answers. `tests/unit/placesSnapshot.test.js` fails when a seeded chain has no places in the snapshot.
+The data is OpenStreetMap's (ODbL), so the file keeps its attribution line.
 
 ## Layout
 
@@ -96,8 +117,9 @@ src/
   middleware/      auth.js (JWT -> req.userId), error.js (the only place that shapes errors)
   models/          User, Chain, MenuItem, Favorite; mirror db/schema.js, which rejects any extra field
   services/        email, tokens (JWTs and emailed tokens), chainMatch, calories, recommendations
-  integrations/    places.js (Overpass client)
+  integrations/    places.js (Overpass client, stale-cache and snapshot fallback)
   utils/           httpError, readBody, toUserJSON, toMenuItemJSON, normalize
+scripts/           make-admin.js, capture-places-snapshot.js
 tests/unit/, tests/integration/, tests/db/ (real MongoDB)
 ```
 
@@ -135,6 +157,7 @@ Follow the existing routes and controllers:
   - With no `radiusMiles`, it uses the user's `preferences.searchRadius`.
   - Places that match no chain come back with `chainId: null` (no nutrition data). Nothing about the location is stored.
   - `placeId` is `osm-node-123...` (no `/`), so a result can be saved as a favorite unchanged.
+  - Every Overpass server failing falls back to a stale cached result, then the snapshot (see "Nearby fallback snapshot").
 - **Users:** profile values must be JSON numbers and strings of the right type (`"65"` is rejected). `PUT /me/profile`
   replaces the whole profile; `PUT /me/goal` needs a profile first. Age must be 18-119 on the server's UTC date.
 - **Search:** `q` is normalized like the stored `searchName` (lowercase, `&` -> `and`, punctuation -> space), so
@@ -159,3 +182,6 @@ Follow the existing routes and controllers:
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.
   - bcrypt ignores password bytes past 72.
+  - Nearby's fallback starts only after all 3 Overpass attempts fail. When the servers time out instead of refusing,
+    that is up to about 45 s (3 x 15 s) before the stale or snapshot answer. The snapshot covers only the seeded chains
+    within 20 miles of UCF, as of its capture date.
