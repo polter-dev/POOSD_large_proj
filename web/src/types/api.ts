@@ -60,6 +60,23 @@ export interface RecommendedItem extends MenuItem {
   score: number;
 }
 
+// Sums of value * servings; calories is an integer, macros have 1 decimal.
+export interface Totals {
+  calories: number;
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
+  incomplete: boolean; // a macro was unknown, so show "at least"
+}
+
+export interface MealPlanDay {
+  date: string; // YYYY-MM-DD
+  remainingCalories: number;
+  mealCalorieLimit: number;
+  items: RecommendedItem[]; // empty when under 300 kcal per slot is left
+  totals: Totals;
+}
+
 export interface Favorite {
   id: string;
   placeId: string;
@@ -117,6 +134,13 @@ export interface RecommendationsBody {
   includeEstimates?: boolean;
 }
 
+export interface MealPlanQuery {
+  start: string; // YYYY-MM-DD, the user's local day
+  days?: 1 | 7;
+  chainIds?: string[];
+  mode?: RecommendationMode;
+}
+
 export interface NearbyBody {
   lat: number;
   lng: number;
@@ -150,6 +174,11 @@ export interface RecommendationsResponse {
   mode: RecommendationMode;
   mealCalorieLimit: number;
   items: RecommendedItem[];
+}
+
+export interface MealPlanResponse {
+  mode: RecommendationMode;
+  days: MealPlanDay[];
 }
 
 export interface NearbyResponse {

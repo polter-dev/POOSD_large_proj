@@ -150,4 +150,44 @@ void main() {
     await api.removeFavorite('f1');
     expect(sent[1].url.path, '/api/favorites/f1');
   });
+
+  test('getMealPlan builds its query and parses the days', () async {
+    final api = apiWith(
+      (r) async => json({
+        'mode': 'carb',
+        'days': [
+          {
+            'date': '2026-11-03',
+            'remainingCalories': 1558,
+            'mealCalorieLimit': 519,
+            'items': [
+              {
+                'id': '1',
+                'chainId': 'c1',
+                'chainName': 'Subway',
+                'name': '6-inch Grilled Chicken (Fresh Fit)',
+                'category': 'entree',
+                'calories': 300,
+                'proteinG': 26,
+                'carbsG': 40,
+                'fatG': 5,
+                'isEstimate': false,
+                'score': 13.3,
+              },
+            ],
+            'totals': {'calories': 300, 'proteinG': 26, 'carbsG': 40, 'fatG': 5, 'incomplete': false},
+          },
+        ],
+      }),
+    );
+
+    final res = await api.getMealPlan(start: '2026-11-03', days: 7, chainIds: ['c1', 'c2']);
+    expect(sent[0].url.queryParameters, {'start': '2026-11-03', 'days': '7', 'chainIds': 'c1,c2'});
+    expect(res.mode, RecommendationMode.carb);
+    expect(res.days.single.items.single.score, 13.3);
+    expect(res.days.single.totals.calories, 300);
+
+    await api.getMealPlan(start: '2026-11-03', chainIds: []);
+    expect(sent[1].url.queryParameters, {'start': '2026-11-03'});
+  });
 }

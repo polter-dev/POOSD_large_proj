@@ -31,13 +31,19 @@ function checkGoal(v) {
   return checkEnum(v, GOALS, "Goal: lose, maintain or gain");
 }
 
-// "YYYY-MM-DD" -> Date at UTC midnight (how it's stored), for a real calendar date with age 18-119.
-// 119 is the most the database's "at most 120 years ago" rule lets through.
-function checkBirthDate(v) {
+// "YYYY-MM-DD" -> Date at UTC midnight, or null when it isn't a real calendar date.
+function parseDate(v) {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(typeof v === "string" ? v : "");
   const date = m && new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
   // Date.UTC rolls 2001-02-30 over to March, so a mismatch means the day doesn't exist.
-  if (!date || date.toISOString().slice(0, 10) !== v) throw httpError(400, "Birth date: use YYYY-MM-DD");
+  return date && date.toISOString().slice(0, 10) === v ? date : null;
+}
+
+// "YYYY-MM-DD" -> Date at UTC midnight (how it's stored), for a real calendar date with age 18-119.
+// 119 is the most the database's "at most 120 years ago" rule lets through.
+function checkBirthDate(v) {
+  const date = parseDate(v);
+  if (!date) throw httpError(400, "Birth date: use YYYY-MM-DD");
   const age = ageOn(date, new Date());
   if (age < 18) throw httpError(400, "Birth date: you must be 18 or older");
   if (age > 119) throw httpError(400, "Birth date: check the year");
@@ -132,4 +138,4 @@ async function getCalories(req, res, next) {
   }
 }
 
-module.exports = { getMe, updateProfile, updateGoal, updatePreferences, getCalories, found, MODES };
+module.exports = { getMe, updateProfile, updateGoal, updatePreferences, getCalories, found, parseDate, MODES };

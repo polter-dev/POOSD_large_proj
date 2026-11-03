@@ -1,7 +1,7 @@
 import { request } from './client';
 import type {
   AddFavoriteBody, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
-  MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
+  MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
   RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
   UpdateProfileBody, User,
 } from '../types/api';
@@ -42,3 +42,12 @@ export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/re
 export const getFavorites = () => request<FavoritesResponse>('GET', '/favorites');
 export const addFavorite = (body: AddFavoriteBody) => request<Favorite>('POST', '/favorites', body);
 export const removeFavorite = (id: string) => request<void>('DELETE', `/favorites/${encodeURIComponent(id)}`);
+
+// Meal plans (omitted fields use the server's defaults)
+export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {
+  const query = new URLSearchParams({ start });
+  if (days) query.set('days', String(days));
+  if (chainIds?.length) query.set('chainIds', chainIds.join(','));
+  if (mode) query.set('mode', mode);
+  return request<MealPlanResponse>('GET', `/meal-plans?${query}`);
+};
