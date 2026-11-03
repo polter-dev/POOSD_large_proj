@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/api_models.dart';
 import '../theme.dart';
 import '../widgets/api_scope.dart';
+import 'favorites_screen.dart';
 import 'login_screen.dart';
 import 'nearby_screen.dart';
 import 'picks_screen.dart';
@@ -19,9 +20,9 @@ Future<void> logOut(BuildContext context) async {
   Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
 }
 
-enum AppTab { nearby, picks, search, profile }
+enum AppTab { nearby, picks, search, saved, profile }
 
-/// The logged-in app (#35, prototype screens 06-08): bottom tabs Nearby, Picks, Search, Profile.
+/// The logged-in app (#35, prototype screens 06-08): bottom tabs Nearby, Picks, Search, Saved, Profile.
 /// Holds the current user, so a profile or units change reaches every tab. Opens on Profile (Your
 /// targets) like the prototype's Log in link, and builds a tab the first time it's shown, so
 /// Nearby only asks for location once someone opens it.
@@ -46,9 +47,10 @@ class _AppShellState extends State<AppShell> {
   });
 
   Widget _build(AppTab tab) => switch (tab) {
-    AppTab.nearby => NearbyScreen(user: _user),
+    AppTab.nearby => NearbyScreen(user: _user, active: _tab == AppTab.nearby),
     AppTab.picks => PicksScreen(user: _user),
     AppTab.search => const SearchScreen(),
+    AppTab.saved => FavoritesScreen(active: _tab == AppTab.saved, onFindRestaurants: () => _select(AppTab.nearby)),
     AppTab.profile => TargetsScreen(
       user: _user,
       onUser: (u) => setState(() => _user = u),
@@ -90,6 +92,11 @@ class _AppShellState extends State<AppShell> {
               NavigationDestination(icon: Icon(Icons.place_outlined), selectedIcon: Icon(Icons.place), label: 'Nearby'),
               NavigationDestination(icon: Icon(Icons.star_border), selectedIcon: Icon(Icons.star), label: 'Picks'),
               NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+              NavigationDestination(
+                icon: Icon(Icons.bookmark_border),
+                selectedIcon: Icon(Icons.bookmark),
+                label: 'Saved',
+              ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline),
                 selectedIcon: Icon(Icons.person),

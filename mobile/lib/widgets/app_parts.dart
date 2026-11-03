@@ -158,9 +158,12 @@ class Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[Icon(icon, size: 14, color: fg), const SizedBox(width: AppSpace.s1)],
-          Text(
-            text,
-            style: TextStyle(fontSize: 13, height: 1.2, fontWeight: FontWeight.w500, color: fg),
+          // Wraps rather than overflowing when it shares a row (Nearby's badge next to Save).
+          Flexible(
+            child: Text(
+              text,
+              style: TextStyle(fontSize: 13, height: 1.2, fontWeight: FontWeight.w500, color: fg),
+            ),
           ),
         ],
       ),
