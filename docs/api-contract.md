@@ -84,7 +84,7 @@ Height/weight are always imperial in the API; clients convert for display when `
 | `target` | `maintenance` - 500 (lose) / + 0 (maintain) / + 300 (gain) |
 | floor | `target = max(target, sex === "female" ? 1200 : 1500)` |
 | `perMeal` | `preferences.mealCalorieLimit` if not null, else `round(target / 3)` (floored target) |
-| `macros` | split of `target` kcal by goal, as % protein / carbs / fat: lose 35/35/30, maintain 30/40/30, gain 30/45/25. `proteinG = round(target * p / 4)`, `carbsG = round(target * c / 4)`, `fatG = round(target * f / 9)` |
+| `macros` | split of `target` kcal by goal, as % protein / carbs / fat: lose 35/35/30, maintain 30/40/30, gain 30/45/25. With p/c/f as whole percents: `proteinG: Math.round((target * p) / 400)`, `carbsG: Math.round((target * c) / 400)`, `fatG: Math.round((target * f) / 900)`; halves round up (exact arithmetic, e.g. 1320 kcal lose gives 116 g protein) |
 
 Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (October 2026; shifts on birthdays).
 
