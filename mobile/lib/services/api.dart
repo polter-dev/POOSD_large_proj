@@ -67,12 +67,14 @@ class Api {
       User.fromJson(_map(await _c.request('PUT', '/users/me/goal', {'goal': goal.name})));
 
   /// Partial update: pass only what changed. clearMealCalorieLimit sends null (back to target / 3).
+  /// [trackedNutrients] is 1-4 different nutrients, kept in that order.
   Future<User> updatePreferences({
     Units? units,
     int? searchRadius,
     RecommendationMode? recommendationMode,
     double? mealCalorieLimit,
     bool clearMealCalorieLimit = false,
+    List<Nutrient>? trackedNutrients,
   }) async {
     final body = <String, dynamic>{
       'units': ?units?.name,
@@ -80,6 +82,7 @@ class Api {
       'recommendationMode': ?recommendationMode?.name,
       'mealCalorieLimit': ?mealCalorieLimit,
       if (clearMealCalorieLimit) 'mealCalorieLimit': null,
+      'trackedNutrients': ?trackedNutrients?.map((n) => n.name).toList(),
     };
     return User.fromJson(_map(await _c.request('PATCH', '/users/me/preferences', body)));
   }
@@ -145,6 +148,39 @@ class Api {
       Favorite.fromJson(_map(await _c.request('POST', '/favorites', {'placeId': placeId, 'label': label})));
 
   Future<void> removeFavorite(String id) => _c.request('DELETE', '/favorites/${Uri.encodeComponent(id)}');
+
+  // Meal logs
+  /// [from] and [to] are the user's local days (YYYY-MM-DD), at most 31 days counting both.
+  Future<MealLogsResponse> getMealLogs({required String from, required String to}) async {
+    final query = Uri(queryParameters: {'from': from, 'to': to}).query;
+    final res = _map(await _c.request('GET', '/meal-logs?$query'));
+    return MealLogsResponse(
+      entries: [for (final e in res['entries'] as List) MealLog.fromJson(_map(e))],
+      days: [for (final d in res['days'] as List) MealLogDay.fromJson(_map(d))],
+    );
+  }
+
+  /// Saves 1-50 entries, all or none, and returns them in the same order.
+  Future<List<MealLog>> addMealLogs(List<MealLogEntry> entries) async {
+    final res = _map(
+      await _c.request('POST', '/meal-logs', {
+        'entries': [for (final e in entries) e.toJson()],
+      }),
+    );
+    return [for (final e in res['entries'] as List) MealLog.fromJson(_map(e))];
+  }
+
+  /// Pass at least one. "Ate it" on a planned entry is status: eaten.
+  Future<MealLog> updateMealLog(String id, {MealLogStatus? status, double? servings}) async => MealLog.fromJson(
+    _map(
+      await _c.request('PATCH', '/meal-logs/${Uri.encodeComponent(id)}', {
+        'status': ?status?.name,
+        'servings': ?servings,
+      }),
+    ),
+  );
+
+  Future<void> deleteMealLog(String id) => _c.request('DELETE', '/meal-logs/${Uri.encodeComponent(id)}');
 
   // Meal plans (omitted values use the server's defaults)
   /// [start] is the user's local day, YYYY-MM-DD; [days] is 1 or 7.

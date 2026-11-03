@@ -25,6 +25,7 @@ Map<String, dynamic> userJson({bool profile = true, String units = 'imperial'}) 
   'username': 'janedoe',
   'email': 'jane.doe@example.com',
   'isVerified': true,
+  'role': 'user',
   'profile': profile
       ? {
           'heightIn': 65,
@@ -35,10 +36,22 @@ Map<String, dynamic> userJson({bool profile = true, String units = 'imperial'}) 
           'goal': 'lose',
         }
       : null,
-  'preferences': {'units': units, 'searchRadius': 10, 'recommendationMode': 'protein', 'mealCalorieLimit': null},
+  'preferences': {
+    'units': units,
+    'searchRadius': 10,
+    'recommendationMode': 'protein',
+    'mealCalorieLimit': null,
+    'trackedNutrients': ['calories', 'protein'],
+  },
 };
 
-const calories = {'age': 20, 'maintenance': 2058, 'target': 1558, 'perMeal': 519};
+const calories = {
+  'age': 20,
+  'maintenance': 2058,
+  'target': 1558,
+  'perMeal': 519,
+  'macros': {'proteinG': 136, 'carbsG': 136, 'fatG': 52},
+};
 
 Map<String, dynamic> item(String id, String chainId, String name, {num? p = 30, num? c = 20, num? f = 10}) => {
   'id': id,
@@ -104,7 +117,7 @@ void main() {
   late FakeServer server;
   late FakeLocation location;
 
-  Future<void> pumpHome(WidgetTester tester, Map<String, dynamic> user, {Map<String, int> cal = calories}) async {
+  Future<void> pumpHome(WidgetTester tester, Map<String, dynamic> user, {Map<String, Object> cal = calories}) async {
     // A tall phone, so the lists build every card (ListView skips what's far off screen).
     tester.view.physicalSize = const Size(412 * 3, 2400 * 3);
     tester.view.devicePixelRatio = 3;
@@ -209,7 +222,17 @@ void main() {
     });
 
     testWidgets('says when the floor raised the target', (tester) async {
-      await pumpHome(tester, userJson(), cal: const {'age': 20, 'maintenance': 1500, 'target': 1200, 'perMeal': 400});
+      await pumpHome(
+        tester,
+        userJson(),
+        cal: const {
+          'age': 20,
+          'maintenance': 1500,
+          'target': 1200,
+          'perMeal': 400,
+          'macros': {'proteinG': 105, 'carbsG': 105, 'fatG': 40},
+        },
+      );
       expect(find.text('cal a day, raised to the 1,200 cal minimum'), findsOneWidget);
     });
   });

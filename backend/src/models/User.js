@@ -19,6 +19,9 @@ const preferencesSchema = new mongoose.Schema(
     searchRadius: Number,
     recommendationMode: String,
     mealCalorieLimit: Number,
+    // Optional (missing = ["calories", "protein"]). default: undefined, or Mongoose would store [] on register,
+    // which the validator's minItems: 1 rejects.
+    trackedNutrients: { type: [String], default: undefined },
   },
   { _id: false }
 );

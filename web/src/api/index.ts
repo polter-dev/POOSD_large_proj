@@ -1,10 +1,10 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, CreateSubmissionBody,
-  EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse, MealPlanQuery, MealPlanResponse, MessageResponse, MySubmission,
-  MySubmissionsResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse, RegisterBody,
-  ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody, SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody,
-  UpdatePreferencesBody, UpdateProfileBody, User,
+  AddFavoriteBody, AddMealLogsBody, AddMealLogsResponse, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody,
+  AnalyzePhotoResponse, Calories, CreateSubmissionBody, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse, MealLog,
+  MealLogsResponse, MealPlanQuery, MealPlanResponse, MessageResponse, MySubmission, MySubmissionsResponse, NearbyBody, NearbyResponse,
+  RecommendationsBody, RecommendationsResponse, RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody,
+  SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody, UpdateMealLogBody, UpdatePreferencesBody, UpdateProfileBody, User,
 } from '../types/api';
 
 export { ApiError, setSessionExpiredHandler } from './client';
@@ -43,6 +43,14 @@ export const nearby = (body: NearbyBody) => request<NearbyResponse>('POST', '/re
 export const getFavorites = () => request<FavoritesResponse>('GET', '/favorites');
 export const addFavorite = (body: AddFavoriteBody) => request<Favorite>('POST', '/favorites', body);
 export const removeFavorite = (id: string) => request<void>('DELETE', `/favorites/${encodeURIComponent(id)}`);
+
+// Meal logs. from and to are the user's local days (YYYY-MM-DD), at most 31 days counting both.
+export const getMealLogs = (from: string, to: string) =>
+  request<MealLogsResponse>('GET', `/meal-logs?${new URLSearchParams({ from, to })}`);
+export const addMealLogs = (body: AddMealLogsBody) => request<AddMealLogsResponse>('POST', '/meal-logs', body);
+export const updateMealLog = (id: string, body: UpdateMealLogBody) =>
+  request<MealLog>('PATCH', `/meal-logs/${encodeURIComponent(id)}`, body);
+export const deleteMealLog = (id: string) => request<void>('DELETE', `/meal-logs/${encodeURIComponent(id)}`);
 
 // Meal plans (omitted fields use the server's defaults)
 export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {

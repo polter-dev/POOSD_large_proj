@@ -50,6 +50,18 @@
     {
       "key": "submissionId",
       "value": ""
+    },
+    {
+      "key": "menuItemId",
+      "value": ""
+    },
+    {
+      "key": "today",
+      "value": ""
+    },
+    {
+      "key": "mealLogId",
+      "value": ""
     }
   ],
   "item": [
@@ -574,7 +586,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"role and trackedNutrients are always present\", () => { const u = pm.response.json(); pm.expect(u.role).to.be.oneOf([\"user\", \"admin\"]); pm.expect(u.preferences.trackedNutrients).to.be.an(\"array\").that.is.not.empty; });"
                 ]
               }
             }
@@ -808,7 +821,7 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
-                  "pm.test(\"integer targets\", () => Object.values(pm.response.json()).forEach((v) => pm.expect(Number.isInteger(v)).to.eql(true)));"
+                  "pm.test(\"integer targets and daily macro grams\", () => { const { macros, ...rest } = pm.response.json(); [...Object.values(rest), ...Object.values(macros)].forEach((v) => pm.expect(Number.isInteger(v)).to.eql(true)); pm.expect(macros).to.have.all.keys(\"proteinG\", \"carbsG\", \"fatG\"); });"
                 ]
               }
             }
@@ -902,7 +915,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"menuItemId\", pm.response.json().items[0].id);"
                 ]
               }
             }
@@ -1208,6 +1222,258 @@
               "path": [
                 "favorites",
                 "{{favoriteId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Meal logs",
+      "item": [
+        {
+          "name": "Add meal logs",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs"
+              ]
+            },
+            "description": "Plans the first item from Menu > Search menu items for today (this computer's calendar day: the server never converts time zones). The server copies the item's name, chain and macros. Saves the new id to mealLogId; Delete meal log removes it, so the collection stays safe to re-run.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entries\": [\n    { \"date\": \"{{today}}\", \"status\": \"planned\", \"source\": \"plan\", \"menuItemId\": \"{{menuItemId}}\" }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const d = new Date();",
+                  "pm.collectionVariables.set(\"today\", [d.getFullYear(), String(d.getMonth() + 1).padStart(2, \"0\"), String(d.getDate()).padStart(2, \"0\")].join(\"-\"));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 201\", () => pm.response.to.have.status(201));",
+                  "const [log] = pm.response.json().entries;",
+                  "pm.test(\"copied from the menu item, planned for today\", () => { pm.expect(log.menuItemId).to.eql(pm.collectionVariables.get(\"menuItemId\")); pm.expect(log.name).to.be.a(\"string\").that.is.not.empty; pm.expect(log.status).to.eql(\"planned\"); pm.expect(log.date).to.eql(pm.collectionVariables.get(\"today\")); });",
+                  "pm.collectionVariables.set(\"mealLogId\", log.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add meal logs (macros with menuItemId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs"
+              ]
+            },
+            "description": "A menu item's macros always come from the database, so sending them is a 400 and nothing is saved.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"entries\": [\n    { \"date\": \"{{today}}\", \"source\": \"search\", \"menuItemId\": \"{{menuItemId}}\", \"calories\": 1 }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error names the entry and the field\", () => pm.expect(pm.response.json().error).to.eql(\"entries[0]: calories comes from the menu item, so leave it out\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List meal logs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs?from={{today}}&to={{today}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "{{today}}"
+                },
+                {
+                  "key": "to",
+                  "value": "{{today}}"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"includes the new entry\", () => pm.expect(body.entries.map((e) => e.id)).to.include(pm.collectionVariables.get(\"mealLogId\")));",
+                  "pm.test(\"one totals row for the day\", () => { pm.expect(body.days.map((d) => d.date)).to.eql([pm.collectionVariables.get(\"today\")]); pm.expect(body.days[0].planned.calories).to.be.above(0); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List meal logs (over 31 days)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs?from=2026-10-01&to=2026-11-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs"
+              ],
+              "query": [
+                {
+                  "key": "from",
+                  "value": "2026-10-01"
+                },
+                {
+                  "key": "to",
+                  "value": "2026-11-01"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error from and to\", () => pm.expect(pm.response.json().error).to.eql(\"from and to must be dates (YYYY-MM-DD), at most 31 days apart\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update meal log (ate it)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs/{{mealLogId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs",
+                "{{mealLogId}}"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"eaten\",\n  \"servings\": 1.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"eaten, 1.5 servings\", () => { const log = pm.response.json(); pm.expect(log.status).to.eql(\"eaten\"); pm.expect(log.servings).to.eql(1.5); });"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete meal log",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-logs/{{mealLogId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-logs",
+                "{{mealLogId}}"
               ]
             }
           },
