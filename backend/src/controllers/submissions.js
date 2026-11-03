@@ -65,6 +65,10 @@ async function create(req, res, next) {
     if (!user) throw httpError(404, "User not found");
     const target = await loadTarget(b.kind, targetId);
     await checkDuplicate(b.kind, payload, target);
+    // A no-op would otherwise auto-apply (relabelling an estimate as community) or sit in the queue. payload is already trimmed.
+    if (b.kind === "edit_item" && Object.keys(payload).every((k) => payload[k] === (target[k] ?? null))) {
+      throw httpError(400, "Payload: change at least one field");
+    }
 
     const flags = moderation.flagsFor({ kind: b.kind, payload, current: target, user, rejectedCount, now });
     const s = { userId: req.userId, kind: b.kind, targetId, payload, flags, status: flags.length ? "pending" : "auto_applied" };

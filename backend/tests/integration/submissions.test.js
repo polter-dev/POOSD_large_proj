@@ -99,6 +99,22 @@ test("a clean edit on an estimate item is auto_applied: the item changes and bef
   });
 });
 
+test("a no-op edit is 400: the item is unchanged and nothing is stored", async () => {
+  const item = storeItem(estimate);
+  const payload = { name: "  Big Mac ", calories: 590 };
+  assert.deepStrictEqual(await post({ kind: "edit_item", targetId: ITEM_ID, payload }, 400), { error: "Payload: change at least one field" });
+  assert.strictEqual(item.updateOne.mock.callCount(), 0);
+  assert.deepStrictEqual(item.doc, estimate);
+  assert.strictEqual(store.created.length, 0);
+});
+
+test("an edit that changes one of its fields still goes through", async () => {
+  const item = storeItem(estimate);
+  const body = await post({ kind: "edit_item", targetId: ITEM_ID, payload: { name: "Big Mac", calories: 600 } }, 201);
+  assert.strictEqual(body.status, "auto_applied");
+  assert.strictEqual(item.doc.calories, 600);
+});
+
 test("an edit to a verified item is pending and doesn't change it", async () => {
   const item = storeItem({ ...estimate, isEstimate: false, source: "official", lastVerified: created });
   const body = await post({ kind: "edit_item", targetId: ITEM_ID, payload: { calories: 600 } }, 201);
