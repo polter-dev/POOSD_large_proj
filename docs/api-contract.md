@@ -1,7 +1,7 @@
 # API Contract
 
 Single source of truth for the backend, the web client (`web/src/api`), the Flutter client and the SwaggerHub spec.
-Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFitter`: `users`, `chains`, `menuItems`, `favorites`, `mealLogs`, `submissions`). If this file and `schema.js` disagree, `schema.js` wins and this file gets fixed.
+Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFitter`: `users`, `chains`, `menuItems`, `favorites`, `mealLogs`, `submissions`). If this file and `schema.js` disagree, `schema.js` wins and this file gets fixed. Exception: this file governs the M6 fields (`mealLogs`, `submissions`, `users.role`, `users.preferences.trackedNutrients`) until #107 merges; after that the usual rule applies.
 
 ## 1. Conventions
 
@@ -11,7 +11,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | Bodies | JSON request and response bodies. `Content-Type: application/json`. |
 | Dates | ISO 8601 strings. `birthDate` is sent and returned as `YYYY-MM-DD`. |
 | IDs | Mongo `_id` is returned as `id` (24-hex string). Inputs that take an id (`chainIds`, `:id`) must be 24-hex, else 400 (404 for `:id`). |
-| Never returned | `passwordHash`, `verificationTokenHash`, `verificationTokenExpires`, `resetTokenHash`, `resetTokenExpires`, `userId` on favorites, `searchName`, `source`, `lastVerified`. |
+| Never returned | `passwordHash`, `verificationTokenHash`, `verificationTokenExpires`, `resetTokenHash`, `resetTokenExpires`, `userId` on favorites, `searchName`, `source`, `lastVerified` on menu items (`MealLog.source` is its own field and is returned). |
 | Auth | `Authorization: Bearer <JWT>`. Payload `{ sub: <userId> }`, 7-day expiry, signed with `JWT_SECRET` from `backend/.env`. |
 | Success codes | 200 with a body, 201 on create, 204 (empty body) on delete. |
 | Error shape | Every error, no exceptions: `{ "error": "<human readable message>" }`. |
@@ -61,7 +61,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
   profile: null | { heightIn, weightLb, birthDate, sex, activityLevel, goal },
   preferences: { units, searchRadius, recommendationMode, mealCalorieLimit, trackedNutrients: string[] } }
 ```
-Height/weight are always imperial in the API; clients convert for display when `preferences.units === "metric"`. `role` and `preferences.trackedNutrients` are always present, filled with defaults when missing.
+Height/weight are always imperial in the API; clients convert for display when `preferences.units === "metric"`. `role` and `preferences.trackedNutrients` are always present, filled with defaults when missing. Register stores neither; the defaults are filled in responses only (both fields are optional in the DB).
 
 `MenuItem`:
 ```
@@ -102,7 +102,9 @@ Weekly goals are computed by the client: daily × 7.
 ```
 { id, kind, targetId, payload, before, resultId, status, flags, reviewNote, createdAt, updatedAt }
 ```
-Admin listings add `user: { id, username }` and `reviewedBy: { id, username } | null`.
+`before` is returned with **only the payload's fields** (`name`, `category`, `calories`, macros). The server also stores the previous `searchName`, `isEstimate`, `source` and `lastVerified` in `before` so revert is exact, but strips them from responses.
+
+Admin listings and the admin PATCH response add `user: { id, username }` and `reviewedBy: { id, username } | null`.
 
 `PhotoItem`: `{ menuItemId, name, chainName, servings, calories, proteinG, carbsG, fatG, confidence }`. `confidence` is `"high"` \| `"medium"` \| `"low"`. `menuItemId` is null for unmatched food.
 
@@ -184,10 +186,10 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/meal-logs?from=&to=` | yes | both `YYYY-MM-DD`, real dates, `from <= to`, at most 31 days inclusive | 200 `{ entries: MealLog[], days: [{ date, eaten: Totals, planned: Totals }] }` | 400 `"from and to must be dates (YYYY-MM-DD), at most 31 days apart"` | TBD |
-| POST | `/meal-logs` | yes | `{ entries: Entry[] }`, 1-50 | 201 `{ entries: MealLog[] }` | 400 (first invalid entry: `"entries[i]: <message>"`); 404 `"entries[i]: menu item not found"` | TBD |
-| PATCH | `/meal-logs/:id` | yes | any subset (at least one) of `{ status, servings }` | 200 `MealLog` | 400 invalid or empty; 404 not found / not yours / malformed id | TBD |
-| DELETE | `/meal-logs/:id` | yes | none | 204 | 404 not found / not yours / malformed id | TBD |
+| GET | `/meal-logs?from=&to=` | yes | both `YYYY-MM-DD`, real dates, `from <= to`, at most 31 days inclusive | 200 `{ entries: MealLog[], days: [{ date, eaten: Totals, planned: Totals }] }` | 400 `"from and to must be dates (YYYY-MM-DD), at most 31 days apart"` | `getMealLogs` |
+| POST | `/meal-logs` | yes | `{ entries: Entry[] }`, 1-50 | 201 `{ entries: MealLog[] }` | 400 (first invalid entry: `"entries[i]: <message>"`); 404 `"entries[i]: menu item not found"` | `addMealLogs` |
+| PATCH | `/meal-logs/:id` | yes | any subset (at least one) of `{ status, servings }` | 200 `MealLog` | 400 invalid or empty; 404 not found / not yours / malformed id | `updateMealLog` |
+| DELETE | `/meal-logs/:id` | yes | none | 204 | 404 not found / not yours / malformed id | `deleteMealLog` |
 
 `Entry` fields:
 - `date` (required)
@@ -207,7 +209,7 @@ GET details:
 
 | Method | Path | Auth | Query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | TBD |
+| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | `getMealPlan` |
 
 Nothing is stored. For each day:
 1. `remainingCalories` = `Calories.target` minus that day's logged calories × servings, planned and eaten together. Floor at 0.
@@ -224,9 +226,10 @@ Opting in is done by the client: it sends the picked items to `POST /meal-logs` 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"`; 429 `"Daily photo limit reached"` (20 per user per UTC day); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | TBD |
+| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"` (`imageBase64` over 3,000,000 chars, or a body over 3 MB); 429 `"Daily photo limit reached"` (20 per user per UTC day); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | `analyzePhoto` |
 
 - Nothing is saved, and the image is never stored or logged.
+- The 413 uses the normal `{ error }` shape: the route has its own JSON parser mounted before the global one (#112).
 - A returned `menuItemId` always exists in `menuItems`, and its name, chain and macros are the database values, not the model's.
 - Clients show the items on a confirm/edit screen, then call `POST /meal-logs` with `source: "photo"`.
 
@@ -234,8 +237,8 @@ Opting in is done by the client: it sends the picked items to `POST /meal-logs` 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`) | 400 invalid; 404 target not found; 409 `"Item already exists"` / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | TBD |
-| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }`, newest first, max 50 | 401 | TBD |
+| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`) | 400 invalid; 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
+| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }`, newest first, max 50 | 401 | `getMySubmissions` |
 
 Payload by `kind`:
 
@@ -248,6 +251,8 @@ Payload by `kind`:
 Duplicate checks use `normalize()`:
 - `new_item`: 409 if the chain already has the same `searchName`.
 - `new_chain`: 409 if the name matches an existing `nameKey` or `alternateNames`.
+- `edit_item` rename: 409 `"Item already exists"` at submit time if the new name collides with another item in the chain.
+- Duplicates are re-checked when an admin approves a pending `new_item`, `new_chain` or rename. On a clash the PATCH returns 409 with the same message and the submission stays `pending`.
 
 **Auto-moderation.** Any flag means `pending`. No flags means `auto_applied`, and the change is written immediately. Flags:
 
@@ -256,14 +261,14 @@ Duplicate checks use `normalize()`:
 | `new_chain` | always for `new_chain` |
 | `verified_item` | `edit_item` target has `isEstimate: false` |
 | `renamed` | `edit_item` changes `name` |
-| `large_change` | `edit_item` moves any number by more than 30% of its current value (current 0 and new value not 0 counts as large) |
+| `large_change` | `edit_item` moves any number by more than 30% of its current value (current 0 and new value not 0 counts as large). Filling an unknown macro (null → number) is **not** large (`macros_mismatch` still applies); clearing a known macro (number → null) **is** large. |
 | `macros_mismatch` | after merging with current values, calories and all three macros are known and `abs(4P + 4C + 9F - calories) > max(0.2 * calories, 40)` |
 | `new_account` | user created less than 24 h ago |
 | `untrusted_user` | user has 2 or more `rejected` submissions |
 | `url_in_name` | `name` contains `http`, `www.` or `.com` |
 
 **What applying does:**
-- `edit_item`: sets the fields, recomputes `searchName`, and sets `isEstimate: true`, `source: "community"`, `lastVerified: null`. `before` stores the previous values of every field it changed.
+- `edit_item`: sets the fields, recomputes `searchName`, and sets `isEstimate: true`, `source: "community"`, `lastVerified: null`. `before` stores the previous values of every field it changed, including `searchName`, `isEstimate`, `source` and `lastVerified` (stripped from responses).
 - `new_item`: inserts the item with `chainName` copied from the chain and community values, and sets `resultId`.
 - `new_chain`: inserts the chain with normalized `nameKey`/`alternateNames`, and sets `resultId`.
 
@@ -271,13 +276,13 @@ Duplicate checks use `normalize()`:
 
 | Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| GET | `/admin/submissions` | admin | `status` (default `pending`), `limit` (default 20, max 100), `skip` | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | TBD |
-| PATCH | `/admin/submissions/:id` | admin | `{ status, reviewNote? }` | 200 `Submission` | 400; 403; 404; 409 `"Can't change a <from> submission to <to>"` | TBD |
+| GET | `/admin/submissions` | admin | `status` (default `pending`), `limit` (default 20, max 100), `skip` (default 0) | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | `getAdminSubmissions` (web only) |
+| PATCH | `/admin/submissions/:id` | admin | `{ status, reviewNote? }` | 200 `Submission` (with user, reviewedBy) | 400; 403; 404; 409 `"Can't change a <from> submission to <to>"`, `"Item already exists"` / `"Restaurant already exists"` (approve), `"Item changed since this submission"` or `"Restaurant has menu items"` (revert) | `reviewSubmission` (web only) |
 
 Allowed status changes:
 - `pending` → `approved` (applies the change)
 - `pending` → `rejected`
-- `auto_applied` or `approved` → `reverted`: an edit restores `before`; a new item is deleted; a new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
+- `auto_applied` or `approved` → `reverted`: an edit restores `before`, unless the item's current values for the edited fields no longer equal the submission's payload: then 409 `"Item changed since this submission"` (no silent overwrites); a new item is deleted; a new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
 
 `reviewedBy` is set to the admin on every change.
 
@@ -295,7 +300,7 @@ Admins are granted only on the server: `node scripts/make-admin.js <username>` (
 |---|---|
 | Layout | Keep the README layout: `backend/src/{routes,controllers,middleware,models,services,integrations,config,utils}`. |
 | Stack | CommonJS JavaScript (README's `npm init` toolchain), Express, Mongoose. Tests use built-in `node:test` (no Jest), in `backend/tests/{unit,integration}`. |
-| Routing | One router file per group under `src/routes` (`auth`, `users`, `menuItems`, `recommendations`, `restaurants`, `favorites`, `health`), each mounted in `src/app.js` under `/api`. |
+| Routing | One router file per group under `src/routes` (`auth`, `users`, `menuItems`, `recommendations`, `restaurants`, `favorites`, `health`, `mealLogs`, `mealPlans`, `photoAnalyses`, `submissions`, `admin`), each mounted in `src/app.js` under `/api`. |
 | Errors | All errors go through the single error middleware: `next(err)` with `err.status` and `err.message`. Never ad-hoc `res.status(...).json({ error })` in controllers. Errors without a status become 500 `"Server error"`. Mongo duplicate key (`code 11000`) becomes 409. |
 | Auth middleware | `src/middleware/auth.js` verifies the JWT and sets `req.userId`; on failure `next` a 401. |
 | Logic | Calorie formula and recommendation ranking live in `src/services` and get unit tests. Places client lives in `src/integrations`. |
