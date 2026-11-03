@@ -239,7 +239,7 @@ Opting in is done by the client: it sends the picked items to `POST /meal-logs` 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`), without `flags`, like `/mine` | 400 invalid; 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
+| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`), without `flags`, like `/mine` | 400 invalid; 400 `"Payload: change at least one field"` (an `edit_item` with no fields, or every field equal to the item's current value after trimming); 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
 | GET | `/submissions/mine?limit=&skip=` | yes | query: `limit` int 1-50, default 50; `skip` int default 0 | 200 `{ submissions: Submission[], total }` (without `flags`), newest first; `total` counts all of the caller's | 400 bad `limit`/`skip`; 401 | `getMySubmissions` |
 
 Payload by `kind`:
