@@ -1,0 +1,313 @@
+@startuml class-mobile
+' Menu Macro Fitter -- class diagram of the Flutter Android app (issue #38)
+' Traced from mobile/lib. Screens show the fields passed to them and their key state;
+' widgets that only draw (AppCard, Pill, MacroBar, ErrorBanner...) are left out.
+
+!theme plain
+
+skinparam defaultFontName Verdana
+skinparam defaultFontSize 13
+skinparam shadowing false
+skinparam ClassBackgroundColor White
+skinparam ClassBorderColor #333333
+skinparam ArrowColor #444444
+skinparam PackageBorderColor #4A6FA5
+skinparam PackageFontColor #4A6FA5
+skinparam noteBackgroundColor #FFFBE6
+skinparam noteBorderColor #C9A227
+skinparam nodesep 40
+skinparam ranksep 60
+hide empty members
+
+title Menu Macro Fitter -- Mobile App Classes (Flutter)
+
+package "App" {
+  class MenuMacroFitterApp <<StatelessWidget>> {
+    + api : Api
+    + location : LocationSource
+    + build() : MaterialApp
+  }
+  class ApiScope <<InheritedWidget>> {
+    + api : Api
+    + location : LocationSource
+    + {static} of(context) : Api
+    + {static} locationOf(context) : LocationSource
+  }
+  note right of ApiScope
+    Every screen reaches the Api and the
+    LocationSource through ApiScope, so tests
+    swap in a fake server and a fake location.
+  end note
+}
+
+package "Screens" {
+  class LoginScreen {
+    + info : String?
+    - error : String?
+    - notVerified : bool
+    - submit()
+    - resend()
+  }
+  class SignUpScreen {
+    - submit()
+  }
+  class ForgotPasswordScreen {
+    - submit()
+  }
+  class CheckEmailScreen {
+    + email : String
+    + forReset : bool
+    - resend()
+  }
+  class ProfileScreen {
+    + user : User
+    + setup : bool
+    - units : Units
+    - switchUnits(Units)
+    - submit()
+  }
+  class AppShell {
+    + user : User
+    + initialTab : AppTab
+    - tab : AppTab
+  }
+  class TargetsScreen {
+    + user : User
+    - cal : Calories?
+    - load()
+    - edit()
+  }
+  class NearbyScreen {
+    + user : User
+    - radius : int
+    - here : LatLng?
+    - restaurants : List<NearbyRestaurant>?
+    - fits : Map<String, int>?
+    - load()
+    - setRadius(int)
+  }
+  class PicksScreen {
+    + user : User
+    + chainId : String?
+    + restaurantName : String?
+    - mode : RecommendationMode
+    - load()
+  }
+  class SearchScreen {
+    - items : List<MenuItem>
+    - total : int
+    - search(more)
+  }
+  enum AppTab {
+    nearby
+    picks
+    search
+    profile
+  }
+}
+
+package "Services" {
+  class Api {
+    + register(...) : Future<String>
+    + hasToken() : Future<bool>
+    + login(login, password) : Future<LoginResponse>
+    + logout() : Future<void>
+    + resendVerification(login) : Future<String>
+    + forgotPassword(email) : Future<String>
+    + getMe() : Future<User>
+    + updateProfile(Profile) : Future<User>
+    + updatePreferences(...) : Future<User>
+    + getCalories() : Future<Calories>
+    + searchMenuItems(q, limit, skip) : Future<SearchMenuItemsResponse>
+    + recommendations(mode, chainIds, limit) : Future<RecommendationsResponse>
+    + nearby(lat, lng, radiusMiles) : Future<List<NearbyRestaurant>>
+  }
+  class ApiClient {
+    + baseUrl : String
+    + tokens : TokenStore
+    + request(method, path, body, timeout) : Future<dynamic>
+  }
+  class ApiError <<Exception>> {
+    + message : String
+    + status : int
+    + fromApi : bool
+  }
+  interface TokenStore {
+    + read() : Future<String?>
+    + write(token)
+    + clear()
+  }
+  class PrefsTokenStore
+  class MemoryTokenStore
+  interface LocationSource {
+    + current() : Future<LatLng>
+    + openSettings(LocationProblem)
+  }
+  class DeviceLocation
+  class LocationException <<Exception>> {
+    + problem : LocationProblem
+  }
+  enum LocationProblem {
+    serviceOff
+    denied
+    blocked
+    unavailable
+  }
+  class LatLng {
+    + lat : double
+    + lng : double
+  }
+}
+
+package "Models (API JSON)" {
+  class User {
+    + id : String
+    + firstName : String
+    + lastName : String
+    + username : String
+    + email : String
+    + isVerified : bool
+  }
+  class Profile {
+    + heightIn : double
+    + weightLb : double
+    + birthDate : String
+    + sex : Sex
+    + activityLevel : ActivityLevel
+    + goal : Goal
+  }
+  class Preferences {
+    + units : Units
+    + searchRadius : int
+    + recommendationMode : RecommendationMode
+    + mealCalorieLimit : double?
+  }
+  class Calories {
+    + age : int
+    + maintenance : int
+    + target : int
+    + perMeal : int
+  }
+  class MenuItem {
+    + id : String
+    + chainId : String
+    + chainName : String
+    + name : String
+    + category : Category
+    + calories : double
+    + proteinG : double?
+    + carbsG : double?
+    + fatG : double?
+    + isEstimate : bool
+  }
+  class RecommendedItem {
+    + score : double
+  }
+  class RecommendationsResponse {
+    + mode : RecommendationMode
+    + mealCalorieLimit : double
+  }
+  class SearchMenuItemsResponse {
+    + total : int
+    + limit : int
+    + skip : int
+  }
+  class NearbyRestaurant {
+    + placeId : String
+    + name : String
+    + address : String?
+    + distanceMiles : double
+    + chainId : String?
+  }
+  class LoginResponse {
+    + token : String
+  }
+  enum Sex {
+    male
+    female
+  }
+  enum ActivityLevel {
+    sedentary
+    light
+    moderate
+    active
+    veryActive
+  }
+  enum Goal {
+    lose
+    maintain
+    gain
+  }
+  enum Units {
+    imperial
+    metric
+  }
+  enum RecommendationMode {
+    protein
+    carb
+  }
+  enum Category {
+    entree
+    side
+    breakfast
+    salad
+    drink
+    dessert
+  }
+}
+
+' --- app wiring
+MenuMacroFitterApp *-- ApiScope : provides
+ApiScope o-- Api
+ApiScope o-- LocationSource
+
+' --- navigation (who opens whom)
+MenuMacroFitterApp ..> LoginScreen : no saved session
+MenuMacroFitterApp ..> AppShell : saved session
+LoginScreen ..> SignUpScreen : opens
+LoginScreen ..> ForgotPasswordScreen : opens
+SignUpScreen ..> CheckEmailScreen : registered
+ForgotPasswordScreen ..> CheckEmailScreen : link sent
+LoginScreen ..> ProfileScreen : no profile yet
+LoginScreen ..> AppShell : logged in
+ProfileScreen ..> AppShell : saved (setup)
+AppShell *-- "1" TargetsScreen : Profile tab
+AppShell *-- "1" NearbyScreen : Nearby tab
+AppShell *-- "1" PicksScreen : Picks tab
+AppShell *-- "1" SearchScreen : Search tab
+AppShell --> AppTab
+TargetsScreen ..> ProfileScreen : Edit
+NearbyScreen ..> PicksScreen : tap a restaurant
+
+' --- screens use services through ApiScope
+LoginScreen ..> Api : via ApiScope\n(every screen)
+NearbyScreen ..> LocationSource : current()
+
+' --- services
+Api *-- ApiClient
+ApiClient o-- TokenStore
+ApiClient ..> ApiError : throws
+TokenStore <|.. PrefsTokenStore
+TokenStore <|.. MemoryTokenStore : tests
+LocationSource <|.. DeviceLocation
+DeviceLocation ..> LocationException : throws
+LocationException --> LocationProblem
+LocationSource ..> LatLng
+Api ..> User : returns
+
+' --- models
+User *-- "0..1" Profile : null until set up
+User *-- "1" Preferences
+LoginResponse *-- "1" User
+RecommendationsResponse *-- "*" RecommendedItem
+RecommendedItem *-- MenuItem
+SearchMenuItemsResponse *-- "*" MenuItem
+Profile --> Sex
+Profile --> ActivityLevel
+Profile --> Goal
+Preferences --> Units
+Preferences --> RecommendationMode
+MenuItem --> Category
+NearbyRestaurant ..> MenuItem : chainId links to\nthe chain's items
+
+@enduml
