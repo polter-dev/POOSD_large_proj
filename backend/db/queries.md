@@ -117,21 +117,78 @@ QUERIES (run inside `mongosh` after schema.js + seed.js):
                     maintenance: 1, target: 1,
                     perMeal: { $ifNull: ["$preferences.mealCalorieLimit", { $round: [{ $divide: ["$target", 3] }, 0] }] } } }
     ])
+
+// --- M6: meal logs (#107) ---
+22. db.mealLogs.find({ userId: db.users.findOne({ username: "janedoe" })._id },
+      { _id: 0, date: 1, status: 1, name: 1, chainName: 1, servings: 1, calories: 1, source: 1 }).sort({ date: 1, createdAt: 1 })
+
+// A day's totals, what GET /meal-logs returns per day (#108): value x servings, eaten and planned apart.
+// A null macro adds nothing and marks the day incomplete ("at least").
+23. db.mealLogs.aggregate([
+      { $match: { userId: db.users.findOne({ username: "janedoe" })._id } },
+      { $group: { _id: { date: "$date", status: "$status" }, entries: { $sum: 1 },
+        calories: { $sum: { $multiply: ["$calories", "$servings"] } },
+        proteinG: { $sum: { $multiply: [{ $ifNull: ["$proteinG", 0] }, "$servings"] } },
+        carbsG: { $sum: { $multiply: [{ $ifNull: ["$carbsG", 0] }, "$servings"] } },
+        fatG: { $sum: { $multiply: [{ $ifNull: ["$fatG", 0] }, "$servings"] } },
+        incomplete: { $max: { $or: [{ $eq: ["$proteinG", null] }, { $eq: ["$carbsG", null] }, { $eq: ["$fatG", null] }] } } } },
+      { $project: { _id: 0, date: "$_id.date", status: "$_id.status", entries: 1, incomplete: 1,
+        calories: { $round: ["$calories", 0] }, proteinG: { $round: ["$proteinG", 1] },
+        carbsG: { $round: ["$carbsG", 1] }, fatG: { $round: ["$fatG", 1] } } },
+      { $sort: { date: 1, status: 1 } }
+    ])
+
+// --- M6: submissions (#107) ---
+// The admin queue (#109): pending, oldest first, with who sent it (a JOIN on users).
+24. db.submissions.aggregate([
+      { $match: { status: "pending" } },
+      { $sort: { createdAt: 1 } },
+      { $lookup: { from: "users", localField: "userId", foreignField: "_id", as: "user" } },
+      { $project: { _id: 0, kind: 1, payload: 1, flags: 1, createdAt: 1, user: { $first: "$user.username" } } }
+    ])
+24b. db.submissions.find({ status: "pending" }).sort({ createdAt: 1 }).explain().queryPlanner.winningPlan   // IXSCAN on status_created
+
+// --- M6 rules the database enforces (each of these is REJECTED) ---
+25a. db.mealLogs.insertOne({ userId: db.users.findOne({ username: "janedoe" })._id, date: "2026-11-03", status: "eaten",
+       menuItemId: null, name: "Apple", chainName: null, servings: 1, calories: 95, proteinG: 0.5, carbsG: 25, fatG: 0.3,
+       source: "custom", createdAt: new Date(), notes: "crisp" })                                   // extra field
+25b. db.mealLogs.insertOne({ userId: db.users.findOne({ username: "janedoe" })._id, date: "2026-11-03", status: "skipped",
+       menuItemId: null, name: "Apple", chainName: null, servings: 1, calories: 95, proteinG: 0.5, carbsG: 25, fatG: 0.3,
+       source: "custom", createdAt: new Date() })                                                  // bad status
+25c. db.mealLogs.insertOne({ userId: db.users.findOne({ username: "janedoe" })._id, date: "11/03/2026", status: "eaten",
+       menuItemId: null, name: "Apple", chainName: null, servings: 0, calories: 95, proteinG: 0.5, carbsG: 25, fatG: 0.3,
+       source: "custom", createdAt: new Date() })                                                  // date format, 0 servings
+25d. db.submissions.insertOne({ userId: db.users.findOne({ username: "kevinn" })._id, kind: "delete_item",
+       targetId: db.menuItems.findOne({ name: "Big Mac" })._id, payload: {}, before: null, resultId: null, status: "pending",
+       flags: [], reviewedBy: null, reviewNote: null, createdAt: new Date(), updatedAt: new Date() })   // unknown kind
+25e. db.submissions.insertOne({ userId: db.users.findOne({ username: "kevinn" })._id, kind: "new_chain",
+       targetId: db.chains.findOne({ name: "Subway" })._id, payload: { name: "Arby's", nutritionSourceUrl: "https://arbys.com" },
+       before: null, resultId: null, status: "pending", flags: ["new_chain"], reviewedBy: null, reviewNote: null,
+       createdAt: new Date(), updatedAt: new Date() })                                             // new_chain with a target
+25f. db.submissions.updateOne({ status: "pending" }, { $set: { flags: ["spam"] } })                 // unknown flag
+25g. db.users.updateOne({ username: "janedoe" }, { $set: { role: "superuser" } })                    // bad role
+25h. db.users.updateOne({ username: "janedoe" }, { $set: { "preferences.trackedNutrients": ["calories", "sugar"] } })   // bad nutrient
+
+// --- ACCEPTED: an account from before M6 (no role, no trackedNutrients) can still be updated ---
+26. db.users.updateOne({ username: "chrisb" }, { $set: { "preferences.searchRadius": 15, updatedAt: new Date() } })
 ```
 
 519 in queries 15–17 is janedoe's per-meal limit from query 21.
 
 ## Expected results with the seed data
 
-- 4 collections, 6 users (1 unverified, 1 with profile null), 10 chains,
-  85 menu items (all verified against official sources on 2026-10-26; the
-  3 Chipotle builds are sums of verified ingredients), 3 favorites.
-- **Rejected:** 9a–9f and 19a–19e. **Accepted:** query 20.
+- 6 collections, 6 users (1 unverified, 1 with profile null; 7 with
+  `SEED_ADMIN=1`, adding `siteadmin`), 10 chains, 86 menu items (85 verified
+  against official sources on 2026-10-26, the 3 Chipotle builds being sums of
+  verified ingredients, plus 1 community estimate from a submission),
+  3 favorites, 6 meal logs, 2 submissions.
+- **Rejected:** 9a–9f, 19a–19e and 25a–25h. **Accepted:** queries 20 and 26.
 - Query 12 finds 31 items ("chick" also matches "chicken"); 12b shows
   `IXSCAN` on `search_name`.
 - Query 13 returns Chick-fil-A; 13b returns `null` (the API shows the place
   without nutrition data).
-- Query 14: 5–13 items per chain, every one verified.
+- Query 14: 5–13 items per chain, every one verified except Subway's
+  community "6-inch Veggie Delite" (7 items, 6 verified).
 - Query 15 returns 65.
 - Query 16 (protein), g per 100 kcal: Chick-fil-A Grilled Nuggets (8 ct) 19.2,
   Grilled Nuggets (12 ct) 19, Chipotle Chicken (4 oz) 17.8, Popeyes Blackened
@@ -150,4 +207,19 @@ QUERIES (run inside `mongosh` after schema.js + seed.js):
 | chrisb | lose | 2377 | 1877 | 600 (own limit) |
 
 Ages move up by one on each birthday, which shifts maintenance by about 5–8
-calories. Query 20 changes data, so re-run `seed.js` afterwards to reset.
+calories.
+
+- Query 22: janedoe's 6 entries, yesterday then today (dates are relative to
+  when `seed.js` ran, in UCF's time zone).
+- Query 23 (day totals; the macros are value × servings):
+
+| date | status | entries | calories | protein | carbs | fat | incomplete |
+|---|---|---|---|---|---|---|---|
+| yesterday | eaten | 4 | 1480 | 129 | 160.5 | 34 | true (the smoothie's fat is unknown) |
+| today | eaten | 1 | 130 | 25 | 1 | 3 | false |
+| today | planned | 1 | 300 | 26 | 40 | 5 | false |
+
+- Query 24: one pending submission, kevinn's Big Mac edit, flagged `verified_item`.
+  24b shows `IXSCAN` on `status_created`.
+
+Queries 20 and 26 change data, so re-run `seed.js` afterwards to reset.
