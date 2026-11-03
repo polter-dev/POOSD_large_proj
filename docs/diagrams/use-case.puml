@@ -1,6 +1,7 @@
 @startuml use-case
-' Menu Macro Fitter -- use case diagram (issue #37)
+' Menu Macro Fitter -- use case diagram (issue #37, M6: #122)
 ' Protected use cases come from the requireAuth routes in backend/src/routes; menu search is public.
+' Admin: requireAuth + requireAdmin on /api/admin, same login as a student (docs/api-contract.md "Admin").
 
 skinparam defaultFontName Verdana
 scale 2
@@ -16,42 +17,57 @@ left to right direction
 title Menu Macro Fitter -- Use Cases
 
 actor "Student\n(web or mobile)" as Student
+actor "Admin\n(web)" as Admin
+Student <|-left- Admin
 
 rectangle "Menu Macro Fitter" {
   usecase "Search menu items" as Search
-  usecase "Set up profile" as Profile
-  usecase "View calorie targets" as Targets
-  usecase "Manage favorites" as Favs
-  usecase "Get recommendations\n(high-protein / high-carb)" as Recs
-  usecase "Find nearby restaurants" as Nearby
-  usecase "Log in" as Login
   usecase "Register" as Register
   usecase "Verify email" as Verify
   usecase "Reset password" as Reset
+  usecase "Log in" as Login
+  ' Every use case in here needs the JWT that login returns (one include line, to keep it readable).
+  rectangle "Needs login (JWT)" as Protected {
+    usecase "Set up profile" as Profile
+    usecase "View calorie targets" as Targets
+    usecase "Manage favorites" as Favs
+    usecase "Get recommendations\n(high-protein / high-carb)" as Recs
+    usecase "Find nearby restaurants" as Nearby
+    usecase "Track meals\n(log / list)" as Track
+    usecase "Plan meals" as Plan
+    usecase "Log meal from photo" as Photo
+    usecase "Suggest correction" as Correct
+    usecase "Add menu item" as AddItem
+    usecase "Add restaurant" as AddChain
+    usecase "Review submissions" as Review
+  }
 }
 
 actor "Overpass /\nOpenStreetMap" as Overpass <<system>>
+actor "Claude vision\n(Anthropic)" as Claude <<system>>
 actor "SendGrid\n(email)" as SendGrid <<system>>
 
 Student --> Search
+Student --> Register
+Student --> Verify
+Student --> Reset
 Student --> Profile
 Student --> Targets
 Student --> Favs
 Student --> Recs
 Student --> Nearby
-Student --> Register
-Student --> Verify
-Student --> Reset
+Student --> Track
+Student --> Plan
+Student --> Photo
+Student --> Correct
+Student --> AddItem
+Student --> AddChain
+Admin --> Review
 
-' Every protected endpoint needs the JWT that login returns, so the student reaches
-' "Log in" through these use cases (no separate Student -- Log in line, to keep it readable).
-Profile ..> Login : <<include>>
-Targets ..> Login : <<include>>
-Favs ..> Login : <<include>>
-Recs ..> Login : <<include>>
-Nearby ..> Login : <<include>>
+Protected ..> Login : <<include>>
 
 Nearby --> Overpass
+Photo --> Claude
 Register --> SendGrid
 Reset --> SendGrid
 
