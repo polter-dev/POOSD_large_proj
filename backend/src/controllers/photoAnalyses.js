@@ -30,29 +30,43 @@ async function analyze(req, res, next) {
     const count = used?.day === day ? used.count : 0;
     if (count >= DAILY_LIMIT) throw httpError(429, "Daily photo limit reached");
 
-    const menu = await MenuItem.find({}, { chainName: 1, name: 1, calories: 1, proteinG: 1, carbsG: 1, fatG: 1 })
-      .sort({ _id: 1 })
-      .lean();
-    const raw = await claudeVision.analyzeMeal({ imageBase64, mediaType, menu });
-    usage.set(req.userId, { day, count: count + 1 }); // only successful analyses count
+    usage.set(req.userId, { day, count: count + 1 }); // reserve before awaiting so parallel calls can't all pass
+    let menu, raw;
+    try {
+      menu = await MenuItem.find({}, { chainName: 1, name: 1, calories: 1, proteinG: 1, carbsG: 1, fatG: 1 })
+        .sort({ _id: 1 })
+        .lean();
+      raw = await claudeVision.analyzeMeal({ imageBase64, mediaType, menu });
+    } catch (err) {
+      const u = usage.get(req.userId); // only successful analyses count: give the slot back
+      if (u?.day === day) u.count--;
+      throw err;
+    }
 
     // DB trust: an id the model made up becomes unmatched; a real one gets the database's name, chain and macros.
     const byId = new Map(menu.map((m) => [String(m._id), m]));
-    const items = raw.slice(0, 10).map((i) => {
+    // Unmatched values are clamped to what POST /meal-logs accepts, so confirming a draft can't 400.
+    const items = raw.slice(0, 10).flatMap((i) => {
       const m = byId.get(i.menuItemId);
-      const servings = Math.min(10, Math.max(0.25, i.servings)); // the range POST /meal-logs accepts
-      const src = m || i;
-      return {
-        menuItemId: m ? String(m._id) : null,
-        name: src.name,
-        chainName: src.chainName,
+      const servings = Math.min(10, Math.max(0.25, i.servings));
+      if (m) {
+        const { name, chainName, calories, proteinG, carbsG, fatG } = m;
+        return [{ menuItemId: String(m._id), name, chainName, servings, calories, proteinG, carbsG, fatG, confidence: i.confidence }];
+      }
+      const name = i.name.trim().slice(0, 150);
+      if (!name) return [];
+      const macro = (g) => (g === null ? null : Math.max(0, g));
+      return [{
+        menuItemId: null,
+        name,
+        chainName: i.chainName?.trim().slice(0, 100) || null,
         servings,
-        calories: src.calories,
-        proteinG: src.proteinG,
-        carbsG: src.carbsG,
-        fatG: src.fatG,
+        calories: Math.min(5000, Math.max(0, i.calories)),
+        proteinG: macro(i.proteinG),
+        carbsG: macro(i.carbsG),
+        fatG: macro(i.fatG),
         confidence: i.confidence,
-      };
+      }];
     });
     res.json({ items });
   } catch (err) {

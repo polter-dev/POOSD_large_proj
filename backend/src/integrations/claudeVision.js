@@ -44,7 +44,9 @@ Menu (id | chain | name | kcal per serving):
 // menu: [{ _id, chainName, name, calories }] in a stable order, so the cached system prompt is reused.
 // Returns the model's raw item list; never logs the image.
 async function analyzeMeal({ imageBase64, mediaType, menu }) {
-  const menuText = menu.map((m) => `${m._id} | ${m.chainName} | ${m.name} | ${m.calories}`).join("\n");
+  // Community-submitted names can't start a new line in the prompt.
+  const clean = (t) => String(t).replace(/[\x00-\x1f\x7f\u0085\u2028\u2029]+/g, " ");
+  const menuText = menu.map((m) => `${m._id} | ${clean(m.chainName)} | ${clean(m.name)} | ${m.calories}`).join("\n");
   // 25 s x 2 attempts stays under the mobile client's 60 s request limit.
   const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY, timeout: 25000, maxRetries: 1 });
   let msg;
