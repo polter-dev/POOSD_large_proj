@@ -23,6 +23,15 @@ enum Category { entree, side, breakfast, salad, drink, dessert }
 
 enum PhotoConfidence { high, medium, low }
 
+enum UserRole { user, admin }
+
+/// What the tracker shows totals for (preferences.trackedNutrients).
+enum Nutrient { calories, protein, carbs, fat }
+
+enum MealLogStatus { planned, eaten }
+
+enum MealLogSource { search, plan, photo, custom }
+
 enum SubmissionKind {
   editItem('edit_item'),
   newItem('new_item'),
@@ -94,18 +103,21 @@ class Preferences {
     required this.searchRadius,
     required this.recommendationMode,
     required this.mealCalorieLimit,
+    required this.trackedNutrients,
   });
 
   final Units units;
   final int searchRadius; // one of searchRadii (miles)
   final RecommendationMode recommendationMode;
   final double? mealCalorieLimit; // null = target / 3
+  final List<Nutrient> trackedNutrients; // 1-4 different ones, in the user's order
 
   factory Preferences.fromJson(Map<String, dynamic> j) => Preferences(
     units: _enum(Units.values, j['units']),
     searchRadius: (j['searchRadius'] as num).toInt(),
     recommendationMode: _enum(RecommendationMode.values, j['recommendationMode']),
     mealCalorieLimit: _numOrNull(j['mealCalorieLimit']),
+    trackedNutrients: [for (final n in j['trackedNutrients'] as List) _enum(Nutrient.values, n)],
   );
 }
 
@@ -117,6 +129,7 @@ class User {
     required this.username,
     required this.email,
     required this.isVerified,
+    required this.role,
     required this.profile,
     required this.preferences,
   });
@@ -127,6 +140,7 @@ class User {
   final String username;
   final String email;
   final bool isVerified;
+  final UserRole role; // only the server's make-admin script changes it
   final Profile? profile; // null until the user fills it in
   final Preferences preferences;
 
@@ -137,24 +151,48 @@ class User {
     username: j['username'] as String,
     email: j['email'] as String,
     isVerified: j['isVerified'] as bool,
+    role: _enum(UserRole.values, j['role']),
     profile: j['profile'] == null ? null : Profile.fromJson(j['profile'] as Map<String, dynamic>),
     preferences: Preferences.fromJson(j['preferences'] as Map<String, dynamic>),
   );
 }
 
 class Calories {
-  const Calories({required this.age, required this.maintenance, required this.target, required this.perMeal});
+  const Calories({
+    required this.age,
+    required this.maintenance,
+    required this.target,
+    required this.perMeal,
+    required this.macros,
+  });
 
   final int age;
   final int maintenance;
   final int target;
   final int perMeal;
+  final MacroTargets macros;
 
   factory Calories.fromJson(Map<String, dynamic> j) => Calories(
     age: (j['age'] as num).toInt(),
     maintenance: (j['maintenance'] as num).toInt(),
     target: (j['target'] as num).toInt(),
     perMeal: (j['perMeal'] as num).toInt(),
+    macros: MacroTargets.fromJson(j['macros'] as Map<String, dynamic>),
+  );
+}
+
+// Daily targets in grams, split from target by goal. Weekly goals are daily * 7.
+class MacroTargets {
+  const MacroTargets({required this.proteinG, required this.carbsG, required this.fatG});
+
+  final int proteinG;
+  final int carbsG;
+  final int fatG;
+
+  factory MacroTargets.fromJson(Map<String, dynamic> j) => MacroTargets(
+    proteinG: (j['proteinG'] as num).toInt(),
+    carbsG: (j['carbsG'] as num).toInt(),
+    fatG: (j['fatG'] as num).toInt(),
   );
 }
 
@@ -253,6 +291,130 @@ class MealPlanDay {
     mealCalorieLimit: (j['mealCalorieLimit'] as num).toInt(),
     items: [for (final i in j['items'] as List) RecommendedItem.fromJson(i as Map<String, dynamic>)],
     totals: Totals.fromJson(j['totals'] as Map<String, dynamic>),
+  );
+}
+
+// A snapshot of one food on the user's local day. Macros are for one serving; totals multiply by servings.
+class MealLog {
+  const MealLog({
+    required this.id,
+    required this.date,
+    required this.status,
+    required this.menuItemId,
+    required this.name,
+    required this.chainName,
+    required this.servings,
+    required this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    required this.source,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String date; // YYYY-MM-DD, the user's local day
+  final MealLogStatus status;
+  final String? menuItemId; // null = custom food; may name an item that no longer exists
+  final String name;
+  final String? chainName;
+  final double servings; // 0.25-10
+  final double calories;
+  final double? proteinG; // null = unknown, never treat as 0
+  final double? carbsG;
+  final double? fatG;
+  final MealLogSource source;
+  final String createdAt;
+
+  factory MealLog.fromJson(Map<String, dynamic> j) => MealLog(
+    id: j['id'] as String,
+    date: j['date'] as String,
+    status: _enum(MealLogStatus.values, j['status']),
+    menuItemId: j['menuItemId'] as String?,
+    name: j['name'] as String,
+    chainName: j['chainName'] as String?,
+    servings: (j['servings'] as num).toDouble(),
+    calories: (j['calories'] as num).toDouble(),
+    proteinG: _numOrNull(j['proteinG']),
+    carbsG: _numOrNull(j['carbsG']),
+    fatG: _numOrNull(j['fatG']),
+    source: _enum(MealLogSource.values, j['source']),
+    createdAt: j['createdAt'] as String,
+  );
+}
+
+/// One food for Api.addMealLogs. Left null, [status] and [servings] are the server's defaults (eaten, 1).
+class MealLogEntry {
+  /// A menu item: the server copies its name, chain and macros (sending them too is a 400).
+  const MealLogEntry.menuItem({
+    required this.date,
+    required String this.menuItemId,
+    required this.source,
+    this.status,
+    this.servings,
+  }) : name = null,
+       chainName = null,
+       calories = null,
+       proteinG = null,
+       carbsG = null,
+       fatG = null;
+
+  /// Anything else, including a photo item the user edited. Pass null for an unknown macro, never 0.
+  const MealLogEntry.custom({
+    required this.date,
+    required this.source,
+    required String this.name,
+    required double this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    this.chainName,
+    this.status,
+    this.servings,
+  }) : menuItemId = null;
+
+  final String date; // YYYY-MM-DD, the user's local day
+  final String? menuItemId;
+  final MealLogSource source;
+  final MealLogStatus? status;
+  final double? servings; // 0.25-10
+  final String? name;
+  final String? chainName;
+  final double? calories;
+  final double? proteinG;
+  final double? carbsG;
+  final double? fatG;
+
+  Map<String, dynamic> toJson() => {
+    'date': date,
+    'status': ?status?.name,
+    'servings': ?servings,
+    'source': source.name,
+    if (menuItemId != null)
+      'menuItemId': menuItemId
+    else ...{
+      'name': name,
+      'chainName': chainName,
+      'calories': calories,
+      // Sent even when null: a custom entry has to say a macro is unknown.
+      'proteinG': proteinG,
+      'carbsG': carbsG,
+      'fatG': fatG,
+    },
+  };
+}
+
+class MealLogDay {
+  const MealLogDay({required this.date, required this.eaten, required this.planned});
+
+  final String date; // YYYY-MM-DD; every day in the range, empty ones too
+  final Totals eaten;
+  final Totals planned;
+
+  factory MealLogDay.fromJson(Map<String, dynamic> j) => MealLogDay(
+    date: j['date'] as String,
+    eaten: Totals.fromJson(j['eaten'] as Map<String, dynamic>),
+    planned: Totals.fromJson(j['planned'] as Map<String, dynamic>),
   );
 }
 
@@ -397,6 +559,13 @@ class RecommendationsResponse {
   final RecommendationMode mode;
   final double mealCalorieLimit;
   final List<RecommendedItem> items;
+}
+
+class MealLogsResponse {
+  const MealLogsResponse({required this.entries, required this.days});
+
+  final List<MealLog> entries; // by date, then time logged
+  final List<MealLogDay> days;
 }
 
 class MealPlanResponse {

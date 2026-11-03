@@ -13,8 +13,9 @@ const GOALS = ["lose", "maintain", "gain"];
 const UNITS = ["imperial", "metric"];
 const RADII = [5, 10, 15, 20];
 const MODES = ["protein", "carb"];
+const NUTRIENTS = ["calories", "protein", "carbs", "fat"];
 const PROFILE_FIELDS = ["heightIn", "weightLb", "birthDate", "sex", "activityLevel", "goal"];
-const PREFERENCE_FIELDS = ["units", "searchRadius", "recommendationMode", "mealCalorieLimit"];
+const PREFERENCE_FIELDS = ["units", "searchRadius", "recommendationMode", "mealCalorieLimit", "trackedNutrients"];
 const AFTER = { returnDocument: "after" };
 
 function checkRange(v, min, max, message) {
@@ -54,11 +55,20 @@ function checkMealCalorieLimit(v) {
   return v === null ? null : checkRange(v, 100, 3000, "Meal calorie limit: 100 to 3000 calories, or none");
 }
 
+// The totals the tracker shows: 1-4 different nutrients, kept in the order sent.
+function checkTrackedNutrients(v) {
+  if (!Array.isArray(v) || !v.length || new Set(v).size !== v.length || !v.every((n) => NUTRIENTS.includes(n))) {
+    throw httpError(400, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat");
+  }
+  return v;
+}
+
 const PREFERENCE_CHECKS = {
   units: (v) => checkEnum(v, UNITS, "Units: imperial or metric"),
   searchRadius: (v) => checkEnum(v, RADII, "Search radius: 5, 10, 15 or 20 miles"),
   recommendationMode: (v) => checkEnum(v, MODES, "Recommendation mode: protein or carb"),
   mealCalorieLimit: checkMealCalorieLimit,
+  trackedNutrients: checkTrackedNutrients,
 };
 
 // The token outlived a deleted account.

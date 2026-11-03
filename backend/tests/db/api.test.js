@@ -84,6 +84,9 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
         assert.strictEqual((await api("POST", "/auth/register", body)).status, 409);
         const res = await api("POST", "/auth/login", { email, password: "Password123!" });
         assert.strictEqual(res.status, 403); // not verified yet
+        // Both are optional in the users validator; the API fills in the defaults when it answers.
+        const doc = await User.findOne({ email }).lean();
+        assert.ok(!("role" in doc) && !("trackedNutrients" in doc.preferences), JSON.stringify(doc.preferences));
       } finally {
         await User.deleteOne({ email });
       }
@@ -101,6 +104,8 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       assert.strictEqual(me.username, "janedoe");
       assert.strictEqual(me.profile.birthDate, "2006-03-14");
       assert.strictEqual(me.preferences.recommendationMode, "carb");
+      assert.strictEqual(me.role, "user"); // not stored: the default
+      assert.deepStrictEqual(me.preferences.trackedNutrients, ["calories", "protein", "carbs"]); // seeded (sam.patel gets the default below)
       assert.ok(!("passwordHash" in me));
     });
 
@@ -109,6 +114,10 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       assert.strictEqual(c.target, c.maintenance - 500);
       assert.strictEqual(c.perMeal, Math.round(c.target / 3));
       assert.ok(c.age >= 20);
+      // lose: 35 / 35 / 30 % of target
+      assert.deepStrictEqual(c.macros, {
+        proteinG: Math.round((c.target * 35) / 400), carbsG: Math.round((c.target * 35) / 400), fatG: Math.round((c.target * 30) / 900),
+      });
     });
 
     test("a new user sets a profile, a goal and preferences, and the validator accepts each write", async () => {
@@ -128,8 +137,12 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
 
         res = await api("PATCH", "/users/me/preferences", { units: "metric", searchRadius: 20, mealCalorieLimit: 650 }, token);
         assert.deepStrictEqual((await res.json()).preferences, {
-          units: "metric", searchRadius: 20, recommendationMode: "protein", mealCalorieLimit: 650,
+          units: "metric", searchRadius: 20, recommendationMode: "protein", mealCalorieLimit: 650, trackedNutrients: ["calories", "protein"],
         });
+
+        res = await api("PATCH", "/users/me/preferences", { trackedNutrients: ["carbs", "calories", "fat"] }, token);
+        assert.deepStrictEqual((await res.json()).preferences.trackedNutrients, ["carbs", "calories", "fat"]);
+        assert.strictEqual((await api("PATCH", "/users/me/preferences", { trackedNutrients: [] }, token)).status, 400);
         const c = await (await api("GET", "/users/me/calories", undefined, token)).json();
         assert.strictEqual(c.target, c.maintenance);
         assert.strictEqual(c.perMeal, 650);
@@ -222,6 +235,92 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
     });
   });
 
+  describe("meal logs", () => {
+    // seed.js logs janedoe's food on UCF's calendar days (America/New_York).
+    const ucfDay = (daysBack) =>
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
+    const DAY = "2030-01-15"; // far from the seeded days, so these tests see only their own entries
+
+    test("janedoe's seeded tracker: yesterday is 'at least' (a custom food without fat), today has a planned Subway sandwich", async () => {
+      const [yesterday, today] = [ucfDay(1), ucfDay(0)];
+      const body = await (await api("GET", `/meal-logs?from=${yesterday}&to=${today}`, undefined, tokens["jane.doe"])).json();
+      assert.deepStrictEqual(body.days.map((d) => d.date), [yesterday, today]);
+      const dates = body.entries.map((e) => e.date);
+      assert.deepStrictEqual(dates, [...dates].sort());
+      const smoothie = body.entries.find((e) => e.name === "Homemade smoothie");
+      assert.deepStrictEqual([smoothie.menuItemId, smoothie.chainName, smoothie.fatG, smoothie.source], [null, null, null, "custom"]);
+      assert.strictEqual(body.days[0].eaten.incomplete, true);
+      assert.ok(body.days[0].eaten.calories > 0);
+      const panda = body.entries.find((e) => e.chainName === "Panda Express");
+      assert.strictEqual(panda.servings, 1.5);
+      assert.deepStrictEqual(body.days[1].planned, { calories: 300, proteinG: 26, carbsG: 40, fatG: 5, incomplete: false });
+      // Another user's tracker doesn't show them.
+      const sams = await (await api("GET", `/meal-logs?from=${yesterday}&to=${today}`, undefined, tokens["sam.patel"])).json();
+      assert.ok(sams.entries.every((e) => !body.entries.some((j) => j.id === e.id)));
+    });
+
+    test("log a batch, eat the planned item, change a portion, delete; the validator accepts every write", async () => {
+      const token = tokens["jane.doe"];
+      const logs = mongoose.connection.db.collection("mealLogs");
+      const item = (await (await api("GET", "/menu-items/search?q=grilled%20nuggets")).json()).items[0];
+      let ids = [];
+      try {
+        let res = await api("POST", "/meal-logs", {
+          entries: [
+            { date: DAY, status: "planned", source: "plan", menuItemId: item.id },
+            { date: DAY, source: "custom", name: "DB test oatmeal", calories: 150, proteinG: 5, carbsG: 27, fatG: null, servings: 2 },
+          ],
+        }, token);
+        assert.strictEqual(res.status, 201);
+        const added = (await res.json()).entries;
+        ids = added.map((e) => e.id);
+        assert.deepStrictEqual(
+          [added[0].name, added[0].chainName, added[0].calories, added[0].proteinG, added[0].status],
+          [item.name, item.chainName, item.calories, item.proteinG, "planned"]
+        );
+        assert.deepStrictEqual([added[1].menuItemId, added[1].chainName, added[1].status], [null, null, "eaten"]);
+
+        let day = (await (await api("GET", `/meal-logs?from=${DAY}&to=${DAY}`, undefined, token)).json()).days[0];
+        assert.deepStrictEqual(day.eaten, { calories: 300, proteinG: 10, carbsG: 54, fatG: 0, incomplete: true });
+        assert.strictEqual(day.planned.calories, Math.round(item.calories));
+
+        res = await api("PATCH", `/meal-logs/${ids[0]}`, { status: "eaten", servings: 1.5 }, token);
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual([(await res.json()).status, (await logs.findOne({ _id: new mongoose.Types.ObjectId(ids[0]) })).servings], ["eaten", 1.5]);
+        day = (await (await api("GET", `/meal-logs?from=${DAY}&to=${DAY}`, undefined, token)).json()).days[0];
+        assert.strictEqual(day.planned.calories, 0);
+        assert.strictEqual(day.eaten.calories, Math.round(300 + item.calories * 1.5));
+
+        // Someone else's entry is a 404, and stays as it was.
+        assert.strictEqual((await api("PATCH", `/meal-logs/${ids[0]}`, { servings: 3 }, tokens["sam.patel"])).status, 404);
+        assert.strictEqual((await api("DELETE", `/meal-logs/${ids[0]}`, undefined, tokens["sam.patel"])).status, 404);
+        assert.strictEqual((await logs.findOne({ _id: new mongoose.Types.ObjectId(ids[0]) })).servings, 1.5);
+
+        for (const id of ids) assert.strictEqual((await api("DELETE", `/meal-logs/${id}`, undefined, token)).status, 204);
+        assert.strictEqual((await api("DELETE", `/meal-logs/${ids[0]}`, undefined, token)).status, 404);
+        ids = [];
+      } finally {
+        await logs.deleteMany({ _id: { $in: ids.map((id) => new mongoose.Types.ObjectId(id)) } });
+      }
+    });
+
+    test("a batch with one bad entry or a missing menu item writes nothing", async () => {
+      const token = tokens["jane.doe"];
+      const logs = mongoose.connection.db.collection("mealLogs");
+      const good = { date: DAY, source: "custom", name: "DB test apple", calories: 95, proteinG: 0.5, carbsG: 25, fatG: 0.3 };
+      const item = (await (await api("GET", "/menu-items/search?q=grilled%20nuggets")).json()).items[0];
+      for (const [entries, status] of [
+        [[good, { ...good, date: "2030-02-30" }], 400],
+        [[good, { date: DAY, source: "search", menuItemId: item.id, calories: 1 }], 400],
+        [[good, { date: DAY, source: "search", menuItemId: "000000000000000000000000" }], 404],
+      ]) {
+        const res = await api("POST", "/meal-logs", { entries }, token);
+        assert.strictEqual(res.status, status, (await res.json()).error);
+      }
+      assert.strictEqual(await logs.countDocuments({ date: DAY }), 0);
+    });
+  });
+
   describe("submissions", () => {
     test("kevinn's new item and its edit apply at once, show in search, stay out of recommendations; a verified edit waits", async () => {
       const token = tokens["kevin.nguyen"];
@@ -280,7 +379,8 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       assert.strictEqual((await api("GET", "/admin/submissions", undefined, tokens["jane.doe"])).status, 403);
       const login = await api("POST", "/auth/login", { login: "siteadmin", password: "Password123!" });
       assert.strictEqual(login.status, 200, "siteadmin login; did seed.js run with SEED_ADMIN=1?");
-      const token = (await login.json()).token;
+      const { token, user } = await login.json();
+      assert.strictEqual(user.role, "admin");
 
       const queue = await (await api("GET", "/admin/submissions", undefined, token)).json();
       const sub = queue.submissions.find((s) => s.user.username === "kevinn");

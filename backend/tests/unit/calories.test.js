@@ -10,7 +10,35 @@ const jane = { heightIn: 65, weightLb: 160, birthDate: new Date("2006-03-14"), s
 const kevin = { heightIn: 70, weightLb: 155, birthDate: new Date("2005-06-02"), sex: "male", activityLevel: "active", goal: "gain" };
 
 test("seed user janedoe matches the contract's check values", () => {
-  assert.deepStrictEqual(calories(jane, NO_LIMIT, NOW), { age: 20, maintenance: 2058, target: 1558, perMeal: 519 });
+  assert.deepStrictEqual(calories(jane, NO_LIMIT, NOW), {
+    age: 20, maintenance: 2058, target: 1558, perMeal: 519,
+    // lose: 35 / 35 / 30 % of 1558 kcal -> 545.3 / 4, 545.3 / 4, 467.4 / 9
+    macros: { proteinG: 136, carbsG: 136, fatG: 52 },
+  });
+});
+
+test("macros split the target by goal: maintain 30/40/30, gain 30/45/25", () => {
+  const maintain = calories({ ...jane, goal: "maintain" }, NO_LIMIT, NOW);
+  assert.strictEqual(maintain.target, 2058);
+  // 617.4 / 4, 823.2 / 4, 617.4 / 9
+  assert.deepStrictEqual(maintain.macros, { proteinG: 154, carbsG: 206, fatG: 69 });
+  const gain = calories({ ...jane, goal: "gain" }, NO_LIMIT, NOW);
+  assert.strictEqual(gain.target, 2358);
+  // 707.4 / 4, 1061.1 / 4, 589.5 / 9
+  assert.deepStrictEqual(gain.macros, { proteinG: 177, carbsG: 265, fatG: 66 });
+});
+
+test("macros use the floored target and ignore the meal limit", () => {
+  const small = { heightIn: 60, weightLb: 100, birthDate: new Date("1950-01-01"), sex: "female", activityLevel: "sedentary", goal: "lose" };
+  // 1200 kcal: 420 / 4, 420 / 4, 360 / 9
+  assert.deepStrictEqual(calories(small, { mealCalorieLimit: 900 }, NOW).macros, { proteinG: 105, carbsG: 105, fatG: 40 });
+});
+
+test("an exact .5 gram rounds up (1320 * 0.35 / 4 is 115.49999... in floating point)", () => {
+  const p = { heightIn: 61, weightLb: 185, birthDate: new Date("2000-01-01"), sex: "female", activityLevel: "sedentary", goal: "lose" };
+  const c = calories(p, NO_LIMIT, NOW);
+  assert.strictEqual(c.target, 1320);
+  assert.strictEqual(c.macros.proteinG, 116);
 });
 
 test("gain adds 300 and maintain adds nothing", () => {
@@ -61,5 +89,6 @@ test("age counts whole years and only goes up on the birthday (UTC)", () => {
 });
 
 test("all values are integers", () => {
-  for (const v of Object.values(calories(kevin, NO_LIMIT, NOW))) assert.ok(Number.isInteger(v), v);
+  const { macros, ...rest } = calories(kevin, NO_LIMIT, NOW);
+  for (const v of [...Object.values(rest), ...Object.values(macros)]) assert.ok(Number.isInteger(v), v);
 });

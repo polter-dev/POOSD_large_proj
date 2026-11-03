@@ -7,6 +7,8 @@ export type Units = 'imperial' | 'metric';
 export type SearchRadius = 5 | 10 | 15 | 20;
 export type RecommendationMode = 'protein' | 'carb';
 export type Category = 'entree' | 'side' | 'breakfast' | 'salad' | 'drink' | 'dessert';
+export type Role = 'user' | 'admin';
+export type Nutrient = 'calories' | 'protein' | 'carbs' | 'fat';
 
 // Height/weight are always imperial in the API; convert for display when units === 'metric'.
 export interface Profile {
@@ -23,6 +25,7 @@ export interface Preferences {
   searchRadius: SearchRadius;
   recommendationMode: RecommendationMode;
   mealCalorieLimit: number | null;
+  trackedNutrients: Nutrient[]; // 1-4 different ones, in the user's order; default ['calories', 'protein']
 }
 
 export interface User {
@@ -32,6 +35,7 @@ export interface User {
   username: string;
   email: string;
   isVerified: boolean;
+  role: Role; // only scripts/make-admin.js changes it
   profile: Profile | null;
   preferences: Preferences;
 }
@@ -41,6 +45,14 @@ export interface Calories {
   maintenance: number;
   target: number;
   perMeal: number;
+  macros: MacroTargets;
+}
+
+// Daily targets in grams, split from target by goal. Weekly goals are daily * 7.
+export interface MacroTargets {
+  proteinG: number;
+  carbsG: number;
+  fatG: number;
 }
 
 export interface MenuItem {
@@ -75,6 +87,32 @@ export interface MealPlanDay {
   mealCalorieLimit: number;
   items: RecommendedItem[]; // empty when under 300 kcal per slot is left
   totals: Totals;
+}
+
+export type MealLogStatus = 'planned' | 'eaten';
+export type MealLogSource = 'search' | 'plan' | 'photo' | 'custom';
+
+// A snapshot of one food on the user's local day. Macros are for one serving; totals multiply by servings.
+export interface MealLog {
+  id: string;
+  date: string; // YYYY-MM-DD, the user's local day
+  status: MealLogStatus;
+  menuItemId: string | null; // null = custom food; may name an item that no longer exists
+  name: string;
+  chainName: string | null;
+  servings: number; // 0.25-10
+  calories: number;
+  proteinG: number | null; // null = unknown, never treat as 0
+  carbsG: number | null;
+  fatG: number | null;
+  source: MealLogSource;
+  createdAt: string;
+}
+
+export interface MealLogDay {
+  date: string; // YYYY-MM-DD; every day in the range, empty ones too
+  eaten: Totals;
+  planned: Totals;
 }
 
 export interface Favorite {
@@ -175,6 +213,43 @@ export interface RecommendationsBody {
   includeEstimates?: boolean;
 }
 
+// One food for POST /meal-logs. status defaults to 'eaten', servings to 1.
+interface MealLogEntryBase {
+  date: string; // YYYY-MM-DD, the user's local day
+  status?: MealLogStatus;
+  servings?: number; // 0.25-10
+  source: MealLogSource;
+}
+
+// A menu item: the server copies its name, chain and macros, so sending them too is a 400.
+export interface MenuItemMealLogEntry extends MealLogEntryBase {
+  menuItemId: string;
+}
+
+// Anything else, including a photo item the user edited. Macros are required; null = unknown.
+export interface CustomMealLogEntry extends MealLogEntryBase {
+  menuItemId?: null;
+  name: string;
+  chainName?: string | null;
+  calories: number;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+}
+
+export type MealLogEntry = MenuItemMealLogEntry | CustomMealLogEntry;
+
+// 1-50 entries, saved all or none.
+export interface AddMealLogsBody {
+  entries: MealLogEntry[];
+}
+
+// At least one field.
+export interface UpdateMealLogBody {
+  status?: MealLogStatus;
+  servings?: number;
+}
+
 export interface MealPlanQuery {
   start: string; // YYYY-MM-DD, the user's local day
   days?: 1 | 7;
@@ -248,6 +323,15 @@ export interface RecommendationsResponse {
   mode: RecommendationMode;
   mealCalorieLimit: number;
   items: RecommendedItem[];
+}
+
+export interface MealLogsResponse {
+  entries: MealLog[]; // by date, then time logged
+  days: MealLogDay[];
+}
+
+export interface AddMealLogsResponse {
+  entries: MealLog[]; // in the order sent
 }
 
 export interface MealPlanResponse {

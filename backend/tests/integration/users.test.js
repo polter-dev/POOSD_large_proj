@@ -90,10 +90,19 @@ test("GET /me returns the contract's User and never the hashes", async () => {
     username: "janedoe",
     email: "jane.doe@example.com",
     isVerified: true,
+    role: "user",
     profile: { heightIn: 65, weightLb: 160, birthDate: "2006-03-14", sex: "female", activityLevel: "light", goal: "lose" },
-    preferences: PREFERENCES,
+    preferences: { ...PREFERENCES, trackedNutrients: ["calories", "protein"] },
   });
   assert.strictEqual(User.findById.mock.calls[0].arguments[0], USER_ID);
+});
+
+test("GET /me returns a stored role and trackedNutrients instead of the defaults", async () => {
+  const stored = storedUser({ role: "admin", preferences: { ...PREFERENCES, trackedNutrients: ["fat", "calories", "carbs"] } });
+  mock.method(User, "findById", lean(stored));
+  const body = await (await call("GET")).json();
+  assert.strictEqual(body.role, "admin");
+  assert.deepStrictEqual(body.preferences.trackedNutrients, ["fat", "calories", "carbs"]);
 });
 
 test("GET /me answers 404 when the account was deleted", async () => {
@@ -193,6 +202,14 @@ test("PATCH /me/preferences sets only the fields sent", async () => {
   assert.deepStrictEqual(calls[0][1], { $set: { "preferences.searchRadius": 15, "preferences.mealCalorieLimit": 650 } });
 });
 
+test("PATCH /me/preferences sets trackedNutrients in the order sent", async () => {
+  const calls = stubUpdate("findByIdAndUpdate", storedUser({ preferences: { ...PREFERENCES, trackedNutrients: ["protein", "carbs", "fat", "calories"] } }));
+  const res = await call("PATCH", "/preferences", { trackedNutrients: ["protein", "carbs", "fat", "calories"] });
+  assert.strictEqual(res.status, 200);
+  assert.deepStrictEqual((await res.json()).preferences.trackedNutrients, ["protein", "carbs", "fat", "calories"]);
+  assert.deepStrictEqual(calls[0][1], { $set: { "preferences.trackedNutrients": ["protein", "carbs", "fat", "calories"] } });
+});
+
 test("PATCH /me/preferences with mealCalorieLimit null clears it", async () => {
   const calls = stubUpdate("findByIdAndUpdate", storedUser());
   assert.strictEqual((await call("PATCH", "/preferences", { mealCalorieLimit: null })).status, 200);
@@ -208,6 +225,13 @@ for (const [label, body, error] of [
   ["a meal limit under 100", { mealCalorieLimit: 99 }, "Meal calorie limit: 100 to 3000 calories, or none"],
   ["a meal limit over 3000", { mealCalorieLimit: 3001 }, "Meal calorie limit: 100 to 3000 calories, or none"],
   ["an unknown field", { theme: "dark" }, "Unknown field: theme"],
+  ["role, which only scripts/make-admin.js sets", { role: "admin" }, "Unknown field: role"],
+  ["an empty trackedNutrients", { trackedNutrients: [] }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
+  ["a repeated nutrient", { trackedNutrients: ["protein", "protein"] }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
+  ["more than 4 nutrients", { trackedNutrients: ["calories", "protein", "carbs", "fat", "fat"] }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
+  ["an unknown nutrient", { trackedNutrients: ["calories", "sugar"] }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
+  ["trackedNutrients as a string", { trackedNutrients: "calories" }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
+  ["trackedNutrients null", { trackedNutrients: null }, "trackedNutrients: pick 1-4 of calories, protein, carbs, fat"],
 ]) {
   test(`PATCH /me/preferences rejects ${label}`, async () => {
     const calls = stubUpdate("findByIdAndUpdate", storedUser());
@@ -226,9 +250,13 @@ test("GET /me/calories returns integer targets from the saved profile", async ()
   const res = await call("GET", "/calories");
   assert.strictEqual(res.status, 200);
   const body = await res.json();
-  assert.deepStrictEqual(Object.keys(body), ["age", "maintenance", "target", "perMeal"]);
+  assert.deepStrictEqual(Object.keys(body), ["age", "maintenance", "target", "perMeal", "macros"]);
   assert.strictEqual(body.target, body.maintenance - 500);
   assert.strictEqual(body.perMeal, Math.round(body.target / 3));
+  // lose: 35 / 35 / 30 % of target, in grams
+  assert.deepStrictEqual(body.macros, {
+    proteinG: Math.round((body.target * 35) / 400), carbsG: Math.round((body.target * 35) / 400), fatG: Math.round((body.target * 30) / 900),
+  });
 });
 
 test("GET /me/calories uses the saved meal limit for perMeal", async () => {

@@ -60,7 +60,7 @@ With the seed data loaded and `npm run dev` running (every seed password is `Pas
 | Reset a password | `POST /api/auth/reset-password` `{ "token": "demo-reset-token", "password": "NewPassword1" }` | 200; `chrisb` logs in with the new password |
 | New account | `POST /api/auth/register`, then copy the token from the `[email] Verify your email ...` line in the server console into `verify-email` | 201, then 200 |
 | Nearby | `POST /api/restaurants/nearby` with `Authorization: Bearer <token>` and `{ "lat": 28.6024, "lng": -81.2001 }` | 200 `{ restaurants }` within the user's saved radius |
-| Calories | `GET /api/users/me/calories` as `janedoe` | 200 `{ age: 20, maintenance: 2058, target: 1558, perMeal: 519 }` (October 2026) |
+| Calories | `GET /api/users/me/calories` as `janedoe` | 200 `{ age: 20, maintenance: 2058, target: 1558, perMeal: 519, macros: { proteinG: 136, carbsG: 136, fatG: 52 } }` (October 2026) |
 | Search | `GET /api/menu-items/search?q=grilled nuggets` (no login) | 200 `{ items, total, limit, skip }` |
 | Recommendations | `POST /api/recommendations` `{}` as `janedoe` | 200, carb mode, items 300-519 kcal, best `score` first |
 
@@ -79,6 +79,7 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /menu-items/search` | #31 | done |
 | `POST /recommendations` | #32 | done |
 | `/favorites` | #33 | done |
+| `/meal-logs` (GET, POST, PATCH, DELETE); `macros` in calories; `trackedNutrients` preference | #108 | done |
 | `POST /submissions`, `GET /submissions/mine` | #110 | done |
 | `GET /admin/submissions`, `PATCH /admin/submissions/:id` | #109 | done |
 
@@ -141,6 +142,11 @@ Follow the existing routes and controllers:
 - **Recommendations:** 300 kcal floor (no tiny sides on top), unknown macros never ranked, estimates hidden unless
   `includeEstimates: true`. With no body values it uses the saved mode and `perMeal`.
 - **Favorites:** someone else's favorite id answers 404, the same as a missing one.
+- **Meal logs:** `date` is the client's local day, never converted. A log is a snapshot: with `menuItemId` the server
+  copies the item's name, chain and macros (sending them too is a 400), and later edits to the item don't change it.
+  A POST batch is checked in full (400s, then 404 for a missing menu item) before `insertMany`, so it saves all or
+  nothing. Someone else's entry answers 404, like favorites. Totals (`services/totals.js`, shared with meal plans)
+  multiply by `servings`; a null macro adds nothing and sets `incomplete`.
 - **Admin:** `requireAdmin` reads `role` from the database on every request, so `make-admin.js --revoke` is instant.
   Approve/revert live in `services/moderation.js`; a revert only matches while the item still holds the submission's
   values, so a later edit is never overwritten. Reverting an edit is also 409 `"Item changed since this submission"`

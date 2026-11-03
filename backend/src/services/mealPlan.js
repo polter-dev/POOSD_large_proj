@@ -1,24 +1,8 @@
 // Suggested eats for GET /meal-plans (docs/api-contract.md "Meal plans", #111). Pure: nothing is stored.
 const { rankItems } = require("./recommendations");
+const { totals } = require("./totals");
 
 const MEALS_PER_DAY = 3;
-const MACRO_FIELDS = ["proteinG", "carbsG", "fatG"];
-
-// The contract's Totals for one serving of each item: integer calories, macros to 1 decimal, and
-// incomplete when a macro is unknown (a null adds nothing, never 0).
-function totals(items) {
-  const t = { calories: 0, proteinG: 0, carbsG: 0, fatG: 0, incomplete: false };
-  for (const i of items) {
-    t.calories += i.calories;
-    for (const m of MACRO_FIELDS) {
-      if (i[m] == null) t.incomplete = true;
-      else t[m] += i[m];
-    }
-  }
-  t.calories = Math.round(t.calories);
-  for (const m of MACRO_FIELDS) t[m] = Math.round(t[m] * 10) / 10;
-  return t;
-}
 
 // One row per date, in order. items: menu items to pick from; logs: the user's entries in the range
 // ({ date, calories, servings }); target and perMeal from calories(); chainIds empty = every chain.
@@ -50,4 +34,4 @@ function mealPlan(items, logs, { target, perMeal }, { dates, mode, chainIds = []
   });
 }
 
-module.exports = { mealPlan, totals };
+module.exports = { mealPlan };

@@ -4,6 +4,9 @@
 const MULTIPLIERS = { sedentary: 1.2, light: 1.375, moderate: 1.55, active: 1.725, very_active: 1.9 };
 const GOAL_ADJUST = { lose: -500, maintain: 0, gain: 300 };
 const FLOOR = { female: 1200, male: 1500 };
+// Percent of target kcal from protein / carbs / fat, by goal. Whole percents, so target * p / 400 is exact
+// before rounding (target * 0.35 / 4 can land a hair under a .5).
+const MACRO_SPLIT = { lose: [35, 35, 30], maintain: [30, 40, 30], gain: [30, 45, 25] };
 
 // Whole years from birthDate to now, in UTC like the stored birthDate (UTC midnight) and the
 // database's age rule in db/schema.js.
@@ -14,7 +17,8 @@ function ageOn(birthDate, now) {
   return age;
 }
 
-// { age, maintenance, target, perMeal }, all integers. profile must not be null.
+// { age, maintenance, target, perMeal, macros: { proteinG, carbsG, fatG } }, all integers (macros are daily
+// grams: 4 kcal/g for protein and carbs, 9 for fat). profile must not be null.
 function calories(profile, preferences, now = new Date()) {
   const age = ageOn(profile.birthDate, now);
   const kg = profile.weightLb * 0.453592;
@@ -23,7 +27,9 @@ function calories(profile, preferences, now = new Date()) {
   const maintenance = Math.round(bmr * MULTIPLIERS[profile.activityLevel]);
   const target = Math.max(maintenance + GOAL_ADJUST[profile.goal], FLOOR[profile.sex]);
   const perMeal = preferences.mealCalorieLimit ?? Math.round(target / 3);
-  return { age, maintenance, target, perMeal };
+  const [p, c, f] = MACRO_SPLIT[profile.goal];
+  const macros = { proteinG: Math.round((target * p) / 400), carbsG: Math.round((target * c) / 400), fatG: Math.round((target * f) / 900) };
+  return { age, maintenance, target, perMeal, macros };
 }
 
 module.exports = { ageOn, calories, MULTIPLIERS };

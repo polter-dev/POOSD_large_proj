@@ -192,8 +192,9 @@ test("login returns a 7-day JWT for the user and the User object without secrets
     username: "janedoe",
     email: "jane.doe@example.com",
     isVerified: true,
+    role: "user",
     profile: null,
-    preferences: { units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null },
+    preferences: { units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null, trackedNutrients: ["calories", "protein"] },
   });
 });
 

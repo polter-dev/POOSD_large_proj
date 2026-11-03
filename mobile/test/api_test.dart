@@ -14,6 +14,7 @@ final janeJson = {
   'username': 'janedoe',
   'email': 'jane.doe@example.com',
   'isVerified': true,
+  'role': 'user',
   'profile': {
     'heightIn': 65,
     'weightLb': 160,
@@ -22,7 +23,13 @@ final janeJson = {
     'activityLevel': 'very_active',
     'goal': 'lose',
   },
-  'preferences': {'units': 'imperial', 'searchRadius': 5, 'recommendationMode': 'carb', 'mealCalorieLimit': null},
+  'preferences': {
+    'units': 'imperial',
+    'searchRadius': 5,
+    'recommendationMode': 'carb',
+    'mealCalorieLimit': null,
+    'trackedNutrients': ['calories', 'protein', 'carbs'],
+  },
 };
 
 http.Response json(Object body, [int status = 200]) =>
@@ -68,6 +75,11 @@ void main() {
     expect(u.preferences.recommendationMode, RecommendationMode.carb);
     expect(u.preferences.mealCalorieLimit, isNull);
     expect(u.profile!.toJson()['activityLevel'], 'very_active');
+    expect(u.role, UserRole.user);
+    expect(u.preferences.trackedNutrients, [Nutrient.calories, Nutrient.protein, Nutrient.carbs]);
+
+    final admin = apiWith((r) async => json({...janeJson, 'role': 'admin'}));
+    expect((await admin.getMe()).role, UserRole.admin);
 
     final noProfile = apiWith((r) async => json({...janeJson, 'profile': null}));
     expect((await noProfile.getMe()).profile, isNull);
@@ -136,6 +148,160 @@ void main() {
     await api.updatePreferences(searchRadius: 10, clearMealCalorieLimit: true);
     expect(sent.single.method, 'PATCH');
     expect(jsonDecode(sent.single.body), {'searchRadius': 10, 'mealCalorieLimit': null});
+  });
+
+  test('trackedNutrients are sent by name, in order', () async {
+    final api = apiWith((r) async => json(janeJson));
+    await api.updatePreferences(trackedNutrients: [Nutrient.fat, Nutrient.calories]);
+    expect(jsonDecode(sent.single.body), {
+      'trackedNutrients': ['fat', 'calories'],
+    });
+  });
+
+  test('getCalories parses the daily macro targets', () async {
+    final api = apiWith(
+      (r) async => json({
+        'age': 20,
+        'maintenance': 2058,
+        'target': 1558,
+        'perMeal': 519,
+        'macros': {'proteinG': 136, 'carbsG': 136, 'fatG': 52},
+      }),
+    );
+    final cal = await api.getCalories();
+    expect([cal.target, cal.macros.proteinG, cal.macros.carbsG, cal.macros.fatG], [1558, 136, 136, 52]);
+  });
+
+  test('getMealLogs sends the range and parses entries and day totals', () async {
+    final zero = {'calories': 0, 'proteinG': 0, 'carbsG': 0, 'fatG': 0, 'incomplete': false};
+    final api = apiWith(
+      (r) async => json({
+        'entries': [
+          {
+            'id': 'l1',
+            'date': '2026-11-02',
+            'status': 'eaten',
+            'menuItemId': null,
+            'name': 'Homemade smoothie',
+            'chainName': null,
+            'servings': 1,
+            'calories': 250,
+            'proteinG': 8,
+            'carbsG': 45,
+            'fatG': null,
+            'source': 'custom',
+            'createdAt': '2026-11-02T14:00:00.000Z',
+          },
+        ],
+        'days': [
+          {
+            'date': '2026-11-02',
+            'eaten': {'calories': 250, 'proteinG': 8, 'carbsG': 45, 'fatG': 0, 'incomplete': true},
+            'planned': zero,
+          },
+          {'date': '2026-11-03', 'eaten': zero, 'planned': zero},
+        ],
+      }),
+    );
+    final res = await api.getMealLogs(from: '2026-11-02', to: '2026-11-03');
+    expect(sent.single.url.path, '/api/meal-logs');
+    expect(sent.single.url.queryParameters, {'from': '2026-11-02', 'to': '2026-11-03'});
+    final log = res.entries.single;
+    expect(
+      [log.status, log.source, log.menuItemId, log.chainName, log.fatG],
+      [MealLogStatus.eaten, MealLogSource.custom, null, null, null],
+    );
+    expect(log.servings, 1.0);
+    expect(res.days.map((d) => d.date), ['2026-11-02', '2026-11-03']);
+    expect([res.days[0].eaten.incomplete, res.days[1].eaten.calories], [true, 0]);
+  });
+
+  test('addMealLogs sends a menu item without macros and custom food with its null macros', () async {
+    final saved = {
+      'id': 'l1',
+      'date': '2026-11-03',
+      'status': 'planned',
+      'menuItemId': 'm1',
+      'name': 'Grilled Nuggets (8 ct)',
+      'chainName': 'Chick-fil-A',
+      'servings': 1,
+      'calories': 130,
+      'proteinG': 25,
+      'carbsG': 1,
+      'fatG': 3,
+      'source': 'plan',
+      'createdAt': '2026-11-03T12:00:00.000Z',
+    };
+    final api = apiWith(
+      (r) async => json({
+        'entries': [saved],
+      }, 201),
+    );
+    final logs = await api.addMealLogs([
+      const MealLogEntry.menuItem(
+        date: '2026-11-03',
+        menuItemId: 'm1',
+        source: MealLogSource.plan,
+        status: MealLogStatus.planned,
+      ),
+      const MealLogEntry.custom(
+        date: '2026-11-03',
+        source: MealLogSource.photo,
+        name: 'Apple',
+        calories: 95,
+        proteinG: null,
+        carbsG: 25,
+        fatG: 0.3,
+        servings: 0.5,
+      ),
+    ]);
+    expect(sent.single.method, 'POST');
+    expect(jsonDecode(sent.single.body), {
+      'entries': [
+        {'date': '2026-11-03', 'status': 'planned', 'source': 'plan', 'menuItemId': 'm1'},
+        {
+          'date': '2026-11-03',
+          'servings': 0.5,
+          'source': 'photo',
+          'name': 'Apple',
+          'chainName': null,
+          'calories': 95,
+          'proteinG': null,
+          'carbsG': 25,
+          'fatG': 0.3,
+        },
+      ],
+    });
+    expect([logs.single.name, logs.single.status], ['Grilled Nuggets (8 ct)', MealLogStatus.planned]);
+  });
+
+  test('updateMealLog sends only what changed; deleteMealLog returns nothing', () async {
+    final api = apiWith(
+      (r) async => r.method == 'DELETE'
+          ? http.Response('', 204)
+          : json({
+              'id': 'l1',
+              'date': '2026-11-03',
+              'status': 'eaten',
+              'menuItemId': 'm1',
+              'name': 'Grilled Nuggets (8 ct)',
+              'chainName': 'Chick-fil-A',
+              'servings': 1.5,
+              'calories': 130,
+              'proteinG': 25,
+              'carbsG': 1,
+              'fatG': 3,
+              'source': 'plan',
+              'createdAt': '2026-11-03T12:00:00.000Z',
+            }),
+    );
+    final log = await api.updateMealLog('l1', status: MealLogStatus.eaten);
+    expect([sent[0].method, sent[0].url.path], ['PATCH', '/api/meal-logs/l1']);
+    expect(jsonDecode(sent[0].body), {'status': 'eaten'});
+    expect(log.servings, 1.5);
+
+    await api.deleteMealLog('l1');
+    expect([sent[1].method, sent[1].url.path], ['DELETE', '/api/meal-logs/l1']);
   });
 
   test('addFavorite sends label null explicitly; DELETE returns nothing', () async {

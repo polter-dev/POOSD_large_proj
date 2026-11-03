@@ -1,6 +1,6 @@
 const { test } = require("node:test");
 const assert = require("node:assert");
-const { mealPlan, totals } = require("../../src/services/mealPlan");
+const { mealPlan } = require("../../src/services/mealPlan");
 
 // janedoe's numbers (docs/api-contract.md "Calories" check): target 1558, perMeal 519.
 const CAL = { target: 1558, perMeal: 519 };
@@ -91,9 +91,4 @@ test("with one chain the day falls back to the top unused items; when they run o
 test("picks are deterministic for the same input", () => {
   const opts = { dates: WEEK, mode: "carb" };
   assert.deepStrictEqual(plan([log(300)], opts), plan([log(300)], opts));
-});
-
-test("totals: integer calories, 1-decimal macros, and a null macro marks them incomplete", () => {
-  const t = totals([{ calories: 400.4, proteinG: 20.25, carbsG: 30, fatG: null }, { calories: 300, proteinG: 10, carbsG: 5.06, fatG: 8 }]);
-  assert.deepStrictEqual(t, { calories: 700, proteinG: 30.3, carbsG: 35.1, fatG: 8, incomplete: true });
 });

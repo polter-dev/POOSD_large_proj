@@ -1,4 +1,6 @@
 // The contract's User object. Fields are listed one by one so hashes and tokens can never leak.
+// role and trackedNutrients are optional in the database (register stores neither), so missing ones get the
+// contract's defaults here.
 function toUserJSON(u) {
   const p = u.profile;
   const pref = u.preferences;
@@ -9,6 +11,7 @@ function toUserJSON(u) {
     username: u.username,
     email: u.email,
     isVerified: u.isVerified,
+    role: u.role ?? "user",
     profile: p
       ? {
           heightIn: p.heightIn,
@@ -24,6 +27,7 @@ function toUserJSON(u) {
       searchRadius: pref.searchRadius,
       recommendationMode: pref.recommendationMode,
       mealCalorieLimit: pref.mealCalorieLimit,
+      trackedNutrients: pref.trackedNutrients ?? ["calories", "protein"],
     },
   };
 }
