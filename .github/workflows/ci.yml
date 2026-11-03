@@ -149,6 +149,79 @@ jobs:
       - run: flutter analyze
       - run: flutter test
 
+  # The release APK, on PRs too: catches Gradle/manifest breaks that flutter test can't. Not in deploy's needs, so a
+  # slow Android build never holds up the web deploy.
+  android-apk:
+    needs: changes
+    if: needs.changes.outputs.mobile == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21 # AGP 9 needs 17+
+          cache: gradle
+          cache-dependency-path: |
+            mobile/android/**/*.gradle.kts
+            mobile/android/gradle/wrapper/gradle-wrapper.properties
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.x
+          cache: true
+      - run: flutter pub get
+      # main only: the team key, so each APK installs over the last (mobile/README.md, "CI builds").
+      - name: Release signing key
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$ANDROID_KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: this APK uses a one-off debug key and won't install over an earlier one"
+            exit 0
+          fi
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+      # The run number as versionCode, so every build is newer than the last. Release builds call productionApiUrl.
+      - run: flutter build apk --release --build-number=${{ github.run_number }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: menu-macro-fitter-apk
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  # Replaces the android-latest pre-release with main's APK: one download link that always matches the deployed site.
+  android-release:
+    needs: [mobile, android-apk]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.mobile.result == 'success' && needs.android-apk.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the release and its tag
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: menu-macro-fitter-apk
+      - name: Publish android-latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          mv app-release.apk menu-macro-fitter.apk
+          gh release delete android-latest --cleanup-tag --yes || true # not there on the first run
+          gh release create android-latest menu-macro-fitter.apk --target "$GITHUB_SHA" --prerelease \
+            --title "Android app (latest main)" \
+            --notes "Built by CI run $GITHUB_RUN_NUMBER from $GITHUB_SHA. Uses the live API (https://cop4331ruth.lol/api). On the phone: download menu-macro-fitter.apk and allow installs from the browser."
+
   deploy:
     needs: [changes, backend, backend-mongodb, web, mobile]
     # skipped jobs (paths filter) are fine; failed or cancelled ones block the deploy

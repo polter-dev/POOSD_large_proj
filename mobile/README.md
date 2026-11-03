@@ -27,6 +27,26 @@ Port 5050, not 5000: macOS AirPlay Receiver takes 5000 (#66).
 
 Needs Flutter 3.47 or newer: the packages in `pubspec.lock` need Dart 3.13, which Flutter 3.44 doesn't have (tested on 3.47.8). Check with `flutter --version`.
 
+## CI builds
+
+CI builds the release APK whenever `mobile/` changes (`android-apk` in `.github/workflows/ci.yml`):
+
+- **On a PR:** the APK is attached to the run as the `menu-macro-fitter-apk` artifact (kept 14 days), so you can install a PR on a phone before it merges.
+- **On `main`:** the APK also replaces the [`android-latest`](https://github.com/polter-dev/POOSD_large_proj/releases/tag/android-latest) pre-release. Its link is always the same: https://github.com/polter-dev/POOSD_large_proj/releases/download/android-latest/menu-macro-fitter.apk.
+
+Release builds call the live API, so this APK matches what the web deploy serves. The build number is the CI run number, so each APK is newer than the last.
+
+For a new APK to install over the previous one, every build has to be signed with the same key. CI reads that key from four repository secrets (only a repo admin can add them):
+
+```bash
+keytool -genkeypair -v -keystore release.jks -alias menu-macro-fitter -keyalg RSA -keysize 2048 -validity 10000
+base64 -i release.jks | pbcopy   # paste as ANDROID_KEYSTORE_BASE64
+```
+
+Then add `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS` (`menu-macro-fitter`) and `ANDROID_KEY_PASSWORD`. Keep `release.jks` out of git.
+
+Without these secrets, main's APK is signed with a one-off debug key: uninstall the old app before installing a new one. Local builds and PR builds always use the debug key (`android/app/build.gradle.kts`).
+
 ## Tests
 
 ```bash
