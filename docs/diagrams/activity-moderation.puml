@@ -59,10 +59,10 @@ else (yes)
   endif
 endif
 if (Admin reverts?) then (yes)
-  if (Item unchanged since, old name free?) then (yes)
+  if (Target still there and unchanged,\nold name free, no menu items?) then (yes)
     :Undo: restore the edit, or delete\nthe new item / restaurant\nstatus **reverted**;
   else (no)
-    :409 "Item changed since this submission",\n"Item already exists" or\n"Restaurant has menu items"; status unchanged;
+    :404 (target gone) or 409 "Item changed since this submission",\n"Item already exists" or\n"Restaurant has menu items"; status unchanged;
   endif
 else (no)
 endif

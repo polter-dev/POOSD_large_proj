@@ -26,9 +26,9 @@ participant "Claude Haiku 5.5\n(Anthropic)" as Claude
 Client -> API : POST /api/photo-analyses\n{ imageBase64, mediaType } + Bearer JWT
 alt no or bad JWT
   API --> Client : 401
-else body over 3 MiB, or over 3,000,000 chars
+else body over 3 MiB
   API --> Client : 413 "Image too large"
-else bad mediaType or base64
+else bad body (413 if imageBase64 over 3,000,000 chars)
   API --> Client : 400
 else no API key on the server
   API --> Client : 503 "Photo analysis unavailable"
@@ -37,7 +37,7 @@ else 20 analyses today (UTC)
 end
 API -> MongoDB : read all menu items\n(id, chain, name, macros)
 API -> Claude : image + system prompt (rules + menu, cached)\noutput: JSON schema of items
-alt request fails, refusal or max_tokens
+alt request fails, not end_turn, or bad JSON
   API --> Client : 502 "Photo analysis failed"
   note right of Client : a failed call does not\nuse up a daily slot
 else model answered
