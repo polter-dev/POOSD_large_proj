@@ -30,6 +30,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => api.setSessionExpiredHandler(null);
   }, []);
 
+  // The in-memory user can outlive the token: Back after logging out restores the earlier page from the
+  // browser's back/forward cache with the old user still in state, and logging out in another tab only
+  // clears localStorage. Either way, no token means logged out, so the guards send that page to login.
+  useEffect(() => {
+    const recheck = () => {
+      if (localStorage.getItem('token') === null) setUser(null);
+    };
+    const onPageShow = (e: PageTransitionEvent) => e.persisted && recheck();
+    const onStorage = (e: StorageEvent) => (e.key === 'token' || e.key === null) && recheck();
+    window.addEventListener('pageshow', onPageShow);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener('pageshow', onPageShow);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, []);
+
   useEffect(() => {
     if (!loading) return;
     // Any failure shows the login page, but only a 401 (expired or bad token) forgets the token, so a
