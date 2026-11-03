@@ -4,9 +4,12 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import CheckEmailPage from './pages/CheckEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import LoginPage from './pages/LoginPage';
-import PlaceholderPage from './pages/PlaceholderPage';
+import FavoritesPage from './pages/FavoritesPage';
+import NearbyPage from './pages/NearbyPage';
+import PicksPage from './pages/PicksPage';
 import ProfilePage from './pages/ProfilePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import SearchPage from './pages/SearchPage';
 import SignUpPage from './pages/SignUpPage';
 import TargetsPage from './pages/TargetsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
@@ -25,7 +28,8 @@ function LoggedIn({ children }: { children: ReactNode }) {
   return user ? children : <Navigate to="/" replace />;
 }
 
-// Pages that need a profile (targets, editing it) send a user without one to set it up first.
+// Pages that need a profile (targets, editing it, and anything ranked by the per-meal limit) send a user
+// without one to set it up first.
 function WithProfile({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   if (loading) return null;
@@ -48,7 +52,10 @@ export default function App() {
           <Route path="/onboarding" element={<LoggedIn><ProfilePage mode="setup" /></LoggedIn>} />
           <Route path="/profile" element={<WithProfile><ProfilePage mode="edit" /></WithProfile>} />
           <Route path="/targets" element={<WithProfile><TargetsPage /></WithProfile>} />
-          <Route path="/home" element={<LoggedIn><PlaceholderPage /></LoggedIn>} />
+          <Route path="/home" element={<WithProfile><NearbyPage /></WithProfile>} />
+          <Route path="/picks" element={<WithProfile><PicksPage /></WithProfile>} />
+          <Route path="/search" element={<LoggedIn><SearchPage /></LoggedIn>} />
+          <Route path="/favorites" element={<LoggedIn><FavoritesPage /></LoggedIn>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
