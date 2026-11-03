@@ -9,10 +9,13 @@ const recommendationsRouter = require("./routes/recommendations");
 const restaurantsRouter = require("./routes/restaurants");
 const favoritesRouter = require("./routes/favorites");
 const mealPlansRouter = require("./routes/mealPlans");
+const photoAnalysesRouter = require("./routes/photoAnalyses");
 
 const app = express();
 
 app.use(cors());
+// Before the global parser: photos need a bigger body limit than its 100 kB default.
+app.use("/api/photo-analyses", photoAnalysesRouter);
 app.use(express.json());
 
 app.get("/api/health", (req, res) => {

@@ -190,4 +190,44 @@ void main() {
     await api.getMealPlan(start: '2026-11-03', chainIds: []);
     expect(sent[1].url.queryParameters, {'start': '2026-11-03'});
   });
+
+  test('analyzePhoto sends the image and parses matched and unmatched PhotoItems', () async {
+    final api = apiWith(
+      (r) async => json({
+        'items': [
+          {
+            'menuItemId': 'm1',
+            'name': 'Chicken Bowl',
+            'chainName': 'Chipotle',
+            'servings': 1,
+            'calories': 655,
+            'proteinG': 51,
+            'carbsG': 61,
+            'fatG': 22,
+            'confidence': 'high',
+          },
+          {
+            'menuItemId': null,
+            'name': 'Apple',
+            'chainName': null,
+            'servings': 0.5,
+            'calories': 95,
+            'proteinG': null,
+            'carbsG': 25,
+            'fatG': 0.3,
+            'confidence': 'low',
+          },
+        ],
+      }),
+    );
+    final items = await api.analyzePhoto(imageBase64: 'iVBORw0KGgo=', mediaType: 'image/png');
+    expect(sent[0].url.path, '/api/photo-analyses');
+    expect(jsonDecode(sent[0].body), {'imageBase64': 'iVBORw0KGgo=', 'mediaType': 'image/png'});
+    expect(items[0].menuItemId, 'm1');
+    expect(items[0].calories, 655.0);
+    expect(items[1].menuItemId, isNull);
+    expect(items[1].proteinG, isNull);
+    expect(items[1].servings, 0.5);
+    expect(items[1].confidence, PhotoConfidence.low);
+  });
 }

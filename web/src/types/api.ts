@@ -152,6 +152,27 @@ export interface AddFavoriteBody {
   label?: string | null;
 }
 
+export type PhotoMediaType = 'image/jpeg' | 'image/png' | 'image/webp';
+
+// imageBase64: plain base64 (no data: prefix), at most 3,000,000 chars.
+export interface AnalyzePhotoBody {
+  imageBase64: string;
+  mediaType: PhotoMediaType;
+}
+
+// A draft entry from a meal photo; macros are per serving. menuItemId null = not on our menu.
+export interface PhotoItem {
+  menuItemId: string | null;
+  name: string;
+  chainName: string | null;
+  servings: number;
+  calories: number;
+  proteinG: number | null;
+  carbsG: number | null;
+  fatG: number | null;
+  confidence: 'high' | 'medium' | 'low';
+}
+
 // Response wrappers
 
 export interface MessageResponse {
@@ -187,4 +208,8 @@ export interface NearbyResponse {
 
 export interface FavoritesResponse {
   favorites: Favorite[];
+}
+
+export interface AnalyzePhotoResponse {
+  items: PhotoItem[];
 }

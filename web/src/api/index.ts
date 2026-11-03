@@ -1,6 +1,6 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
+  AddFavoriteBody, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
   MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
   RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
   UpdateProfileBody, User,
@@ -51,3 +51,6 @@ export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {
   if (mode) query.set('mode', mode);
   return request<MealPlanResponse>('GET', `/meal-plans?${query}`);
 };
+
+// Photo analysis (nothing is saved; the client logs the confirmed items with POST /meal-logs)
+export const analyzePhoto = (body: AnalyzePhotoBody) => request<AnalyzePhotoResponse>('POST', '/photo-analyses', body);

@@ -10,6 +10,7 @@
     "test:db": "node --test --test-reporter=spec tests/db/*.test.js"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.4.0",
     "@sendgrid/mail": "^8.1.6",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
