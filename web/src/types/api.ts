@@ -84,6 +84,44 @@ export interface Favorite {
   createdAt: string;
 }
 
+export type SubmissionKind = 'edit_item' | 'new_item' | 'new_chain';
+export type SubmissionStatus = 'auto_applied' | 'pending' | 'approved' | 'rejected' | 'reverted';
+export type SubmissionFlag =
+  | 'new_chain' | 'verified_item' | 'renamed' | 'large_change' | 'macros_mismatch' | 'new_account' | 'untrusted_user' | 'url_in_name';
+
+export type MenuItemFields = Pick<MenuItem, 'name' | 'category' | 'calories' | 'proteinG' | 'carbsG' | 'fatG'>;
+
+export interface NewChainPayload {
+  name: string;
+  nutritionSourceUrl: string; // https://
+  alternateNames?: string[];
+}
+
+export interface Submission {
+  id: string;
+  kind: SubmissionKind;
+  targetId: string | null; // menu item (edit_item), chain (new_item), null (new_chain)
+  payload: Partial<MenuItemFields> | NewChainPayload; // edit_item: a subset; new_item: all fields
+  before: Partial<MenuItemFields> | null; // the payload's fields before an edit was applied
+  resultId: string | null; // the item or chain a new_item / new_chain created
+  status: SubmissionStatus;
+  flags: SubmissionFlag[];
+  reviewNote: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserRef {
+  id: string;
+  username: string | null; // null = account deleted
+}
+
+// Admin listings and the admin PATCH response.
+export interface AdminSubmission extends Submission {
+  user: UserRef;
+  reviewedBy: UserRef | null;
+}
+
 export interface NearbyRestaurant {
   placeId: string;
   name: string;
@@ -152,6 +190,12 @@ export interface AddFavoriteBody {
   label?: string | null;
 }
 
+// pending -> approved | rejected; auto_applied or approved -> reverted. Anything else is 409.
+export interface ReviewSubmissionBody {
+  status: 'approved' | 'rejected' | 'reverted';
+  reviewNote?: string | null;
+}
+
 export type PhotoMediaType = 'image/jpeg' | 'image/png' | 'image/webp';
 
 // imageBase64: plain base64 (no data: prefix), at most 3,000,000 chars.
@@ -208,6 +252,11 @@ export interface NearbyResponse {
 
 export interface FavoritesResponse {
   favorites: Favorite[];
+}
+
+export interface AdminSubmissionsResponse {
+  submissions: AdminSubmission[];
+  total: number;
 }
 
 export interface AnalyzePhotoResponse {

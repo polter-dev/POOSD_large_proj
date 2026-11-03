@@ -1,9 +1,9 @@
 import { request } from './client';
 import type {
-  AddFavoriteBody, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite, FavoritesResponse, LoginBody, LoginResponse,
-  MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse, RecommendationsBody, RecommendationsResponse,
-  RegisterBody, ResendVerificationBody, ResetPasswordBody, SearchMenuItemsResponse, UpdateGoalBody, UpdatePreferencesBody,
-  UpdateProfileBody, User,
+  AddFavoriteBody, AdminSubmission, AdminSubmissionsResponse, AnalyzePhotoBody, AnalyzePhotoResponse, Calories, EmailBody, Favorite,
+  FavoritesResponse, LoginBody, LoginResponse, MealPlanQuery, MealPlanResponse, MessageResponse, NearbyBody, NearbyResponse,
+  RecommendationsBody, RecommendationsResponse, RegisterBody, ResendVerificationBody, ResetPasswordBody, ReviewSubmissionBody,
+  SearchMenuItemsResponse, SubmissionStatus, UpdateGoalBody, UpdatePreferencesBody, UpdateProfileBody, User,
 } from '../types/api';
 
 export { ApiError, setSessionExpiredHandler } from './client';
@@ -54,3 +54,9 @@ export const getMealPlan = ({ start, days, chainIds, mode }: MealPlanQuery) => {
 
 // Photo analysis (nothing is saved; the client logs the confirmed items with POST /meal-logs)
 export const analyzePhoto = (body: AnalyzePhotoBody) => request<AnalyzePhotoResponse>('POST', '/photo-analyses', body);
+
+// Admin (403 "Admin only" for everyone else; defaults match the server's)
+export const getAdminSubmissions = (status: SubmissionStatus = 'pending', limit = 20, skip = 0) =>
+  request<AdminSubmissionsResponse>('GET', `/admin/submissions?${new URLSearchParams({ status, limit: String(limit), skip: String(skip) })}`);
+export const reviewSubmission = (id: string, body: ReviewSubmissionBody) =>
+  request<AdminSubmission>('PATCH', `/admin/submissions/${encodeURIComponent(id)}`, body);

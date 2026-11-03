@@ -40,7 +40,7 @@ write must also pass the collection validators. It writes data (and puts it back
 `TEST_MONGODB_URI` is set. Never point it at the production database. CI runs it on every backend PR.
 
 ```bash
-mongosh "mongodb://localhost:27017" db/schema.js db/seed.js
+SEED_ADMIN=1 mongosh "mongodb://localhost:27017" db/schema.js db/seed.js   # SEED_ADMIN adds siteadmin for the admin tests
 TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
 ```
 
@@ -79,6 +79,7 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /menu-items/search` | #31 | done |
 | `POST /recommendations` | #32 | done |
 | `/favorites` | #33 | done |
+| `GET /admin/submissions`, `PATCH /admin/submissions/:id` | #109 | done |
 
 Update this table when you add an endpoint.
 
@@ -139,6 +140,11 @@ Follow the existing routes and controllers:
 - **Recommendations:** 300 kcal floor (no tiny sides on top), unknown macros never ranked, estimates hidden unless
   `includeEstimates: true`. With no body values it uses the saved mode and `perMeal`.
 - **Favorites:** someone else's favorite id answers 404, the same as a missing one.
+- **Admin:** `requireAdmin` reads `role` from the database on every request, so `make-admin.js --revoke` is instant.
+  Approve/revert live in `services/moderation.js`; a revert only matches while the item still holds the submission's
+  values, so a later edit is never overwritten. Reverting an edit is also 409 `"Item changed since this submission"`
+  while a later applied edit of the same item exists, even of other fields: `before` restores `isEstimate`/`source`/
+  `lastVerified` too, which would label that edit's values verified. Each review replaces `reviewNote` (omitted or blank = `null`).
 - **Known limits:**
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.

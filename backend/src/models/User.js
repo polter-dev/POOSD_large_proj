@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema(
     email: String,
     passwordHash: String,
     isVerified: Boolean,
+    role: String, // optional; missing = "user" (only scripts/make-admin.js writes it)
     verificationTokenHash: String,
     verificationTokenExpires: Date,
     resetTokenHash: String,

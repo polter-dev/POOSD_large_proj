@@ -3,7 +3,7 @@
 // $jsonSchema validators. They change data (and put it back), so they only run when
 // TEST_MONGODB_URI is set; never point it at the production database.
 //
-//   mongosh "$TEST_MONGODB_URI" db/schema.js db/seed.js
+//   SEED_ADMIN=1 mongosh "$TEST_MONGODB_URI" db/schema.js db/seed.js
 //   TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
 const { describe, test, before, after } = require("node:test");
 const assert = require("node:assert");
@@ -219,6 +219,42 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
       }
       const after = (await (await api("GET", "/favorites", undefined, token)).json()).favorites;
       assert.strictEqual(after.length, before.length);
+    });
+  });
+
+  describe("admin", () => {
+    test("siteadmin approves kevinn's pending Big Mac edit, then reverting puts the item back exactly", async () => {
+      assert.strictEqual((await api("GET", "/admin/submissions", undefined, tokens["jane.doe"])).status, 403);
+      const login = await api("POST", "/auth/login", { login: "siteadmin", password: "Password123!" });
+      assert.strictEqual(login.status, 200, "siteadmin login; did seed.js run with SEED_ADMIN=1?");
+      const token = (await login.json()).token;
+
+      const queue = await (await api("GET", "/admin/submissions", undefined, token)).json();
+      const sub = queue.submissions.find((s) => s.user.username === "kevinn");
+      assert.ok(sub, "seed gives kevinn a pending edit");
+      const items = mongoose.connection.db.collection("menuItems");
+      const submissions = mongoose.connection.db.collection("submissions");
+      const id = new mongoose.Types.ObjectId(sub.id);
+      const original = await items.findOne({ _id: new mongoose.Types.ObjectId(sub.targetId) });
+      const storedSub = await submissions.findOne({ _id: id });
+      try {
+        let res = await api("PATCH", `/admin/submissions/${sub.id}`, { status: "approved", reviewNote: "DB test" }, token);
+        assert.strictEqual(res.status, 200);
+        const approved = await res.json();
+        assert.deepStrictEqual(approved.before, { calories: original.calories });
+        assert.strictEqual(approved.reviewedBy.username, "siteadmin");
+        const edited = await items.findOne({ _id: original._id });
+        assert.deepStrictEqual(edited, { ...original, ...sub.payload, isEstimate: true, source: "community", lastVerified: null });
+
+        res = await api("PATCH", `/admin/submissions/${sub.id}`, { status: "reverted" }, token);
+        assert.strictEqual(res.status, 200);
+        assert.deepStrictEqual(await items.findOne({ _id: original._id }), original);
+        res = await api("PATCH", `/admin/submissions/${sub.id}`, { status: "approved" }, token);
+        assert.strictEqual(res.status, 409);
+      } finally {
+        await items.replaceOne({ _id: original._id }, original);
+        await submissions.replaceOne({ _id: id }, storedSub);
+      }
     });
   });
 });
