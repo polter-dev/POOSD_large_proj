@@ -10,8 +10,17 @@ import type { MenuItem } from '../types/api';
 
 const PAGE = 20;
 const DEBOUNCE_MS = 250;
-// The server drops everything but letters and digits; a query with none left would be a 400.
-const searchable = (q: string) => /[\p{L}\p{N}]/u.test(q);
+// Same rules as the server's normalize() (backend/src/utils/normalize.js): a query with nothing left after
+// it would be a 400 (so "ø" isn't searchable, but "&" is: it becomes "and").
+const searchable = (q: string) =>
+  q
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/&/g, ' and ')
+    .replace(/['’]/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim() !== '';
 
 interface Results {
   query: string;
