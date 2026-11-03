@@ -344,6 +344,18 @@ void main() {
       expect(find.text('Chipotle'), findsOneWidget);
     });
 
+    testWidgets('a busy map service (502) explains itself, and Try again recovers', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['POST /restaurants/nearby'] = (_) => json({'error': 'Places lookup failed'}, 502);
+      await tapText(tester, 'Nearby');
+      expect(find.textContaining('The map service is busy'), findsOneWidget);
+      expect(find.text('Places lookup failed'), findsNothing);
+
+      nearbyRoutes();
+      await tapText(tester, 'Try again');
+      expect(find.text('Chipotle'), findsOneWidget);
+    });
+
     testWidgets('blocked: offers the app settings', (tester) async {
       await pumpHome(tester, userJson());
       location.problem = LocationProblem.blocked;

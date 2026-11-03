@@ -120,7 +120,11 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
     } on ApiError catch (e) {
       if (mounted && request == _request) {
         setState(() {
-          _error = e.message;
+          // 502 is the server's "Places lookup failed": every OpenStreetMap server it tried was busy or down.
+          _error = e.status == 502
+              ? "Couldn't load restaurants. The map service is busy, so try again in a minute. "
+                    'Best picks and Search still work.'
+              : e.message;
           _loading = false;
         });
       }
