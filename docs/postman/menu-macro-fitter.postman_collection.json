@@ -42,6 +42,14 @@
     {
       "key": "favoriteId",
       "value": ""
+    },
+    {
+      "key": "adminToken",
+      "value": ""
+    },
+    {
+      "key": "submissionId",
+      "value": ""
     }
   ],
   "item": [
@@ -1210,6 +1218,328 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test(\"status 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Meal plans",
+      "item": [
+        {
+          "name": "Meal plan (week)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-plans?start=2026-11-02&days=7",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-plans"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-11-02"
+                },
+                {
+                  "key": "days",
+                  "value": "7"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const days = pm.response.json().days;",
+                  "pm.test(\"7 days from start\", () => pm.expect(days.map((d) => d.date)).to.eql([\"2026-11-02\", \"2026-11-03\", \"2026-11-04\", \"2026-11-05\", \"2026-11-06\", \"2026-11-07\", \"2026-11-08\"]));",
+                  "const ids = days.flatMap((d) => d.items.map((i) => i.id));",
+                  "pm.test(\"no item repeats\", () => pm.expect(new Set(ids).size).to.eql(ids.length));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meal plan (impossible date)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-plans?start=2026-02-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-plans"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-02-30"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error start must be a date\", () => pm.expect(pm.response.json().error).to.eql(\"start must be a date (YYYY-MM-DD)\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Photo analysis",
+      "item": [
+        {
+          "name": "Analyze photo (bad mediaType)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/photo-analyses",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "photo-analyses"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"imageBase64\": \"iVBORw0KGgo=\",\n  \"mediaType\": \"image/gif\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Validation runs before the API key check, so this needs no ANTHROPIC_API_KEY and costs nothing.",
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error names the media types\", () => pm.expect(pm.response.json().error).to.eql(\"mediaType must be image/jpeg, image/png or image/webp\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Needs the seed admin, so load the database with SEED_ADMIN=1 mongosh ... schema.js seed.js (backend/db/README.md). Production has no seed admin.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{adminToken}}",
+            "type": "string"
+          }
+        ]
+      },
+      "item": [
+        {
+          "name": "List submissions (not an admin)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "submissions"
+              ]
+            },
+            "description": "janedoe's token from Auth > Login.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"error Admin only\", () => pm.expect(pm.response.json().error).to.eql(\"Admin only\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (siteadmin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "Saves the JWT to adminToken.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"login\": \"siteadmin\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"adminToken\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List submissions (pending queue)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/admin/submissions?status=pending&limit=20&skip=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "submissions"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Oldest first. The seed has one: kevinn's Big Mac calorie edit. Saves the first id to submissionId."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const { submissions, total } = pm.response.json();",
+                  "pm.test(\"total counts the queue\", () => pm.expect(total).to.be.at.least(submissions.length));",
+                  "pm.collectionVariables.set(\"submissionId\", submissions[0] ? submissions[0].id : \"\");"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Review submission (invalid change)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/admin/submissions/{{submissionId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "admin",
+                "submissions",
+                "{{submissionId}}"
+              ]
+            },
+            "description": "A pending submission can only be approved or rejected, so this 409 changes nothing and the run stays repeatable. Send { \"status\": \"approved\" } or \"rejected\" to review it for real (re-run seed.js to get it back to pending).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"reverted\",\n  \"reviewNote\": \"Postman test\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error names the change\", () => pm.expect(pm.response.json().error).to.eql(\"Can't change a submission from pending to reverted\"));"
                 ]
               }
             }

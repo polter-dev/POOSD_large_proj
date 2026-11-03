@@ -21,6 +21,8 @@ npm run dev             # restarts on save; check http://localhost:5050/api/heal
 | `JWT_SECRET` | yes | Signs login tokens. Without it login returns 500. Generate one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`. |
 | `CLIENT_URL` | yes | Web origin used to build the verify and reset links. |
 | `SENDGRID_API_KEY`, `EMAIL_FROM` | server only | Leave both empty locally: emails are not sent, the link is printed to the console instead. |
+| `ANTHROPIC_API_KEY` | server only | Key for `POST /photo-analyses` (Claude). Leave empty locally: that endpoint answers 503. |
+| `PHOTO_MODEL` | no | Claude model for photo analysis. Defaults to `claude-haiku-5-5`. |
 | `PORT` | no | Defaults to `5050`. |
 | `OVERPASS_URL` | no | First Overpass server tried for nearby search (no key). After it, the public servers in `places.js` are tried in order (overpass-api.de, overpass.openstreetmap.fr, overpass.kumi.systems), at most 3 attempts before a 502. Results are cached in memory for 10 minutes. |
 
@@ -31,14 +33,14 @@ npm test
 ```
 
 Runs the unit and integration tests (`node:test`, in `tests/`). They need no MongoDB, SendGrid account or
-internet: the models, `sgMail.send` and the Overpass client are stubbed.
+internet: the models, `sgMail.send`, the Overpass client and the Claude SDK are stubbed.
 
 `tests/db/` runs the API end to end against a real MongoDB loaded with `db/schema.js` and `db/seed.js`, so every
 write must also pass the collection validators. It writes data (and puts it back), so it is skipped unless
 `TEST_MONGODB_URI` is set. Never point it at the production database. CI runs it on every backend PR.
 
 ```bash
-mongosh "mongodb://localhost:27017" db/schema.js db/seed.js
+SEED_ADMIN=1 mongosh "mongodb://localhost:27017" db/schema.js db/seed.js   # SEED_ADMIN adds siteadmin for the admin tests
 TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
 ```
 
@@ -77,6 +79,7 @@ The demo tokens are single use and expire relative to when `seed.js` ran: **`dem
 | `GET /menu-items/search` | #31 | done |
 | `POST /recommendations` | #32 | done |
 | `/favorites` | #33 | done |
+| `GET /admin/submissions`, `PATCH /admin/submissions/:id` | #109 | done |
 
 Update this table when you add an endpoint.
 
@@ -137,6 +140,11 @@ Follow the existing routes and controllers:
 - **Recommendations:** 300 kcal floor (no tiny sides on top), unknown macros never ranked, estimates hidden unless
   `includeEstimates: true`. With no body values it uses the saved mode and `perMeal`.
 - **Favorites:** someone else's favorite id answers 404, the same as a missing one.
+- **Admin:** `requireAdmin` reads `role` from the database on every request, so `make-admin.js --revoke` is instant.
+  Approve/revert live in `services/moderation.js`; a revert only matches while the item still holds the submission's
+  values, so a later edit is never overwritten. Reverting an edit is also 409 `"Item changed since this submission"`
+  while a later applied edit of the same item exists, even of other fields: `before` restores `isEstimate`/`source`/
+  `lastVerified` too, which would label that edit's values verified. Each review replaces `reviewNote` (omitted or blank = `null`).
 - **Known limits:**
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.
