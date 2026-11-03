@@ -1218,6 +1218,86 @@
       ]
     },
     {
+      "name": "Meal plans",
+      "item": [
+        {
+          "name": "Meal plan (week)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-plans?start=2026-11-02&days=7",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-plans"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-11-02"
+                },
+                {
+                  "key": "days",
+                  "value": "7"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const days = pm.response.json().days;",
+                  "pm.test(\"7 days from start\", () => pm.expect(days.map((d) => d.date)).to.eql([\"2026-11-02\", \"2026-11-03\", \"2026-11-04\", \"2026-11-05\", \"2026-11-06\", \"2026-11-07\", \"2026-11-08\"]));",
+                  "const ids = days.flatMap((d) => d.items.map((i) => i.id));",
+                  "pm.test(\"no item repeats\", () => pm.expect(new Set(ids).size).to.eql(ids.length));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Meal plan (impossible date)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/meal-plans?start=2026-02-30",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "meal-plans"
+              ],
+              "query": [
+                {
+                  "key": "start",
+                  "value": "2026-02-30"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 400\", () => pm.response.to.have.status(400));",
+                  "pm.test(\"error start must be a date\", () => pm.expect(pm.response.json().error).to.eql(\"start must be a date (YYYY-MM-DD)\"));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Photo analysis",
       "item": [
         {

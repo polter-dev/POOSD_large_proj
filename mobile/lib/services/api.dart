@@ -146,6 +146,29 @@ class Api {
 
   Future<void> removeFavorite(String id) => _c.request('DELETE', '/favorites/${Uri.encodeComponent(id)}');
 
+  // Meal plans (omitted values use the server's defaults)
+  /// [start] is the user's local day, YYYY-MM-DD; [days] is 1 or 7.
+  Future<MealPlanResponse> getMealPlan({
+    required String start,
+    int? days,
+    List<String>? chainIds,
+    RecommendationMode? mode,
+  }) async {
+    final query = Uri(
+      queryParameters: {
+        'start': start,
+        'days': ?days?.toString(),
+        if (chainIds != null && chainIds.isNotEmpty) 'chainIds': chainIds.join(','),
+        'mode': ?mode?.name,
+      },
+    ).query;
+    final res = _map(await _c.request('GET', '/meal-plans?$query'));
+    return MealPlanResponse(
+      mode: RecommendationMode.values.byName(res['mode'] as String),
+      days: [for (final d in res['days'] as List) MealPlanDay.fromJson(_map(d))],
+    );
+  }
+
   // Photo analysis
   /// [imageBase64] is plain base64 (no data: prefix, at most 3,000,000 chars); [mediaType] is
   /// image/jpeg, image/png or image/webp. Nothing is saved: log the confirmed items with POST /meal-logs.

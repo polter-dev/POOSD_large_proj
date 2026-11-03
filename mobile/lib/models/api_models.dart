@@ -187,6 +187,55 @@ class RecommendedItem {
       RecommendedItem(item: MenuItem.fromJson(j), score: (j['score'] as num).toDouble());
 }
 
+// Sums of value * servings; calories is an integer, macros have 1 decimal.
+class Totals {
+  const Totals({
+    required this.calories,
+    required this.proteinG,
+    required this.carbsG,
+    required this.fatG,
+    required this.incomplete,
+  });
+
+  final int calories;
+  final double proteinG;
+  final double carbsG;
+  final double fatG;
+  final bool incomplete; // a macro was unknown, so show "at least"
+
+  factory Totals.fromJson(Map<String, dynamic> j) => Totals(
+    calories: (j['calories'] as num).toInt(),
+    proteinG: (j['proteinG'] as num).toDouble(),
+    carbsG: (j['carbsG'] as num).toDouble(),
+    fatG: (j['fatG'] as num).toDouble(),
+    incomplete: j['incomplete'] as bool,
+  );
+}
+
+class MealPlanDay {
+  const MealPlanDay({
+    required this.date,
+    required this.remainingCalories,
+    required this.mealCalorieLimit,
+    required this.items,
+    required this.totals,
+  });
+
+  final String date; // YYYY-MM-DD
+  final int remainingCalories;
+  final int mealCalorieLimit;
+  final List<RecommendedItem> items; // empty when under 300 kcal per slot is left
+  final Totals totals;
+
+  factory MealPlanDay.fromJson(Map<String, dynamic> j) => MealPlanDay(
+    date: j['date'] as String,
+    remainingCalories: (j['remainingCalories'] as num).toInt(),
+    mealCalorieLimit: (j['mealCalorieLimit'] as num).toInt(),
+    items: [for (final i in j['items'] as List) RecommendedItem.fromJson(i as Map<String, dynamic>)],
+    totals: Totals.fromJson(j['totals'] as Map<String, dynamic>),
+  );
+}
+
 class Favorite {
   const Favorite({required this.id, required this.placeId, required this.label, required this.createdAt});
 
@@ -286,4 +335,11 @@ class RecommendationsResponse {
   final RecommendationMode mode;
   final double mealCalorieLimit;
   final List<RecommendedItem> items;
+}
+
+class MealPlanResponse {
+  const MealPlanResponse({required this.mode, required this.days});
+
+  final RecommendationMode mode;
+  final List<MealPlanDay> days;
 }
