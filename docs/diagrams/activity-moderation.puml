@@ -31,6 +31,9 @@ elseif (Target exists?) then (no)
 elseif (Name already taken?) then (yes)
   :409 "Item already exists"\nor "Restaurant already exists";
   stop
+elseif (edit_item with no change?) then (yes)
+  :400 "Payload: change at least one field";
+  stop
 else (ok)
 endif
 :flagsFor(submission);
