@@ -1,7 +1,7 @@
 # API Contract
 
 Single source of truth for the backend, the web client (`web/src/api`), the Flutter client and the SwaggerHub spec.
-Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFitter`: `users`, `chains`, `menuItems`, `favorites`). If this file and `schema.js` disagree, `schema.js` wins and this file gets fixed.
+Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFitter`: `users`, `chains`, `menuItems`, `favorites`, `mealLogs`, `submissions`). If this file and `schema.js` disagree, `schema.js` wins and this file gets fixed.
 
 ## 1. Conventions
 
@@ -15,7 +15,7 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | Auth | `Authorization: Bearer <JWT>`. Payload `{ sub: <userId> }`, 7-day expiry, signed with `JWT_SECRET` from `backend/.env`. |
 | Success codes | 200 with a body, 201 on create, 204 (empty body) on delete. |
 | Error shape | Every error, no exceptions: `{ "error": "<human readable message>" }`. |
-| Error codes | 400 validation; 401 missing/invalid token or bad credentials; 403 email not verified; 404 not found; 409 duplicate; 502 upstream (Places) failed; 500 server (message is always `"Server error"`). |
+| Error codes | 400 validation; 401 missing/invalid token or bad credentials; 403 email not verified, or `"Admin only"`; 404 not found; 409 duplicate or invalid state change; 413 payload too large; 429 rate limit; 502 upstream (Places, photo analysis) failed; 503 service unavailable (photo analysis not configured); 500 server (message is always `"Server error"`). |
 | Case | Server lowercases `email` and `username` (and trims them) before storing or comparing. |
 | Password | Minimum 8 characters. Stored as a bcrypt hash. |
 | Enumeration | `resend-verification` and `forgot-password` always return 200 with the same message whether or not the account exists. |
@@ -41,15 +41,27 @@ Field names, enums and ranges match `backend/db/schema.js` (MongoDB `MenuMacroFi
 | `favorite.placeId` | `^[A-Za-z0-9_-]{10,300}$` (the `placeId` from a nearby result, e.g. `osm-node-1234567890`) |
 | `favorite.label` | string 1-50 chars, or `null`/omitted (stored as `null`) |
 
+### M6 data model (for `backend/db/schema.js`, all `additionalProperties: false`)
+
+| Collection / field | Rule |
+|---|---|
+| `users.role` | optional; `"user"` \| `"admin"`; missing = `"user"`. Never writable through the API. |
+| `users.preferences.trackedNutrients` | optional array, 1-4 unique values from `"calories"`, `"protein"`, `"carbs"`, `"fat"`; missing = `["calories","protein"]` |
+| **`mealLogs`** | `_id, userId (objectId), date (string ^\d{4}-\d{2}-\d{2}$), status ("planned"\|"eaten"), menuItemId (objectId\|null), name (string 1-150), chainName (string 1-100\|null), servings (number 0.25-10), calories (number 0-5000), proteinG/carbsG/fatG (number >= 0 \| null), source ("search"\|"plan"\|"photo"\|"custom"), createdAt (date)`; all required. Index `{ userId: 1, date: 1 }` (`user_date`). |
+| **`submissions`** | `_id, userId, kind ("edit_item"\|"new_item"\|"new_chain"), targetId (objectId\|null), payload (object), before (object\|null), resultId (objectId\|null), status ("auto_applied"\|"pending"\|"approved"\|"rejected"\|"reverted"), flags (array of string), reviewedBy (objectId\|null), reviewNote (string 1-300\|null), createdAt, updatedAt`; all required. Indexes `{ status: 1, createdAt: -1 }` (`status_created`) and `{ userId: 1, createdAt: -1 }` (`user_created`). |
+| `menuItems` (no change) | community rows use `source: "community"`, `isEstimate: true`, `lastVerified: null` |
+
+`date` is the **user's local calendar day**, sent by the client. The server never converts time zones.
+
 ## 2. Shared objects
 
 `User` (returned by login, `GET /users/me` and every `/users/me/*` update):
 ```
-{ id, firstName, lastName, username, email, isVerified,
+{ id, firstName, lastName, username, email, isVerified, role: "user" | "admin",
   profile: null | { heightIn, weightLb, birthDate, sex, activityLevel, goal },
-  preferences: { units, searchRadius, recommendationMode, mealCalorieLimit } }
+  preferences: { units, searchRadius, recommendationMode, mealCalorieLimit, trackedNutrients: string[] } }
 ```
-Height/weight are always imperial in the API; clients convert for display when `preferences.units === "metric"`.
+Height/weight are always imperial in the API; clients convert for display when `preferences.units === "metric"`. `role` and `preferences.trackedNutrients` are always present, filled with defaults when missing.
 
 `MenuItem`:
 ```
@@ -61,7 +73,7 @@ Height/weight are always imperial in the API; clients convert for display when `
 
 `Favorite`: `{ id, placeId, label, createdAt }` (`label` is string or `null`).
 
-`Calories`: `{ age, maintenance, target, perMeal }`, all integers. Mifflin-St Jeor as `backend/db/queries.md` query 21, plus the #24 floor:
+`Calories`: `{ age, maintenance, target, perMeal, macros: { proteinG, carbsG, fatG } }`, all integers (`macros` = daily targets in grams). Mifflin-St Jeor as `backend/db/queries.md` query 21, plus the #24 floor:
 
 | Step | Formula |
 |---|---|
@@ -72,8 +84,27 @@ Height/weight are always imperial in the API; clients convert for display when `
 | `target` | `maintenance` - 500 (lose) / + 0 (maintain) / + 300 (gain) |
 | floor | `target = max(target, sex === "female" ? 1200 : 1500)` |
 | `perMeal` | `preferences.mealCalorieLimit` if not null, else `round(target / 3)` (floored target) |
+| `macros` | split of `target` kcal by goal, as % protein / carbs / fat: lose 35/35/30, maintain 30/40/30, gain 30/45/25. `proteinG = round(target * p / 4)`, `carbsG = round(target * c / 4)`, `fatG = round(target * f / 9)` |
 
 Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (October 2026; shifts on birthdays).
+
+Weekly goals are computed by the client: daily × 7.
+
+`MealLog`:
+```
+{ id, date, status, menuItemId, name, chainName, servings, calories, proteinG, carbsG, fatG, source, createdAt }
+```
+`calories`/`proteinG`/`carbsG`/`fatG` are for **one serving**. Totals multiply by `servings`.
+
+`Totals`: `{ calories, proteinG, carbsG, fatG, incomplete }`. Sums of `value * servings`. `calories` is an integer; macros have 1 decimal. A null macro adds nothing and sets `incomplete: true`, so the UI can show "at least".
+
+`Submission`:
+```
+{ id, kind, targetId, payload, before, resultId, status, flags, reviewNote, createdAt, updatedAt }
+```
+Admin listings add `user: { id, username }` and `reviewedBy: { id, username } | null`.
+
+`PhotoItem`: `{ menuItemId, name, chainName, servings, calories, proteinG, carbsG, fatG, confidence }`. `confidence` is `"high"` \| `"medium"` \| `"low"`. `menuItemId` is null for unmatched food.
 
 ## 3. Endpoints
 
@@ -104,8 +135,8 @@ Check: seed user `janedoe` gives maintenance 2058, target 1558, perMeal 519 (Oct
 | GET | `/users/me` | yes | none | 200 `User` | 401; 404 user deleted | `getMe` |
 | PUT | `/users/me/profile` | yes | `{ heightIn, weightLb, birthDate, sex, activityLevel, goal }` (all required; replaces the profile) | 200 `User` | 400 any invalid field, under 18 or over 120 | `updateProfile` |
 | PUT | `/users/me/goal` | yes | `{ goal }` | 200 `User` | 400 invalid goal; 400 `"Set your profile first"` if profile is null | `updateGoal` |
-| PATCH | `/users/me/preferences` | yes | any subset of `{ units, searchRadius, recommendationMode, mealCalorieLimit }` (partial merge; `mealCalorieLimit: null` clears it) | 200 `User` | 400 invalid value or empty body | `updatePreferences` |
-| GET | `/users/me/calories` | yes | none | 200 `Calories` | 400 `"Set your profile first"` if profile is null | `getCalories` |
+| PATCH | `/users/me/preferences` | yes | any subset of `{ units, searchRadius, recommendationMode, mealCalorieLimit, trackedNutrients }` (partial merge; `mealCalorieLimit: null` clears it) | 200 `User` | 400 invalid value or empty body; 400 `"trackedNutrients: pick 1-4 of calories, protein, carbs, fat"` (must be an array of 1-4 unique allowed values) | `updatePreferences` |
+| GET | `/users/me/calories` | yes | none | 200 `Calories` (with `macros`) | 400 `"Set your profile first"` if profile is null | `getCalories` |
 
 ### Menu
 
@@ -149,6 +180,109 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 | POST | `/favorites` | yes | `{ placeId, label? }` | 201 `Favorite` | 400 invalid; 409 already favorited (unique `userId`+`placeId`) | `addFavorite` |
 | DELETE | `/favorites/:id` | yes | none | 204 | 404 not found, not owned by the caller, or malformed id | `removeFavorite` |
 
+### Meal logs (all auth yes)
+
+| Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
+|---|---|---|---|---|---|---|
+| GET | `/meal-logs?from=&to=` | yes | both `YYYY-MM-DD`, real dates, `from <= to`, at most 31 days inclusive | 200 `{ entries: MealLog[], days: [{ date, eaten: Totals, planned: Totals }] }` | 400 `"from and to must be dates (YYYY-MM-DD), at most 31 days apart"` | TBD |
+| POST | `/meal-logs` | yes | `{ entries: Entry[] }`, 1-50 | 201 `{ entries: MealLog[] }` | 400 (first invalid entry: `"entries[i]: <message>"`); 404 `"entries[i]: menu item not found"` | TBD |
+| PATCH | `/meal-logs/:id` | yes | any subset (at least one) of `{ status, servings }` | 200 `MealLog` | 400 invalid or empty; 404 not found / not yours / malformed id | TBD |
+| DELETE | `/meal-logs/:id` | yes | none | 204 | 404 not found / not yours / malformed id | TBD |
+
+`Entry` fields:
+- `date` (required)
+- `status` (default `"eaten"`)
+- `servings` (default 1)
+- `source` (required): `"search"`, `"plan"`, `"photo"` or `"custom"`
+- **either** `menuItemId`: the server copies `name`, `chainName` and the macros from the menu item. Sending any of `name`, `chainName`, `calories`, `proteinG`, `carbsG`, `fatG` alongside it is a 400.
+- **or** no `menuItemId`: `name`, `calories`, `proteinG`, `carbsG` and `fatG` are required (macros may be null). `chainName` is optional (null).
+
+The whole batch is validated before anything is written: all entries or none.
+
+GET details:
+- `entries` are sorted by `date`, then `createdAt`.
+- `days` has one row per date in the range, empty days included, with zero totals and `incomplete: false`.
+
+### Meal plans (all auth yes)
+
+| Method | Path | Auth | Query | Success | Errors | Web client fn |
+|---|---|---|---|---|---|---|
+| GET | `/meal-plans` | yes | `start` (`YYYY-MM-DD`, required); `days` `1`\|`7` (default 1); `chainIds` comma-separated 24-hex (optional, empty = all); `mode` `protein`\|`carb` (default preference) | 200 `{ mode, days: [{ date, remainingCalories, mealCalorieLimit, items: RecommendedItem[], totals: Totals }] }` | 400 invalid query; 400 `"Set your profile first"` | TBD |
+
+Nothing is stored. For each day:
+1. `remainingCalories` = `Calories.target` minus that day's logged calories × servings, planned and eaten together. Floor at 0.
+2. `slots` = 3 if the day has no entries, otherwise `max(1, 3 - entryCount)`.
+3. `mealCalorieLimit` = `min(perMeal, floor(remainingCalories / slots))`.
+4. Fill each slot with the best `rankItems` result (existing `services/recommendations.js`, verified items only) under that limit. Skip items already used anywhere in this plan. Prefer a chain not yet used that day; fall back to the top item.
+5. If `mealCalorieLimit < 300`, `items` is empty.
+
+`totals` is the sum of the picked items, one serving each.
+
+Opting in is done by the client: it sends the picked items to `POST /meal-logs` with `status: "planned"`, `source: "plan"`, `menuItemId`. "Ate it" is `PATCH /meal-logs/:id { status: "eaten" }`.
+
+### Photo analysis
+
+| Method | Path | Auth | Request body | Success | Errors | Web client fn |
+|---|---|---|---|---|---|---|
+| POST | `/photo-analyses` | yes | `{ imageBase64, mediaType }`. `mediaType` is `image/jpeg`, `image/png` or `image/webp`; base64 without a `data:` prefix, at most 3,000,000 chars. | 200 `{ items: PhotoItem[] }` (0-10 items; `[]` = no food recognized) | 400 invalid body; 413 `"Image too large"`; 429 `"Daily photo limit reached"` (20 per user per UTC day); 502 `"Photo analysis failed"`; 503 `"Photo analysis unavailable"` (no API key configured) | TBD |
+
+- Nothing is saved, and the image is never stored or logged.
+- A returned `menuItemId` always exists in `menuItems`, and its name, chain and macros are the database values, not the model's.
+- Clients show the items on a confirm/edit screen, then call `POST /meal-logs` with `source: "photo"`.
+
+### Community submissions (all auth yes)
+
+| Method | Path | Auth | Request body | Success | Errors | Web client fn |
+|---|---|---|---|---|---|---|
+| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`) | 400 invalid; 404 target not found; 409 `"Item already exists"` / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | TBD |
+| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }`, newest first, max 50 | 401 | TBD |
+
+Payload by `kind`:
+
+| kind | targetId | payload |
+|---|---|---|
+| `edit_item` | menu item id | non-empty subset of `{ name, category, calories, proteinG, carbsG, fatG }` (same rules as `menuItems`) |
+| `new_item` | chain id | `{ name, category, calories, proteinG, carbsG, fatG }`, all required (macros may be null) |
+| `new_chain` | `null` | `{ name (1-100), nutritionSourceUrl (^https://), alternateNames? (0-10 strings, 1-100 chars each) }` |
+
+Duplicate checks use `normalize()`:
+- `new_item`: 409 if the chain already has the same `searchName`.
+- `new_chain`: 409 if the name matches an existing `nameKey` or `alternateNames`.
+
+**Auto-moderation.** Any flag means `pending`. No flags means `auto_applied`, and the change is written immediately. Flags:
+
+| Flag | When |
+|---|---|
+| `new_chain` | always for `new_chain` |
+| `verified_item` | `edit_item` target has `isEstimate: false` |
+| `renamed` | `edit_item` changes `name` |
+| `large_change` | `edit_item` moves any number by more than 30% of its current value (current 0 and new value not 0 counts as large) |
+| `macros_mismatch` | after merging with current values, calories and all three macros are known and `abs(4P + 4C + 9F - calories) > max(0.2 * calories, 40)` |
+| `new_account` | user created less than 24 h ago |
+| `untrusted_user` | user has 2 or more `rejected` submissions |
+| `url_in_name` | `name` contains `http`, `www.` or `.com` |
+
+**What applying does:**
+- `edit_item`: sets the fields, recomputes `searchName`, and sets `isEstimate: true`, `source: "community"`, `lastVerified: null`. `before` stores the previous values of every field it changed.
+- `new_item`: inserts the item with `chainName` copied from the chain and community values, and sets `resultId`.
+- `new_chain`: inserts the chain with normalized `nameKey`/`alternateNames`, and sets `resultId`.
+
+### Admin (all auth yes, and `role: "admin"`, else 403 `"Admin only"`)
+
+| Method | Path | Auth | Request body / query | Success | Errors | Web client fn |
+|---|---|---|---|---|---|---|
+| GET | `/admin/submissions` | admin | `status` (default `pending`), `limit` (default 20, max 100), `skip` | 200 `{ submissions: Submission[] (with user, reviewedBy), total }`, oldest first for `pending`, newest first otherwise | 400 bad query; 403 | TBD |
+| PATCH | `/admin/submissions/:id` | admin | `{ status, reviewNote? }` | 200 `Submission` | 400; 403; 404; 409 `"Can't change a <from> submission to <to>"` | TBD |
+
+Allowed status changes:
+- `pending` → `approved` (applies the change)
+- `pending` → `rejected`
+- `auto_applied` or `approved` → `reverted`: an edit restores `before`; a new item is deleted; a new chain is deleted only if it has no menu items, else 409 `"Restaurant has menu items"`.
+
+`reviewedBy` is set to the admin on every change.
+
+Admins are granted only on the server: `node scripts/make-admin.js <username>` (and `--revoke`). Same login as everyone else; no separate admin login.
+
 ### Ops
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
@@ -174,6 +308,8 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 | `Chain` | `{ collection: "chains", versionKey: false, timestamps: true }` |
 | `MenuItem` | `{ collection: "menuItems", versionKey: false, timestamps: false }` (the validator has no `createdAt`/`updatedAt`) |
 | `Favorite` | `{ collection: "favorites", versionKey: false, timestamps: { createdAt: true, updatedAt: false } }` |
+| `MealLog` | `{ collection: "mealLogs", versionKey: false, timestamps: { createdAt: true, updatedAt: false } }` |
+| `Submission` | `{ collection: "submissions", versionKey: false, timestamps: true }` |
 
 - Always pass `collection` so Mongoose does not re-pluralize (`menuItems`, not `menuitems`). `versionKey: false` so `__v` is never written.
 - Never add fields the validator does not list. Nested `profile` and `preferences` must be declared with `_id: false`.
