@@ -23,6 +23,26 @@ enum Category { entree, side, breakfast, salad, drink, dessert }
 
 enum PhotoConfidence { high, medium, low }
 
+enum SubmissionKind {
+  editItem('edit_item'),
+  newItem('new_item'),
+  newChain('new_chain');
+
+  const SubmissionKind(this.json);
+  final String json;
+}
+
+enum SubmissionStatus {
+  autoApplied('auto_applied'),
+  pending('pending'),
+  approved('approved'),
+  rejected('rejected'),
+  reverted('reverted');
+
+  const SubmissionStatus(this.json);
+  final String json;
+}
+
 const searchRadii = [5, 10, 15, 20];
 
 T _enum<T extends Enum>(List<T> values, Object? raw) => values.byName(raw as String);
@@ -313,6 +333,48 @@ class PhotoItem {
   );
 }
 
+// A community correction, new item or new restaurant (docs/api-contract.md, Submission). payload depends on kind:
+// edit_item a subset of {name, category, calories, proteinG, carbsG, fatG}; new_item all of them; new_chain
+// {name, nutritionSourceUrl, alternateNames?}. flags are left out: users see the status, not moderation reasons.
+class Submission {
+  const Submission({
+    required this.id,
+    required this.kind,
+    required this.targetId,
+    required this.payload,
+    required this.before,
+    required this.resultId,
+    required this.status,
+    required this.reviewNote,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  final String id;
+  final SubmissionKind kind;
+  final String? targetId; // menu item (edit_item), chain (new_item), null (new_chain)
+  final Map<String, dynamic> payload;
+  final Map<String, dynamic>? before; // the payload's fields before an edit was applied
+  final String? resultId; // the item or chain a new_item / new_chain created
+  final SubmissionStatus status;
+  final String? reviewNote;
+  final String createdAt;
+  final String updatedAt;
+
+  factory Submission.fromJson(Map<String, dynamic> j) => Submission(
+    id: j['id'] as String,
+    kind: SubmissionKind.values.firstWhere((k) => k.json == j['kind']),
+    targetId: j['targetId'] as String?,
+    payload: j['payload'] as Map<String, dynamic>,
+    before: j['before'] as Map<String, dynamic>?,
+    resultId: j['resultId'] as String?,
+    status: SubmissionStatus.values.firstWhere((s) => s.json == j['status']),
+    reviewNote: j['reviewNote'] as String?,
+    createdAt: j['createdAt'] as String,
+    updatedAt: j['updatedAt'] as String,
+  );
+}
+
 class LoginResponse {
   const LoginResponse({required this.token, required this.user});
 
@@ -342,4 +404,11 @@ class MealPlanResponse {
 
   final RecommendationMode mode;
   final List<MealPlanDay> days;
+}
+
+class MySubmissionsResponse {
+  const MySubmissionsResponse({required this.submissions, required this.total});
+
+  final List<Submission> submissions;
+  final int total;
 }

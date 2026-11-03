@@ -104,7 +104,7 @@ Weekly goals are computed by the client: daily × 7.
 ```
 `before` is returned with **only the payload's fields** (`name`, `category`, `calories`, macros). The server also stores the previous `searchName`, `isEstimate`, `source` and `lastVerified` in `before` so revert is exact, but strips them from responses.
 
-`GET /submissions/mine` omits `flags`: users see the status and review note, not moderation reasons such as `untrusted_user`. Admins still see `flags`.
+`POST /submissions` and `GET /submissions/mine` omit `flags`: users see the status and review note, not moderation reasons such as `untrusted_user`. Admins still see `flags`.
 
 Admin listings and the admin PATCH response add `user: { id, username }` and `reviewedBy: { id, username } | null`.
 
@@ -239,8 +239,8 @@ Opting in is done by the client: it sends the picked items to `POST /meal-logs` 
 
 | Method | Path | Auth | Request body | Success | Errors | Web client fn |
 |---|---|---|---|---|---|---|
-| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`) | 400 invalid; 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
-| GET | `/submissions/mine` | yes | none | 200 `{ submissions: Submission[] }` (without `flags`), newest first, max 50 | 401 | `getMySubmissions` |
+| POST | `/submissions` | yes | `{ kind, targetId, payload }` | 201 `Submission` (status `auto_applied` or `pending`), without `flags`, like `/mine` | 400 invalid; 400 `"Payload: change at least one field"` (an `edit_item` with no fields, or every field equal to the item's current value after trimming); 404 target not found; 409 `"Item already exists"` (`new_item`, or an `edit_item` rename) / `"Restaurant already exists"`; 429 `"Too many submissions today"` (10 per rolling 24 h) | `createSubmission` |
+| GET | `/submissions/mine?limit=&skip=` | yes | query: `limit` int 1-50, default 50; `skip` int default 0 | 200 `{ submissions: Submission[], total }` (without `flags`), newest first; `total` counts all of the caller's | 400 bad `limit`/`skip`; 401 | `getMySubmissions` |
 
 Payload by `kind`:
 
@@ -252,7 +252,7 @@ Payload by `kind`:
 
 Duplicate checks use `normalize()`:
 - `new_item`: 409 if the chain already has the same `searchName`.
-- `new_chain`: 409 if the name matches an existing `nameKey` or `alternateNames`.
+- `new_chain`: 409 if the name or any of its `alternateNames` matches an existing `nameKey` or `alternateNames` (so a nearby place never matches two chains).
 - `edit_item` rename: 409 `"Item already exists"` at submit time if the new name collides with another item in the chain.
 - Duplicates are re-checked when an admin approves a pending `new_item`, `new_chain` or rename. On a clash the PATCH returns 409 with the same message and the submission stays `pending`.
 

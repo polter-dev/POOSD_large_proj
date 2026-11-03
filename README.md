@@ -44,7 +44,7 @@ mobile client. Calorie targets are general estimates, not medical advice.
   - [x] Gantt: [`docs/diagrams/gantt.puml`](docs/diagrams/gantt.puml)
   - [x] ERD: [`docs/diagrams/erd.puml`](docs/diagrams/erd.puml)
   - [x] Use-case: [`docs/diagrams/use-case.puml`](docs/diagrams/use-case.puml)
-  - [x] Sequence/activity: [`docs/diagrams/`](docs/diagrams/README.md) (auth and recommendations sequences, ranking activity)
+  - [x] Sequence/activity: [`docs/diagrams/`](docs/diagrams/README.md) (auth, recommendations and photo-log sequences; ranking and moderation activities)
   - [x] Mobile class diagram: [`docs/diagrams/class-mobile.puml`](docs/diagrams/class-mobile.puml)
   - [x] Unit + integration test results: [`docs/test-results/`](docs/test-results/)
   - [x] Web + mobile prototypes: [`docs/wireframes/`](docs/wireframes/) (Figma links in its README)

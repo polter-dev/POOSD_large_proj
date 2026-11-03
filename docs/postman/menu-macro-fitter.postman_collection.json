@@ -1354,6 +1354,86 @@
       ]
     },
     {
+      "name": "Submissions",
+      "item": [
+        {
+          "name": "Create submission (restaurant exists)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/submissions",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "submissions"
+              ]
+            },
+            "description": "Chick-fil-A is already a chain, so this 409 writes nothing and the run stays repeatable. Change the name to suggest a real new restaurant: it is always pending until an admin approves it.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"kind\": \"new_chain\",\n  \"targetId\": null,\n  \"payload\": {\n    \"name\": \"Chick-fil-A\",\n    \"nutritionSourceUrl\": \"https://www.chick-fil-a.com/nutrition-allergens\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 409\", () => pm.response.to.have.status(409));",
+                  "pm.test(\"error Restaurant already exists\", () => pm.expect(pm.response.json().error).to.eql(\"Restaurant already exists\"));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "My submissions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/submissions/mine",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "submissions",
+                "mine"
+              ]
+            },
+            "description": "The caller's own submissions, newest first, at most 50 (limit and skip page through them). flags are left out: moderation reasons are for admins."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"status 200\", () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test(\"a list and a total\", () => pm.expect(body.submissions).to.be.an(\"array\") && pm.expect(body.total).to.be.a(\"number\"));",
+                  "pm.test(\"no flags\", () => body.submissions.forEach((s) => pm.expect(s).to.not.have.property(\"flags\")));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
       "name": "Admin",
       "description": "Needs the seed admin, so load the database with SEED_ADMIN=1 mongosh ... schema.js seed.js (backend/db/README.md). Production has no seed admin.",
       "auth": {

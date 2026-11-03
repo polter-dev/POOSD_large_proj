@@ -111,6 +111,9 @@ export interface Submission {
   updatedAt: string;
 }
 
+// POST /submissions and GET /submissions/mine leave out flags: users see the status and review note, not moderation reasons.
+export type MySubmission = Omit<Submission, 'flags'>;
+
 export interface UserRef {
   id: string;
   username: string | null; // null = account deleted
@@ -190,6 +193,12 @@ export interface AddFavoriteBody {
   label?: string | null;
 }
 
+// targetId: the menu item (edit_item), the chain (new_item), or null (new_chain).
+export type CreateSubmissionBody =
+  | { kind: 'edit_item'; targetId: string; payload: Partial<MenuItemFields> }
+  | { kind: 'new_item'; targetId: string; payload: MenuItemFields }
+  | { kind: 'new_chain'; targetId: null; payload: NewChainPayload };
+
 // pending -> approved | rejected; auto_applied or approved -> reverted. Anything else is 409.
 export interface ReviewSubmissionBody {
   status: 'approved' | 'rejected' | 'reverted';
@@ -252,6 +261,11 @@ export interface NearbyResponse {
 
 export interface FavoritesResponse {
   favorites: Favorite[];
+}
+
+export interface MySubmissionsResponse {
+  submissions: MySubmission[];
+  total: number;
 }
 
 export interface AdminSubmissionsResponse {
