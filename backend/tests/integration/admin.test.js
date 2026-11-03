@@ -33,6 +33,7 @@ afterEach(() => mock.restoreAll());
 // requireAdmin reads the role from the database; usernames for user/reviewedBy come from User.find.
 const USERS = { [ADMIN_ID]: { role: "admin", username: "siteadmin" }, [USER_ID]: { username: "janedoe" }, [AUTHOR_ID]: { username: "kevinn" } };
 beforeEach(() => {
+  mock.method(Submission, "exists", async () => null); // no later applied edit unless a test says so
   mock.method(User, "findById", (id) => ({ lean: async () => USERS[id] && { _id: id, role: USERS[id].role } }));
   mock.method(User, "find", (filter) => ({
     lean: async () => filter._id.$in.filter((id) => USERS[id]).map((id) => ({ _id: id, username: USERS[id].username })),
@@ -60,13 +61,15 @@ function submission(extra) {
   };
 }
 
-// An in-memory submission: findById reads it, findByIdAndUpdate applies the $set like Mongo would.
+// An in-memory submission: findById reads it, findByIdAndUpdate applies the $set like Mongo would, with a
+// clock that moves forward one second per write.
+let clock = 0;
 function storeSubmission(s) {
   const store = { doc: structuredClone(s), updates: [] };
   mock.method(Submission, "findById", () => ({ lean: async () => structuredClone(store.doc) }));
   mock.method(Submission, "findByIdAndUpdate", (id, update) => {
     store.updates.push(update.$set);
-    Object.assign(store.doc, update.$set, { updatedAt: new Date("2026-10-28T09:00:00Z") });
+    Object.assign(store.doc, update.$set, { updatedAt: new Date(Date.UTC(2026, 9, 28, 9, 0, clock++)) });
     return { lean: async () => structuredClone(store.doc) };
   });
   return store;
@@ -245,6 +248,42 @@ test("approving an edit applies it as a community estimate, and reverting puts t
   body = await patch({ status: "reverted" }, 200);
   assert.deepStrictEqual(item.doc, bigMac);
   assert.strictEqual(body.status, "reverted");
+});
+
+// Submission.exists over these stored submissions, evaluating revert's "later applied edit" filter.
+function existsAmong(...subs) {
+  mock.method(Submission, "exists", async (f) =>
+    subs.some((d) => String(d._id) !== String(f._id.$ne) && String(d.targetId) === String(f.targetId) && d.kind === f.kind
+      && f.status.$in.includes(d.status) && d.updatedAt >= f.updatedAt.$gte));
+}
+
+test("reverting an edit after a later applied edit of other fields is 409, so community values never read as verified", async () => {
+  const item = storeItem(bigMac);
+  const a = storeSubmission(submission({ payload: { calories: 600 } }));
+  await patch({ status: "approved" }, 200);
+  const b = storeSubmission(submission({ _id: "64b0000000000000000000e2", payload: { proteinG: 99 } }));
+  await patch({ status: "approved" }, 200);
+  const afterB = structuredClone(item.doc);
+
+  existsAmong(a.doc, b.doc);
+  const sub = storeSubmission(a.doc);
+  assert.deepStrictEqual(await patch({ status: "reverted" }, 409), { error: "Item changed since this submission" });
+  assert.deepStrictEqual(item.doc, afterB);
+  assert.strictEqual(sub.updates.length, 0);
+});
+
+test("reverting an edit with only earlier applied edits on the item still restores it exactly", async () => {
+  const item = storeItem(bigMac);
+  const b = storeSubmission(submission({ _id: "64b0000000000000000000e2", payload: { proteinG: 99 } }));
+  await patch({ status: "approved" }, 200);
+  const afterB = structuredClone(item.doc);
+  const a = storeSubmission(submission({ payload: { calories: 600 } }));
+  await patch({ status: "approved" }, 200);
+
+  existsAmong(a.doc, b.doc);
+  storeSubmission(a.doc);
+  await patch({ status: "reverted" }, 200);
+  assert.deepStrictEqual(item.doc, afterB);
 });
 
 test("reverting an edit after the item changed again is 409 and changes nothing", async () => {

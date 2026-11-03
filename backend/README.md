@@ -142,7 +142,9 @@ Follow the existing routes and controllers:
 - **Favorites:** someone else's favorite id answers 404, the same as a missing one.
 - **Admin:** `requireAdmin` reads `role` from the database on every request, so `make-admin.js --revoke` is instant.
   Approve/revert live in `services/moderation.js`; a revert only matches while the item still holds the submission's
-  values, so a later edit is never overwritten. Each review replaces `reviewNote` (omitted or blank = `null`).
+  values, so a later edit is never overwritten. Reverting an edit is also 409 `"Item changed since this submission"`
+  while a later applied edit of the same item exists, even of other fields: `before` restores `isEstimate`/`source`/
+  `lastVerified` too, which would label that edit's values verified. Each review replaces `reviewNote` (omitted or blank = `null`).
 - **Known limits:**
   - No rate limiting on login or forgot-password.
   - A JWT stays valid for its 7 days after a password reset.

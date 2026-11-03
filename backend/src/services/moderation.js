@@ -1,5 +1,6 @@
 const Chain = require("../models/Chain");
 const MenuItem = require("../models/MenuItem");
+const Submission = require("../models/Submission");
 const httpError = require("../utils/httpError");
 const normalize = require("../utils/normalize");
 
@@ -62,6 +63,13 @@ async function changedOrGone(id) {
 // atomic step, so a later edit is never silently overwritten or thrown away.
 async function revert(s) {
   if (s.kind === "edit_item") {
+    // before also restores isEstimate/source/lastVerified, so a later applied edit to the same item (even of other
+    // fields) blocks the revert: otherwise its community values would come back labelled verified. An applied
+    // submission's updatedAt is when it was applied.
+    const later = await Submission.exists({
+      _id: { $ne: s._id }, targetId: s.targetId, kind: "edit_item", status: { $in: ["auto_applied", "approved"] }, updatedAt: { $gte: s.updatedAt },
+    });
+    if (later) throw httpError(409, "Item changed since this submission");
     const res = await orConflict(MenuItem.updateOne({ _id: s.targetId, ...s.payload }, { $set: s.before }), "Item already exists");
     if (!res.matchedCount) await changedOrGone(s.targetId);
     return;
