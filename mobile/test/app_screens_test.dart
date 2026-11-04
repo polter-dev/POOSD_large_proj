@@ -766,6 +766,48 @@ void main() {
         expect(server.to('GET /meal-logs'), hasLength(2));
       });
 
+      testWidgets('the servings stepper snaps to quarters and stays from 0.25 to 10', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        saveLogsRoute();
+        Map<String, Object?> food(String name, num servings) => {
+          'menuItemId': null,
+          'name': name,
+          'chainName': null,
+          'servings': servings,
+          'calories': 300,
+          'proteinG': 10,
+          'carbsG': 30,
+          'fatG': 10,
+          'confidence': 'high',
+        };
+        // The server clamps to 0.25-10 but doesn't round, so these can arrive (review on #153).
+        server.routes['POST /photo-analyses'] = (_) => {
+          'items': [food('Soup', 0.33), food('Rice', 9.9)],
+        };
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Log a photo');
+        await tapText(tester, 'Take a photo');
+
+        await tester.tap(find.byTooltip('Fewer servings of Soup'));
+        await tester.pumpAndSettle();
+        expect(find.text('0.25 servings'), findsOneWidget); // not 0.08
+        expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove).first).onPressed, isNull);
+
+        await tester.tap(find.byTooltip('More servings of Rice'));
+        await tester.pumpAndSettle();
+        expect(find.text('10 servings'), findsOneWidget); // not 10.15
+        expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add).last).onPressed, isNull);
+
+        await tester.tap(find.byTooltip('More servings of Soup'));
+        await tester.pumpAndSettle();
+        expect(find.text('0.5 servings'), findsOneWidget);
+
+        await tapText(tester, 'Log 2 items');
+        final sent = [for (final e in server.lastBody('POST /meal-logs')['entries'] as List) (e as Map)['servings']];
+        expect(sent, [0.5, 10]);
+      });
+
       testWidgets('says when the daily limit is reached, the service is off, or no food was found', (tester) async {
         await pumpHome(tester, userJson());
         logRoutes();

@@ -40,10 +40,11 @@ class _PlanScreenState extends State<PlanScreen> {
     _load();
   }
 
-  // The nearby chains with nutrition data, or null (and a note) when there's no location or no answer, in
-  // which case the plan uses every restaurant.
-  Future<List<String>?> _chainsNearby() async {
-    if (_nearbyChains != null) return _nearbyChains;
+  // The nearby chains with nutrition data, or null and why when there's no location or no answer, in which
+  // case the plan uses every restaurant. The caller shows the note only if its request is still the newest,
+  // so turning "Nearby only" off mid-lookup leaves no stale note.
+  Future<(List<String>?, String?)> _chainsNearby() async {
+    if (_nearbyChains != null) return (_nearbyChains, null);
     final scope = ApiScope.locationOf(context);
     final api = ApiScope.of(context);
     try {
@@ -53,13 +54,12 @@ class _PlanScreenState extends State<PlanScreen> {
         lng: here.lng,
         radiusMiles: widget.user.preferences.searchRadius,
       );
-      return _nearbyChains = {for (final r in restaurants) ?r.chainId}.toList();
+      return (_nearbyChains = {for (final r in restaurants) ?r.chainId}.toList(), null);
     } on LocationException {
-      _note = "Couldn't get your location, so this plan uses every restaurant.";
+      return (null, "Couldn't get your location, so this plan uses every restaurant.");
     } on ApiError {
-      _note = "Couldn't load restaurants near you, so this plan uses every restaurant.";
+      return (null, "Couldn't load restaurants near you, so this plan uses every restaurant.");
     }
-    return null;
   }
 
   Future<void> _load() async {
@@ -71,8 +71,9 @@ class _PlanScreenState extends State<PlanScreen> {
     });
     final api = ApiScope.of(context);
     try {
-      final chains = _nearbyOnly ? await _chainsNearby() : null;
+      final (chains, note) = _nearbyOnly ? await _chainsNearby() : (null, null);
       if (!mounted || request != _request) return;
+      _note = note;
       if (chains != null && chains.isEmpty) {
         // Empty chainIds would mean every chain, so say so instead of asking.
         setState(

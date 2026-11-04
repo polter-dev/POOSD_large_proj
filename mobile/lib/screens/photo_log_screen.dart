@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../models/api_models.dart';
@@ -229,6 +231,12 @@ class _PhotoLogScreenState extends State<PhotoLogScreen> {
   }
 }
 
+// The server clamps a photo's servings to 0.25-10 but doesn't round them, so 0.33 or 9.9 can arrive. The
+// stepper moves to the next quarter in that direction and stays in range: 0.33 -> 0.25 or 0.5, 9.9 -> 10.
+// Quarters are exact in binary, so no 0.08000000000000002.
+double _fewer(double s) => math.max(0.25, ((s * 4).ceil() - 1) / 4);
+double _more(double s) => math.min(10, ((s * 4).floor() + 1) / 4);
+
 class _DraftCard extends StatelessWidget {
   const _DraftCard({required this.draft, required this.onServings, required this.onRemove, required this.onEdit});
 
@@ -287,7 +295,7 @@ class _DraftCard extends StatelessWidget {
             children: [
               IconButton.outlined(
                 tooltip: 'Fewer servings of ${d.name}',
-                onPressed: d.servings > 0.25 ? () => onServings(d.servings - 0.25) : null,
+                onPressed: d.servings > 0.25 ? () => onServings(_fewer(d.servings)) : null,
                 icon: const Icon(Icons.remove),
               ),
               SizedBox(
@@ -300,7 +308,7 @@ class _DraftCard extends StatelessWidget {
               ),
               IconButton.outlined(
                 tooltip: 'More servings of ${d.name}',
-                onPressed: d.servings < 10 ? () => onServings(d.servings + 0.25) : null,
+                onPressed: d.servings < 10 ? () => onServings(_more(d.servings)) : null,
                 icon: const Icon(Icons.add),
               ),
               const Spacer(),
