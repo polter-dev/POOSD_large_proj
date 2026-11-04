@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import * as api from '../api';
+import { Link } from 'react-router';
 import AppShell from '../components/AppShell';
 import Banner from '../components/Banner';
 import Button from '../components/Button';
+import PhotoLog from '../components/PhotoLog';
 import SegmentedControl from '../components/SegmentedControl';
 import StatusMessage from '../components/StatusMessage';
 import TextField from '../components/TextField';
@@ -349,9 +351,27 @@ export default function TrackerPage() {
   return (
     <AppShell>
       <div className="flex flex-col gap-6">
-        <div>
-          <h1 className="text-[28px] leading-[1.2] font-bold">Tracker</h1>
-          <p className="mt-2 text-base text-text-muted">What you've eaten against your daily targets.</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h1 className="text-[28px] leading-[1.2] font-bold">Tracker</h1>
+            <p className="mt-2 text-base text-text-muted">What you've eaten against your daily targets.</p>
+          </div>
+          {/* #116: photo logging adds to the selected day; the plan page adds planned rows. */}
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <PhotoLog
+              date={anchor}
+              onLogged={(n) => {
+                void fetchLogs();
+                setNotice(`Logged ${n} ${n === 1 ? 'item' : 'items'} from your photo to ${formatDay(anchor)}.`);
+              }}
+            />
+            <Link
+              to="/plan"
+              className="flex h-12 items-center justify-center rounded-(--radius-input) bg-primary px-5 font-semibold whitespace-nowrap text-on-primary hover:bg-primary-hover"
+            >
+              Plan meals
+            </Link>
+          </div>
         </div>
 
         <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
