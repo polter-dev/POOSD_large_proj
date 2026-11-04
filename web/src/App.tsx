@@ -12,6 +12,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import SearchPage from './pages/SearchPage';
 import SignUpPage from './pages/SignUpPage';
 import TargetsPage from './pages/TargetsPage';
+import TrackerPage from './pages/TrackerPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 
 // Logged-in users skip the auth pages; logged-out users can't reach the app pages.
@@ -54,7 +55,8 @@ export default function App() {
           <Route path="/targets" element={<WithProfile><TargetsPage /></WithProfile>} />
           <Route path="/home" element={<WithProfile><NearbyPage /></WithProfile>} />
           <Route path="/picks" element={<WithProfile><PicksPage /></WithProfile>} />
-          <Route path="/search" element={<LoggedIn><SearchPage /></LoggedIn>} />
+          <Route path="/tracker" element={<WithProfile><TrackerPage /></WithProfile>} />
+          <Route path="/search"element={<LoggedIn><SearchPage /></LoggedIn>} />
           <Route path="/favorites" element={<LoggedIn><FavoritesPage /></LoggedIn>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
