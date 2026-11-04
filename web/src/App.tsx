@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import AdminPage from './pages/AdminPage';
 import CheckEmailPage from './pages/CheckEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import LoginPage from './pages/LoginPage';
@@ -11,6 +12,7 @@ import ProfilePage from './pages/ProfilePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import SearchPage from './pages/SearchPage';
 import SignUpPage from './pages/SignUpPage';
+import SubmissionsPage from './pages/SubmissionsPage';
 import TargetsPage from './pages/TargetsPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 
@@ -37,6 +39,14 @@ function WithProfile({ children }: { children: ReactNode }) {
   return user.profile ? children : <Navigate to="/onboarding" replace />;
 }
 
+// The review page. Anyone else is sent home; the API also answers 403 "Admin only".
+function AdminOnly({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/" replace />;
+  return user.role === 'admin' ? children : <Navigate to="/home" replace />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -56,6 +66,8 @@ export default function App() {
           <Route path="/picks" element={<WithProfile><PicksPage /></WithProfile>} />
           <Route path="/search" element={<LoggedIn><SearchPage /></LoggedIn>} />
           <Route path="/favorites" element={<LoggedIn><FavoritesPage /></LoggedIn>} />
+          <Route path="/submissions" element={<LoggedIn><SubmissionsPage /></LoggedIn>} />
+          <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>

@@ -6,6 +6,7 @@ import Banner from '../components/Banner';
 import Button from '../components/Button';
 import Pill from '../components/Pill';
 import StatusMessage from '../components/StatusMessage';
+import { ChainDialog, ContributeButton, ItemDialog } from '../components/SubmissionDialogs';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../errors';
 import { currentPosition, LocationError, type LocationProblem } from '../location';
@@ -186,7 +187,8 @@ export default function NearbyPage() {
 }
 
 // Spec section 4, Restaurant card: name, distance, address when there is one, and the fit badge. Only cards
-// with something that fits open Best picks for that chain; "No nutrition data" isn't a link.
+// with something that fits open Best picks for that chain; "No nutrition data" isn't a link. #117: a card
+// with data can take a missing item; one without can be suggested as a new restaurant.
 function RestaurantCard({
   restaurant: r, fits, atLeast, saved, onToggleSaved,
 }: {
@@ -197,6 +199,7 @@ function RestaurantCard({
   onToggleSaved: () => void;
 }) {
   const hasData = r.chainId !== null;
+  const [contributing, setContributing] = useState(false);
   const linked = hasData && (fits === null || fits > 0);
   let badge = null;
   if (!hasData) badge = <Pill look="neutral">No nutrition data</Pill>;
@@ -243,19 +246,30 @@ function RestaurantCard({
       )}
       <div className="mt-auto flex items-center justify-between gap-3 pt-1">
         <div>{badge}</div>
-        <button
-          type="button"
-          onClick={onToggleSaved}
-          aria-pressed={saved}
-          aria-label={saved ? `Saved: ${r.name}. Remove from saved` : `Save ${r.name}`}
-          className="relative z-10 inline-flex items-center gap-1.5 rounded-(--radius-input) px-2 py-1.5 text-sm font-semibold text-primary hover:bg-surface"
-        >
-          <svg className="size-4" viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
-            <path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.5-4 6-.6Z" />
-          </svg>
-          {saved ? 'Saved' : 'Save'}
-        </button>
+        <div className="flex items-center">
+          <ContributeButton onClick={() => setContributing(true)}>
+            {hasData ? 'Add item' : 'Add restaurant'}
+            <span className="sr-only"> {hasData ? `to ${r.name}` : r.name}</span>
+          </ContributeButton>
+          <button
+            type="button"
+            onClick={onToggleSaved}
+            aria-pressed={saved}
+            aria-label={saved ? `Saved: ${r.name}. Remove from saved` : `Save ${r.name}`}
+            className="relative z-10 inline-flex items-center gap-1.5 rounded-(--radius-input) px-2 py-1.5 text-sm font-semibold text-primary hover:bg-surface"
+          >
+            <svg className="size-4" viewBox="0 0 24 24" fill={saved ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.5-4 6-.6Z" />
+            </svg>
+            {saved ? 'Saved' : 'Save'}
+          </button>
+        </div>
       </div>
+      {hasData ? (
+        <ItemDialog target={{ kind: 'new', chainId: r.chainId!, chainName: r.name }} open={contributing} onClose={() => setContributing(false)} />
+      ) : (
+        <ChainDialog initialName={r.name} open={contributing} onClose={() => setContributing(false)} />
+      )}
     </article>
   );
 }

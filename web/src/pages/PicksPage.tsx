@@ -6,6 +6,7 @@ import Banner from '../components/Banner';
 import MenuItemCard from '../components/MenuItemCard';
 import SegmentedControl from '../components/SegmentedControl';
 import StatusMessage from '../components/StatusMessage';
+import { ContributeButton, ItemDialog } from '../components/SubmissionDialogs';
 import { useAuth } from '../context/AuthContext';
 import { errorMessage } from '../errors';
 import { greatFitCount } from '../fit';
@@ -29,6 +30,7 @@ export default function PicksPage() {
   const request = useRef(0); // only the newest answer is shown when the mode is switched quickly
   const modeRef = useRef(mode); // kept in step by chooseMode, for the reload when the chain changes
   const [shownChain, setShownChain] = useState(chainId);
+  const [adding, setAdding] = useState(false);
 
   // /picks and /picks?chain= are one route, so a nav click keeps this mounted and only changes chainId.
   // Clear the previous restaurant's items here; the effect below reloads with the mode selected now.
@@ -82,7 +84,11 @@ export default function PicksPage() {
           </Link>
         )}
         <div>
-          <h1 className="text-[28px] leading-[1.2] font-bold">{name ? `Best picks at ${name}` : 'Best picks'}</h1>
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-1">
+            <h1 className="text-[28px] leading-[1.2] font-bold">{name ? `Best picks at ${name}` : 'Best picks'}</h1>
+            {/* #117: only a single restaurant's page knows which chain a new item belongs to. */}
+            {chainId && name && <ContributeButton onClick={() => setAdding(true)}>Add a missing item</ContributeButton>}
+          </div>
           <p className="mt-2 text-base text-text-muted">
             Ranked by {macro} per calorie{res ? `, each under ${formatCalories(res.mealCalorieLimit)} cal` : ''}.
           </p>
@@ -117,6 +123,9 @@ export default function PicksPage() {
           </ul>
         )}
       </div>
+      {chainId && name && (
+        <ItemDialog target={{ kind: 'new', chainId, chainName: name }} open={adding} onClose={() => setAdding(false)} />
+      )}
     </AppShell>
   );
 }
