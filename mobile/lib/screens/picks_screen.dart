@@ -7,6 +7,7 @@ import '../units.dart';
 import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
+import 'submit_screens.dart';
 
 /// #35, prototype screen 08: POST /recommendations, the items under the per-meal limit ranked by
 /// protein (or carbs) per calorie. The Picks tab covers every chain; a restaurant on Nearby opens
@@ -53,6 +54,11 @@ class _PicksScreenState extends State<PicksScreen> {
     }
   }
 
+  // A sent correction or new item can change the picks, so load them again.
+  Future<void> _contribute(Widget form) async {
+    if (await openSubmissionForm(context, form)) _load();
+  }
+
   void _setMode(RecommendationMode mode) {
     if (mode == _mode) return;
     setState(() {
@@ -69,7 +75,22 @@ class _PicksScreenState extends State<PicksScreen> {
     final great = greatFitCount(items.length);
     final macro = _mode == RecommendationMode.carb ? 'carbs' : 'protein';
     return Scaffold(
-      appBar: appBar(widget.restaurantName ?? 'Best picks'),
+      appBar: appBar(
+        widget.restaurantName ?? 'Best picks',
+        actions: [
+          // One restaurant: its chain is known, so a missing item can be added to it.
+          if (widget.chainId != null)
+            TextButton(
+              onPressed: () => _contribute(
+                ItemFormScreen.add(
+                  chainId: widget.chainId!,
+                  chainName: res?.items.firstOrNull?.item.chainName ?? widget.restaurantName ?? 'this restaurant',
+                ),
+              ),
+              child: const Text('Add item'),
+            ),
+        ],
+      ),
       body: RefreshIndicator(
         onRefresh: _load,
         child: ListView(
@@ -103,7 +124,13 @@ class _PicksScreenState extends State<PicksScreen> {
             else
               for (final (i, r) in items.indexed) ...[
                 if (i > 0) const SizedBox(height: AppSpace.s3),
-                MenuItemCard(item: r.item, score: r.score, mode: res.mode, great: i < great),
+                MenuItemCard(
+                  item: r.item,
+                  score: r.score,
+                  mode: res.mode,
+                  great: i < great,
+                  onSuggest: () => _contribute(ItemFormScreen.correction(item: r.item)),
+                ),
               ],
           ],
         ),

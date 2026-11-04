@@ -300,12 +300,13 @@ class _MacroBarPainter extends CustomPainter {
 /// Menu item card: name, restaurant, calories, macro bar. In recommendations it also gets the score
 /// and fit pill ([score] and [great] set); search results get neither (spec, Menu item card).
 class MenuItemCard extends StatelessWidget {
-  const MenuItemCard({super.key, required this.item, this.score, this.mode, this.great});
+  const MenuItemCard({super.key, required this.item, this.score, this.mode, this.great, this.onSuggest});
 
   final MenuItem item;
   final double? score;
   final RecommendationMode? mode;
   final bool? great;
+  final VoidCallback? onSuggest; // "Suggest a correction" (#120); null hides it
 
   @override
   Widget build(BuildContext context) {
@@ -346,6 +347,18 @@ class MenuItemCard extends StatelessWidget {
               ],
             ),
           ],
+          if (onSuggest != null)
+            Align(
+              alignment: Alignment.centerRight,
+              child: Semantics(
+                container: true,
+                button: true,
+                label: 'Suggest a correction to ${item.name}',
+                onTap: onSuggest,
+                excludeSemantics: true,
+                child: TextButton(onPressed: onSuggest, child: const Text('Suggest a correction')),
+              ),
+            ),
         ],
       ),
     );

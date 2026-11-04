@@ -8,6 +8,7 @@ import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
 import 'app_shell.dart';
+import 'my_submissions_screen.dart';
 import 'profile_screen.dart';
 
 // The server's lowest daily target (backend services/calories.js): a "lose" target below it is raised.
@@ -167,6 +168,12 @@ class _TargetsScreenState extends State<TargetsScreen> {
             ),
             const SizedBox(height: AppSpace.s6),
             FilledButton(onPressed: widget.onFindFood, child: const Text('Find food near me')),
+            const SizedBox(height: AppSpace.s3),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const MySubmissionsScreen())),
+              child: const Text('My submissions'),
+            ),
             const SizedBox(height: AppSpace.s4),
             const Text(
               'Estimates from the Mifflin-St Jeor formula, not medical advice.',

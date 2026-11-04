@@ -8,6 +8,7 @@ import '../theme.dart';
 import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
+import 'submit_screens.dart';
 
 // The characters the server's normalize() keeps (backend/src/utils/normalize.js): ASCII letters and
 // digits, "&" (it becomes "and"), and the accented Latin letters NFD turns into one (é -> e, K-sign -> k).
@@ -137,7 +138,13 @@ class _SearchScreenState extends State<SearchScreen> {
             const SizedBox(height: AppSpace.s3),
             for (final (i, item) in _items.indexed) ...[
               if (i > 0) const SizedBox(height: AppSpace.s3),
-              MenuItemCard(item: item),
+              MenuItemCard(
+                item: item,
+                onSuggest: () async {
+                  // An applied correction changes the numbers shown, so search again.
+                  if (await openSubmissionForm(context, ItemFormScreen.correction(item: item))) _search();
+                },
+              ),
             ],
             if (_items.length < _total) ...[
               const SizedBox(height: AppSpace.s4),
