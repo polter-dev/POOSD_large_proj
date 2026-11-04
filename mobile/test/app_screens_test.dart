@@ -10,6 +10,7 @@ import 'package:menu_macro_fitter/screens/app_shell.dart';
 import 'package:menu_macro_fitter/screens/search_screen.dart';
 import 'package:menu_macro_fitter/services/api.dart';
 import 'package:menu_macro_fitter/services/location.dart';
+import 'package:menu_macro_fitter/services/photos.dart';
 import 'package:menu_macro_fitter/theme.dart';
 import 'package:menu_macro_fitter/units.dart';
 import 'package:menu_macro_fitter/widgets/api_scope.dart';
@@ -95,6 +96,18 @@ class FakeServer {
   Map<String, dynamic> lastBody(String key) => jsonDecode(to(key).last.body) as Map<String, dynamic>;
 }
 
+// Hands back [bytes] for every pick (a JPEG header by default), counting how often it was asked.
+class FakePhotos implements PhotoSource {
+  List<int>? bytes = [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
+  final picked = <PhotoFrom>[];
+
+  @override
+  Future<List<int>?> pick(PhotoFrom from) async {
+    picked.add(from);
+    return bytes;
+  }
+}
+
 class FakeLocation implements LocationSource {
   LatLng here = const LatLng(28.6, -81.2);
   LocationProblem? problem;
@@ -117,6 +130,7 @@ void main() {
 
   late FakeServer server;
   late FakeLocation location;
+  late FakePhotos photos;
 
   Future<void> pumpHome(WidgetTester tester, Map<String, dynamic> user, {Map<String, Object> cal = calories}) async {
     // A tall phone, so the lists build every card (ListView skips what's far off screen).
@@ -125,6 +139,7 @@ void main() {
     addTearDown(tester.view.reset);
     server = FakeServer();
     location = FakeLocation();
+    photos = FakePhotos();
     server.routes['GET /users/me/calories'] = (_) => cal;
     final api = Api(
       ApiClient(httpClient: MockClient(server.handle), baseUrl: 'http://test/api', tokens: MemoryTokenStore()),
@@ -133,6 +148,7 @@ void main() {
       ApiScope(
         api: api,
         location: location,
+        photos: photos,
         child: MaterialApp(theme: buildTheme(), home: homeFor(User.fromJson(user))),
       ),
     );
@@ -610,6 +626,213 @@ void main() {
       });
       expect(find.text('Add food'), findsOneWidget); // the sheet closed: only the button is left
       expect(server.to('GET /meal-logs'), hasLength(2));
+    });
+
+    // POST /meal-logs answers with one saved entry per entry sent.
+    void saveLogsRoute() => server.routes['POST /meal-logs'] = (r) => json({
+      'entries': [for (final (i, _) in ((jsonDecode(r.body) as Map)['entries'] as List).indexed) log('n$i', 'Saved')],
+    }, 201);
+
+    group('plan', () {
+      void planRoute() => server.routes['GET /meal-plans'] = (_) => {
+        'mode': 'protein',
+        'days': [
+          {
+            'date': ymd(today),
+            'remainingCalories': 1100,
+            'mealCalorieLimit': 519,
+            'items': [item('a', 'c1', 'Tenders'), item('b', 'c2', 'Bowl')],
+            'totals': totals(800, 60, 40, 20),
+          },
+        ],
+      };
+
+      testWidgets('adds one item, then the rest of the day, as planned', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        planRoute();
+        saveLogsRoute();
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Plan meals');
+        expect(server.to('GET /meal-plans').single.url.queryParameters, {'start': ymd(today), 'days': '1'});
+        expect(find.text('1,100 cal left · up to 519 cal a meal'), findsOneWidget);
+
+        await tester.tap(find.text('Add to plan').first); // Tenders
+        await tester.pumpAndSettle();
+        expect(server.lastBody('POST /meal-logs'), {
+          'entries': [
+            {'date': ymd(today), 'status': 'planned', 'source': 'plan', 'menuItemId': 'a'},
+          ],
+        });
+        await tapText(tester, 'Add the whole day (2)');
+        expect(server.lastBody('POST /meal-logs'), {
+          'entries': [
+            {'date': ymd(today), 'status': 'planned', 'source': 'plan', 'menuItemId': 'b'}, // not a again
+          ],
+        });
+        expect(find.text('All added'), findsOneWidget);
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(server.to('GET /meal-logs'), hasLength(2)); // the Tracker reloaded
+      });
+
+      testWidgets('Nearby only asks for the chains nearby, or says it uses every restaurant', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        planRoute();
+        server.routes['POST /restaurants/nearby'] = (_) => {
+          'restaurants': [
+            {'placeId': 'osm-node-1', 'name': 'Chick-fil-A', 'address': null, 'distanceMiles': 0.4, 'chainId': 'c1'},
+            {'placeId': 'osm-node-2', 'name': 'Pizza', 'address': null, 'distanceMiles': 0.6, 'chainId': null},
+          ],
+        };
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Plan meals');
+        await tapText(tester, 'Nearby only');
+        expect(server.lastBody('POST /restaurants/nearby'), {'lat': 28.6, 'lng': -81.2, 'radiusMiles': 10});
+        expect(server.to('GET /meal-plans').last.url.queryParameters['chainIds'], 'c1');
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        location.problem = LocationProblem.denied;
+        await tapText(tester, 'Plan meals');
+        await tapText(tester, 'Nearby only');
+        expect(find.textContaining("Couldn't get your location"), findsOneWidget);
+        expect(server.to('GET /meal-plans').last.url.queryParameters.containsKey('chainIds'), isFalse);
+      });
+    });
+
+    group('photo', () {
+      testWidgets('removed rows aren\'t sent, matched ones send only menuItemId, edited macros are sent', (
+        tester,
+      ) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        saveLogsRoute();
+        server.routes['POST /photo-analyses'] = (_) => {
+          'items': [
+            {...item('i1', 'c1', 'Grilled Nuggets'), 'menuItemId': 'i1', 'servings': 1, 'confidence': 'high'},
+            {
+              'menuItemId': null,
+              'name': 'Fries',
+              'chainName': null,
+              'servings': 1,
+              'calories': 320,
+              'proteinG': 4,
+              'carbsG': 41,
+              'fatG': null,
+              'confidence': 'low',
+            },
+            {...item('i2', 'c1', 'Cookie'), 'menuItemId': 'i2', 'servings': 1, 'confidence': 'medium'},
+          ],
+        };
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Log a photo');
+        await tapText(tester, 'Take a photo');
+        expect(photos.picked, [PhotoFrom.camera]);
+        expect(server.lastBody('POST /photo-analyses'), {
+          'imageBase64': base64Encode(photos.bytes!),
+          'mediaType': 'image/jpeg',
+        });
+        expect(find.text('Not sure: check this one'), findsOneWidget);
+
+        await tester.tap(find.byTooltip('Remove Cookie'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byTooltip('More servings of Fries'));
+        await tester.pumpAndSettle();
+        await tapText(tester, 'Edit'); // only Fries has it: matched items keep the menu's numbers
+        await tester.enterText(find.widgetWithText(TextField, 'Fat (g), blank if unknown'), '15');
+        await tapText(tester, 'Save');
+        await tapText(tester, 'Log 2 items');
+
+        expect(server.lastBody('POST /meal-logs'), {
+          'entries': [
+            {'date': ymd(today), 'servings': 1, 'source': 'photo', 'menuItemId': 'i1'},
+            {
+              'date': ymd(today),
+              'servings': 1.25,
+              'source': 'photo',
+              'name': 'Fries',
+              'chainName': null,
+              'calories': 320,
+              'proteinG': 4,
+              'carbsG': 41,
+              'fatG': 15,
+            },
+          ],
+        });
+        expect(find.text('Plan meals'), findsOneWidget); // back on the Tracker
+        expect(server.to('GET /meal-logs'), hasLength(2));
+      });
+
+      testWidgets('the servings stepper snaps to quarters and stays from 0.25 to 10', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        saveLogsRoute();
+        Map<String, Object?> food(String name, num servings) => {
+          'menuItemId': null,
+          'name': name,
+          'chainName': null,
+          'servings': servings,
+          'calories': 300,
+          'proteinG': 10,
+          'carbsG': 30,
+          'fatG': 10,
+          'confidence': 'high',
+        };
+        // The server clamps to 0.25-10 but doesn't round, so these can arrive (review on #153).
+        server.routes['POST /photo-analyses'] = (_) => {
+          'items': [food('Soup', 0.33), food('Rice', 9.9)],
+        };
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Log a photo');
+        await tapText(tester, 'Take a photo');
+
+        await tester.tap(find.byTooltip('Fewer servings of Soup'));
+        await tester.pumpAndSettle();
+        expect(find.text('0.25 servings'), findsOneWidget); // not 0.08
+        expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.remove).first).onPressed, isNull);
+
+        await tester.tap(find.byTooltip('More servings of Rice'));
+        await tester.pumpAndSettle();
+        expect(find.text('10 servings'), findsOneWidget); // not 10.15
+        expect(tester.widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add).last).onPressed, isNull);
+
+        await tester.tap(find.byTooltip('More servings of Soup'));
+        await tester.pumpAndSettle();
+        expect(find.text('0.5 servings'), findsOneWidget);
+
+        await tapText(tester, 'Log 2 items');
+        final sent = [for (final e in server.lastBody('POST /meal-logs')['entries'] as List) (e as Map)['servings']];
+        expect(sent, [0.5, 10]);
+      });
+
+      testWidgets('says when the daily limit is reached, the service is off, or no food was found', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        var reply = json({'error': 'Daily photo limit reached'}, 429);
+        server.routes['POST /photo-analyses'] = (_) => reply;
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Log a photo');
+        await tapText(tester, 'Choose a photo');
+        expect(photos.picked, [PhotoFrom.gallery]);
+        expect(find.text('Daily photo limit reached'), findsOneWidget);
+
+        reply = json({'error': 'Photo analysis unavailable'}, 503);
+        await tapText(tester, 'Take a photo');
+        expect(find.text("Photo logging isn't available"), findsOneWidget);
+
+        reply = json({'items': <Object>[]});
+        await tapText(tester, 'Take a photo');
+        expect(find.text('No food recognized'), findsOneWidget);
+
+        photos.bytes = [0x47, 0x49, 0x46, 0x38]; // a GIF: never sent
+        await tapText(tester, 'Take a photo');
+        expect(find.text("Can't read that photo"), findsOneWidget);
+        expect(server.to('POST /photo-analyses'), hasLength(3));
+        expect(server.to('POST /meal-logs'), isEmpty);
+      });
     });
   });
 

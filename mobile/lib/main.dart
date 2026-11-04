@@ -5,6 +5,7 @@ import 'screens/app_shell.dart';
 import 'screens/login_screen.dart';
 import 'services/api.dart';
 import 'services/location.dart';
+import 'services/photos.dart';
 import 'theme.dart';
 import 'widgets/api_scope.dart';
 
@@ -13,10 +14,16 @@ void main() => runApp(MenuMacroFitterApp(api: Api()));
 final _navigator = GlobalKey<NavigatorState>();
 
 class MenuMacroFitterApp extends StatelessWidget {
-  const MenuMacroFitterApp({super.key, required this.api, this.location = const DeviceLocation()});
+  const MenuMacroFitterApp({
+    super.key,
+    required this.api,
+    this.location = const DeviceLocation(),
+    this.photos = const DevicePhotos(),
+  });
 
   final Api api;
   final LocationSource location;
+  final PhotoSource photos;
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +38,7 @@ class MenuMacroFitterApp extends StatelessWidget {
     return ApiScope(
       api: api,
       location: location,
+      photos: photos,
       child: MaterialApp(
         title: 'Menu Macro Fitter',
         navigatorKey: _navigator,
