@@ -8,6 +8,7 @@ import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
 import 'picks_screen.dart';
+import 'submit_screens.dart';
 
 /// #35, prototype screen 07: restaurants within 5 to 20 miles (POST /restaurants/nearby), each with
 /// how many of its items fit the goal. The count is one POST /recommendations for all of them
@@ -247,6 +248,14 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
                   saved: _saved.containsKey(r.placeId),
                   saving: _saving.contains(r.placeId),
                   onToggleSaved: () => _toggleSaved(r),
+                  // A chain with data can get a missing item; a place without data can be added as a restaurant.
+                  // Not reloaded after: that would be a new location search, and most of these wait for review.
+                  onContribute: () => openSubmissionForm(
+                    context,
+                    r.chainId != null
+                        ? ItemFormScreen.add(chainId: r.chainId!, chainName: r.name)
+                        : ChainFormScreen(initialName: r.name),
+                  ),
                 ),
               ],
           ],
@@ -304,6 +313,7 @@ class _RestaurantCard extends StatelessWidget {
     required this.saved,
     required this.saving,
     required this.onToggleSaved,
+    required this.onContribute,
   });
 
   final NearbyRestaurant restaurant;
@@ -313,6 +323,7 @@ class _RestaurantCard extends StatelessWidget {
   final bool saved;
   final bool saving;
   final VoidCallback onToggleSaved;
+  final VoidCallback onContribute;
 
   @override
   Widget build(BuildContext context) {
@@ -370,7 +381,9 @@ class _RestaurantCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Flexible(child: badge),
+              Expanded(
+                child: Align(alignment: Alignment.centerLeft, child: badge),
+              ),
               const SizedBox(width: AppSpace.s2),
               // Its own node with its own tap: excludeSemantics drops the button's, and without container
               // the label merges into the card, whose tap opens Best picks.
@@ -386,6 +399,16 @@ class _RestaurantCard extends StatelessWidget {
                   icon: Icon(saved ? Icons.bookmark : Icons.bookmark_border, size: 18),
                   label: Text(saved ? 'Saved' : 'Save'),
                 ),
+              ),
+              PopupMenuButton<void>(
+                tooltip: 'More for ${r.name}',
+                icon: const Icon(Icons.more_vert, color: AppColors.textMuted),
+                itemBuilder: (_) => [
+                  PopupMenuItem(
+                    onTap: onContribute,
+                    child: Text(hasData ? 'Add a missing item' : 'Add this restaurant'),
+                  ),
+                ],
               ),
             ],
           ),

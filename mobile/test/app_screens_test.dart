@@ -836,6 +836,170 @@ void main() {
     });
   });
 
+  group('community', () {
+    Map<String, Object?> submission(
+      String kind,
+      String status,
+      Map<String, Object?> payload, {
+      String? targetId = 'i1',
+      Map<String, Object?>? before,
+      String? reviewNote,
+    }) => {
+      'id': 's-$kind-$status',
+      'kind': kind,
+      'targetId': targetId,
+      'payload': payload,
+      'before': before,
+      'resultId': null,
+      'status': status,
+      'reviewNote': reviewNote,
+      'createdAt': '2026-11-04T15:05:00.000Z',
+      'updatedAt': '2026-11-04T15:05:00.000Z',
+    };
+
+    // Answers POST /submissions with [reply], or echoes the body as an applied/pending submission.
+    void submitRoute(Object Function(Map<String, dynamic> body) reply) =>
+        server.routes['POST /submissions'] = (r) => reply(jsonDecode(r.body) as Map<String, dynamic>);
+
+    void nearbyRoutes() {
+      server.routes['POST /restaurants/nearby'] = (_) => {
+        'restaurants': [
+          {'placeId': 'osm-node-1', 'name': 'Chick-fil-A', 'address': null, 'distanceMiles': 0.4, 'chainId': 'c1'},
+          {'placeId': 'osm-node-3', 'name': 'Lazy Moon Pizza', 'address': null, 'distanceMiles': 1.1, 'chainId': null},
+        ],
+      };
+      server.routes['POST /recommendations'] = (_) => recs([item('a', 'c1', 'Tenders')]);
+      server.routes['GET /favorites'] = (_) => {'favorites': <Object>[]};
+    }
+
+    testWidgets('a correction sends only the changed fields and says Applied', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /menu-items/search'] = (_) => {
+        'items': [item('i1', 'c1', 'Grilled Nuggets')],
+        'total': 1,
+        'limit': 20,
+        'skip': 0,
+      };
+      submitRoute((b) => json(submission('edit_item', 'auto_applied', b['payload'] as Map<String, Object?>), 201));
+      await tapText(tester, 'Search');
+      await tester.enterText(find.byType(TextField), 'nuggets');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Suggest a correction');
+
+      await tapText(tester, 'Send correction'); // nothing changed yet
+      expect(find.text('Change at least one field to suggest a correction.'), findsOneWidget);
+      expect(server.to('POST /submissions'), isEmpty);
+
+      await tester.enterText(find.byType(TextFormField).at(1), '430'); // calories, was 400
+      await tapText(tester, 'Send correction');
+      expect(server.lastBody('POST /submissions'), {
+        'kind': 'edit_item',
+        'targetId': 'i1',
+        'payload': {'calories': 430},
+      });
+      expect(find.text('Applied. Thanks! Your change is live now.'), findsOneWidget);
+
+      await tapText(tester, 'Done');
+      expect(server.to('GET /menu-items/search'), hasLength(2)); // searched again for the new numbers
+    });
+
+    testWidgets('Add item on one restaurant sends every field; a 429 is shown as the API says it', (tester) async {
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      var reply = json({'error': 'Too many submissions today'}, 429);
+      submitRoute((_) => reply);
+      await tapText(tester, 'Nearby');
+      await tapText(tester, 'Chick-fil-A');
+      await tapText(tester, 'Add item');
+
+      await tester.enterText(find.byType(TextFormField).at(0), 'Kale Crunch Side');
+      await tester.tap(find.byType(DropdownButtonFormField<Category>));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Side');
+      await tester.enterText(find.byType(TextFormField).at(1), '120');
+      await tester.enterText(find.byType(TextFormField).at(2), '3'); // carbs and fat left blank: unknown
+      await tapText(tester, 'Add item');
+      expect(find.text('Too many submissions today'), findsOneWidget);
+
+      reply = json(submission('new_item', 'pending', {}, targetId: 'c1'), 201);
+      await tapText(tester, 'Add item');
+      expect(server.lastBody('POST /submissions'), {
+        'kind': 'new_item',
+        'targetId': 'c1',
+        'payload': {
+          'name': 'Kale Crunch Side',
+          'category': 'side',
+          'calories': 120,
+          'proteinG': 3,
+          'carbsG': null,
+          'fatG': null,
+        },
+      });
+      expect(find.textContaining('Sent for review.'), findsOneWidget);
+    });
+
+    testWidgets('Add this restaurant from a card without data: https only, a 409 shown as-is', (tester) async {
+      await pumpHome(tester, userJson());
+      nearbyRoutes();
+      submitRoute((_) => json({'error': 'Restaurant already exists'}, 409));
+      await tapText(tester, 'Nearby');
+      await tester.tap(find.byTooltip('More for Lazy Moon Pizza'));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Add this restaurant');
+      expect(tester.widget<TextFormField>(find.byType(TextFormField).at(0)).controller!.text, 'Lazy Moon Pizza');
+
+      await tester.enterText(find.byType(TextFormField).at(1), 'http://lazymoon.com/Menu');
+      await tapText(tester, 'Send for review');
+      expect(find.text('Nutrition page: a link starting with https://'), findsOneWidget);
+      expect(server.to('POST /submissions'), isEmpty);
+
+      await tester.enterText(find.byType(TextFormField).at(1), 'https://lazymoon.com/Menu');
+      await tester.enterText(find.byType(TextFormField).at(2), 'Lazy Moon,  LMP ,');
+      await tapText(tester, 'Send for review');
+      expect(server.lastBody('POST /submissions'), {
+        'kind': 'new_chain',
+        'targetId': null,
+        'payload': {
+          'name': 'Lazy Moon Pizza',
+          'nutritionSourceUrl': 'https://lazymoon.com/Menu', // case kept
+          'alternateNames': ['Lazy Moon', 'LMP'],
+        },
+      });
+      expect(find.text('Restaurant already exists'), findsOneWidget);
+    });
+
+    testWidgets('My submissions shows each status, what changed and the reviewer note', (tester) async {
+      await pumpHome(tester, userJson());
+      server.routes['GET /submissions/mine'] = (_) => {
+        'submissions': [
+          submission(
+            'edit_item',
+            'auto_applied',
+            {'calories': 430},
+            before: {'name': 'Grilled Nuggets', 'calories': 400},
+          ),
+          submission(
+            'new_chain',
+            'rejected',
+            {'name': 'Lazy Moon Pizza', 'nutritionSourceUrl': 'https://lazymoon.com'},
+            targetId: null,
+            reviewNote: 'No published nutrition data',
+          ),
+        ],
+        'total': 2,
+      };
+      await tapText(tester, 'My submissions');
+      expect(server.to('GET /submissions/mine').single.url.queryParameters, {'limit': '20', 'skip': '0'});
+      expect(find.text('Grilled Nuggets'), findsOneWidget); // an applied edit is titled by the item's old name
+      expect(find.text('Applied'), findsOneWidget);
+      expect(find.text('400 cal → 430 cal'), findsOneWidget);
+      expect(find.text('Rejected'), findsOneWidget);
+      expect(find.textContaining('No published nutrition data'), findsOneWidget);
+      expect(find.text('Show more'), findsNothing);
+    });
+  });
+
   group('saved', () {
     testWidgets('lists favorites by label and removes one', (tester) async {
       await pumpHome(tester, userJson());
