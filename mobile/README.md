@@ -67,6 +67,6 @@ covers the login errors (401, 403 + resend) and `test/validators_test.dart` the 
 | `lib/services/api.dart` | `Api`: one method per endpoint, named like `web/src/api/index.ts` |
 | `lib/validators.dart` | Field rules, same as the server |
 | `lib/widgets/` | `ErrorBanner`, `LabeledField`, `PrimaryButton`, `AuthScaffold`, `ApiScope` |
-| `lib/screens/` | Log in (first screen), Sign up, Check your email, Forgot password, profile setup and editing, and the tabs: Nearby, Picks, Search, Saved, Tracker (with Plan meals and Log a photo), Profile (Your targets) |
+| `lib/screens/` | Log in (first screen), Sign up, Check your email, Forgot password, profile setup and editing, and the tabs: Nearby, Picks, Search, Saved, Tracker (with Plan meals and Log a photo), Profile (Your targets, My submissions); community forms from menu items and Nearby cards |
 
 Screens get the API with `ApiScope.of(context)`, never by making HTTP calls themselves.
