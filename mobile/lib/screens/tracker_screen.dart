@@ -10,6 +10,8 @@ import '../units.dart';
 import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
+import 'photo_log_screen.dart';
+import 'plan_screen.dart';
 import 'search_screen.dart' show searchable;
 
 enum _Span { day, week }
@@ -202,17 +204,26 @@ class _TrackerScreenState extends State<TrackerScreen> {
     }
   }
 
-  Future<void> _add() async {
-    // A day adds to that day; a week adds to today when it's in the week, else to its Monday.
+  // Where new food goes: the day shown; in a week, today when it's in that week, else its Monday.
+  DateTime get _target {
     final (from, to) = _range;
     final today = _today();
-    final date = _span == _Span.day || today.isBefore(from) || today.isAfter(to) ? from : today;
+    return _span == _Span.day || today.isBefore(from) || today.isAfter(to) ? from : today;
+  }
+
+  Future<void> _add() async {
     final added = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => _AddFoodSheet(date: date),
+      builder: (_) => _AddFoodSheet(date: _target),
     );
+    if (added == true) _load();
+  }
+
+  // Plan and Photo log only on "Add to plan" / "Log", and say so when they close.
+  Future<void> _open(Widget screen) async {
+    final added = await Navigator.of(context).push<bool>(MaterialPageRoute(builder: (_) => screen));
     if (added == true) _load();
   }
 
@@ -308,6 +319,26 @@ class _TrackerScreenState extends State<TrackerScreen> {
                       // The last one can't be turned off: the server keeps at least one.
                       onSelected: _tracked.length == 1 && _tracked.contains(n) ? null : (_) => _toggle(n),
                     ),
+                ],
+              ),
+              const SizedBox(height: AppSpace.s4),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _open(PlanScreen(user: widget.user, start: _target)),
+                      icon: const Icon(Icons.restaurant_menu),
+                      label: const Text('Plan meals'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpace.s3),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => _open(PhotoLogScreen(date: _target)),
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Text('Log a photo'),
+                    ),
+                  ),
                 ],
               ),
               const SizedBox(height: AppSpace.s6),
