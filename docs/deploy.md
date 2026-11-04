@@ -93,8 +93,12 @@ Files: `deploy/nginx.conf`, `deploy/ecosystem.config.js`, `deploy/deploy.sh`.
 cd /var/www/POOSD_large_proj && bash deploy/deploy.sh
 ```
 
-It pulls the current branch, installs backend deps, builds the web app into
-`web/dist` (which nginx serves), and reloads the API with pm2. If only
+It pulls the current branch, installs backend deps, re-applies
+`backend/db/schema.js` to `MONGODB_URI` (validators and indexes only, never
+data; needs `mongosh`, which `mongodb-org` includes), builds the web app into
+`web/dist` (which nginx serves), and reloads the API with pm2. Without the
+schema step, a field added to `schema.js` is rejected by the database's old
+validator and the API answers 500 (the live `trackedNutrients` bug). If only
 `backend/.env` changed, run `pm2 reload api`. If only `web/.env` changed,
 re-run the script: Vite bakes `VITE_API_URL` into the build.
 

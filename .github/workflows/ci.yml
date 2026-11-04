@@ -82,6 +82,11 @@ jobs:
         run: npx -y mongosh@2 "$MONGODB_URI" schema.js seed.js
         env:
           SEED_ADMIN: "1" # adds siteadmin for the admin tests; never set for production
+      # deploy.sh re-runs schema.js on every deploy. Start from an outdated users validator (production's state
+      # when PATCH trackedNutrients gave 500) and re-run it; the API tests below then save trackedNutrients.
+      - name: Re-apply schema over an outdated validator, as deploy.sh does
+        working-directory: backend/db
+        run: npx -y mongosh@2 "$MONGODB_URI" ../tests/db/old-validator.mongosh.js schema.js
       - name: API tests against the seeded database
         run: npm run test:db
         env:
