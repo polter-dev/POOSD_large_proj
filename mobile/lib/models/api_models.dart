@@ -95,6 +95,20 @@ class Profile {
     'activityLevel': activityLevel.json,
     'goal': goal.name,
   };
+
+  // By value, so a screen can tell whether a new User changed the profile or only a preference.
+  @override
+  bool operator ==(Object other) =>
+      other is Profile &&
+      other.heightIn == heightIn &&
+      other.weightLb == weightLb &&
+      other.birthDate == birthDate &&
+      other.sex == sex &&
+      other.activityLevel == activityLevel &&
+      other.goal == goal;
+
+  @override
+  int get hashCode => Object.hash(heightIn, weightLb, birthDate, sex, activityLevel, goal);
 }
 
 class Preferences {
@@ -155,6 +169,11 @@ class User {
     profile: j['profile'] == null ? null : Profile.fromJson(j['profile'] as Map<String, dynamic>),
     preferences: Preferences.fromJson(j['preferences'] as Map<String, dynamic>),
   );
+
+  /// Same profile and per-meal limit: what GET /users/me/calories and the recommendations depend on. A change
+  /// to anything else (units, radius, tracked nutrients) doesn't need those reloaded.
+  bool sameTargets(User other) =>
+      other.profile == profile && other.preferences.mealCalorieLimit == preferences.mealCalorieLimit;
 }
 
 class Calories {

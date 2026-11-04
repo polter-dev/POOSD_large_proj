@@ -11,6 +11,25 @@ double round1(double n) => (n * 10).round() / 10;
 /// For a text box: "5" rather than "5.0", "5.5" stays.
 String plainNumber(double n) => n == n.roundToDouble() ? n.toInt().toString() : n.toString();
 
+const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const _weekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+/// A local day as the API takes it: YYYY-MM-DD (meal logs are on the user's own calendar).
+String ymd(DateTime d) =>
+    '${d.year.toString().padLeft(4, '0')}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+/// The local day [days] after [d]. Built from the date parts, so a daylight-saving change can't skip a day.
+DateTime addDays(DateTime d, int days) => DateTime(d.year, d.month, d.day + days);
+
+/// "Nov 4".
+String shortDate(DateTime d) => '${_months[d.month - 1]} ${d.day}';
+
+/// "Nov 4, 2026".
+String longDate(DateTime d) => '${shortDate(d)}, ${d.year}';
+
+/// "Tue, Nov 4".
+String weekdayDate(DateTime d) => '${_weekdays[d.weekday - 1]}, ${shortDate(d)}';
+
 String formatHeight(double heightIn, Units units) {
   if (units == Units.metric) return '${(heightIn * cmPerIn).round()} cm';
   final total = heightIn.round();

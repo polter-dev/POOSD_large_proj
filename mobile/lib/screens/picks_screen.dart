@@ -38,7 +38,7 @@ class _PicksScreenState extends State<PicksScreen> {
   @override
   void didUpdateWidget(PicksScreen old) {
     super.didUpdateWidget(old);
-    if (old.user != widget.user) _load();
+    if (!old.user.sameTargets(widget.user)) _load();
   }
 
   Future<void> _load() async {

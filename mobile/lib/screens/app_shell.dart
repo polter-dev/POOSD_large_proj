@@ -10,6 +10,7 @@ import 'picks_screen.dart';
 import 'profile_screen.dart';
 import 'search_screen.dart';
 import 'targets_screen.dart';
+import 'tracker_screen.dart';
 
 /// Where a logged-in user goes: profile setup until there's a profile, then the tabs.
 Widget homeFor(User user) => user.profile == null ? ProfileScreen(user: user, setup: true) : AppShell(user: user);
@@ -20,9 +21,9 @@ Future<void> logOut(BuildContext context) async {
   Navigator.of(context).pushAndRemoveUntil(MaterialPageRoute(builder: (_) => const LoginScreen()), (_) => false);
 }
 
-enum AppTab { nearby, picks, search, saved, profile }
+enum AppTab { nearby, picks, search, saved, tracker, profile }
 
-/// The logged-in app (#35, prototype screens 06-08): bottom tabs Nearby, Picks, Search, Saved, Profile.
+/// The logged-in app (#35, prototype screens 06-08): bottom tabs Nearby, Picks, Search, Saved, Tracker, Profile.
 /// Holds the current user, so a profile or units change reaches every tab. Opens on Profile (Your
 /// targets) like the prototype's Log in link, and builds a tab the first time it's shown, so
 /// Nearby only asks for location once someone opens it.
@@ -51,6 +52,7 @@ class _AppShellState extends State<AppShell> {
     AppTab.picks => PicksScreen(user: _user),
     AppTab.search => const SearchScreen(),
     AppTab.saved => FavoritesScreen(active: _tab == AppTab.saved, onFindRestaurants: () => _select(AppTab.nearby)),
+    AppTab.tracker => TrackerScreen(user: _user, onUser: (u) => setState(() => _user = u)),
     AppTab.profile => TargetsScreen(
       user: _user,
       onUser: (u) => setState(() => _user = u),
@@ -96,6 +98,11 @@ class _AppShellState extends State<AppShell> {
                 icon: Icon(Icons.bookmark_border),
                 selectedIcon: Icon(Icons.bookmark),
                 label: 'Saved',
+              ),
+              NavigationDestination(
+                icon: Icon(Icons.insert_chart_outlined),
+                selectedIcon: Icon(Icons.insert_chart),
+                label: 'Tracker',
               ),
               NavigationDestination(
                 icon: Icon(Icons.person_outline),

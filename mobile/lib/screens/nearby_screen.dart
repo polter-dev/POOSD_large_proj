@@ -64,7 +64,7 @@ class _NearbyScreenState extends State<NearbyScreen> with WidgetsBindingObserver
   @override
   void didUpdateWidget(NearbyScreen old) {
     super.didUpdateWidget(old);
-    if (old.user != widget.user) _load();
+    if (!old.user.sameTargets(widget.user)) _load(); // not for units or tracked nutrients: no new location search
     if (widget.active && !old.active) _loadSaved();
   }
 

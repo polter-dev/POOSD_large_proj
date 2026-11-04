@@ -11,6 +11,7 @@ import 'package:menu_macro_fitter/screens/search_screen.dart';
 import 'package:menu_macro_fitter/services/api.dart';
 import 'package:menu_macro_fitter/services/location.dart';
 import 'package:menu_macro_fitter/theme.dart';
+import 'package:menu_macro_fitter/units.dart';
 import 'package:menu_macro_fitter/widgets/api_scope.dart';
 
 // #35 screens against a fake server: routes are "METHOD /path" without the /api prefix.
@@ -444,6 +445,171 @@ void main() {
       expect(find.text('Location is blocked'), findsOneWidget);
       await tapText(tester, 'Open settings');
       expect(location.opened, [LocationProblem.blocked]);
+    });
+  });
+
+  group('tracker', () {
+    final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+    final monday = addDays(today, 1 - today.weekday);
+
+    Map<String, Object> totals(num calories, num p, num c, num f, {bool incomplete = false}) => {
+      'calories': calories,
+      'proteinG': p,
+      'carbsG': c,
+      'fatG': f,
+      'incomplete': incomplete,
+    };
+    final zero = totals(0, 0, 0, 0);
+
+    Map<String, Object?> log(String id, String name, {String status = 'eaten', num servings = 1, num? f = 10}) => {
+      'id': id,
+      'date': ymd(today),
+      'status': status,
+      'menuItemId': 'm-$id',
+      'name': name,
+      'chainName': 'Chick-fil-A',
+      'servings': servings,
+      'calories': 300,
+      'proteinG': 30,
+      'carbsG': 20,
+      'fatG': f,
+      'source': 'search',
+      'createdAt': '2026-11-04T12:00:00.000Z',
+    };
+
+    // Saves trackedNutrients and answers with the user that has them.
+    void prefsRoute() => server.routes['PATCH /users/me/preferences'] = (r) {
+      final u = userJson();
+      (u['preferences'] as Map)['trackedNutrients'] = (jsonDecode(r.body) as Map)['trackedNutrients'];
+      return u;
+    };
+
+    // One day, or a week of days when the request asks for one; [days] fills them in order.
+    void logRoutes({
+      List<Map<String, Object?>> entries = const [],
+      List<(Map<String, Object>, Map<String, Object>)>? days,
+    }) {
+      server.routes['GET /meal-logs'] = (r) {
+        final from = DateTime.parse(r.url.queryParameters['from']!);
+        final to = DateTime.parse(r.url.queryParameters['to']!);
+        final n = to.difference(from).inDays + 1;
+        return {
+          'entries': entries,
+          'days': [
+            for (var i = 0; i < n; i++)
+              {
+                'date': ymd(addDays(from, i)),
+                'eaten': (days != null && i < days.length) ? days[i].$1 : zero,
+                'planned': (days != null && i < days.length) ? days[i].$2 : zero,
+              },
+          ],
+        };
+      };
+    }
+
+    testWidgets('bars only for the tracked nutrients, and a chip changes which', (tester) async {
+      await pumpHome(tester, userJson());
+      logRoutes(days: [(totals(600, 45, 50, 20), totals(400, 30, 30, 10))]);
+      prefsRoute();
+      await tapText(tester, 'Tracker');
+
+      expect(server.to('GET /meal-logs').single.url.queryParameters, {'from': ymd(today), 'to': ymd(today)});
+      expect(find.text('600 cal / 1,558 cal'), findsOneWidget);
+      expect(find.text('+400 cal planned'), findsOneWidget);
+      expect(find.text('45 g / 136 g'), findsOneWidget);
+      expect(find.text('50 g / 136 g'), findsNothing); // carbs aren't tracked
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Protein'));
+      await tester.pumpAndSettle();
+      expect(server.lastBody('PATCH /users/me/preferences'), {
+        'trackedNutrients': ['calories'],
+      });
+      expect(find.text('45 g / 136 g'), findsNothing);
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Carbs'));
+      await tester.pumpAndSettle();
+      expect(server.lastBody('PATCH /users/me/preferences'), {
+        'trackedNutrients': ['calories', 'carbs'],
+      });
+      expect(find.text('50 g / 136 g'), findsOneWidget);
+      expect(server.to('POST /restaurants/nearby'), isEmpty); // other tabs didn't reload for it
+    });
+
+    testWidgets('a week sums its days against the daily goal x 7', (tester) async {
+      await pumpHome(tester, userJson());
+      logRoutes(
+        entries: [log('l1', 'Side Salad', f: null)], // its fat is unknown, so only fat reads "at least"
+        days: [(totals(600, 45, 50, 20), zero), (totals(900, 45, 80, 30, incomplete: true), zero)],
+      );
+      prefsRoute();
+      await tapText(tester, 'Tracker');
+      await tapText(tester, 'Week');
+
+      expect(server.to('GET /meal-logs').last.url.queryParameters, {
+        'from': ymd(monday),
+        'to': ymd(addDays(monday, 6)),
+      });
+      expect(find.text('1,500 cal / 10,906 cal'), findsOneWidget);
+      expect(find.text('90 g / 952 g'), findsOneWidget); // protein is known in every entry: no "at least"
+
+      await tester.tap(find.widgetWithText(FilterChip, 'Fat'));
+      await tester.pumpAndSettle();
+      expect(find.text('at least 50 g / 364 g'), findsOneWidget);
+    });
+
+    testWidgets('Ate it marks a planned entry eaten; Remove deletes one', (tester) async {
+      await pumpHome(tester, userJson());
+      logRoutes(
+        entries: [
+          log('l1', 'Grilled Nuggets', status: 'planned'),
+          log('l2', 'Side Salad', servings: 1.5),
+        ],
+      );
+      server.routes['PATCH /meal-logs/l1'] = (_) => log('l1', 'Grilled Nuggets');
+      server.routes['DELETE /meal-logs/l2'] = (_) => http.Response('', 204);
+      await tapText(tester, 'Tracker');
+      expect(find.text('Chick-fil-A · 1 serving · planned'), findsOneWidget);
+      expect(find.text('450 cal'), findsOneWidget); // 300 x 1.5
+
+      await tapText(tester, 'Ate it');
+      expect(server.lastBody('PATCH /meal-logs/l1'), {'status': 'eaten'});
+
+      await tester.tap(find.byTooltip('Remove Side Salad'));
+      await tester.pumpAndSettle();
+      expect(server.to('DELETE /meal-logs/l2'), hasLength(1));
+      expect(server.to('GET /meal-logs'), hasLength(3)); // reloaded after each
+    });
+
+    testWidgets('Add food searches as you type and logs the item with its servings to the day shown', (tester) async {
+      await pumpHome(tester, userJson());
+      logRoutes();
+      server.routes['GET /menu-items/search'] = (_) => {
+        'items': [item('i1', 'c1', 'Grilled Nuggets')],
+        'total': 1,
+        'limit': 20,
+        'skip': 0,
+      };
+      server.routes['POST /meal-logs'] = (_) => json({
+        'entries': [log('l9', 'Grilled Nuggets', servings: 1.5)],
+      }, 201);
+      await tapText(tester, 'Tracker');
+      await tapText(tester, 'Add food');
+      await tester.enterText(find.byType(TextField), 'nuggets');
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.pumpAndSettle();
+      await tapText(tester, 'Grilled Nuggets');
+      await tester.tap(find.byTooltip('More servings'));
+      await tester.pumpAndSettle();
+      expect(find.text('1.5 servings'), findsOneWidget);
+      await tapText(tester, 'Add');
+
+      expect(server.lastBody('POST /meal-logs'), {
+        'entries': [
+          {'date': ymd(today), 'servings': 1.5, 'source': 'search', 'menuItemId': 'i1'},
+        ],
+      });
+      expect(find.text('Add food'), findsOneWidget); // the sheet closed: only the button is left
+      expect(server.to('GET /meal-logs'), hasLength(2));
     });
   });
 

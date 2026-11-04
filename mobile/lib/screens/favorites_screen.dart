@@ -3,17 +3,13 @@ import 'package:flutter/material.dart';
 import '../models/api_models.dart';
 import '../services/api.dart';
 import '../theme.dart';
+import '../units.dart';
 import '../widgets/api_scope.dart';
 import '../widgets/app_parts.dart';
 import '../widgets/error_banner.dart';
 
-const _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
 /// "Nov 3, 2026", in the phone's time zone.
-String _savedOn(String iso) {
-  final d = DateTime.parse(iso).toLocal();
-  return '${_months[d.month - 1]} ${d.day}, ${d.year}';
-}
+String _savedOn(String iso) => longDate(DateTime.parse(iso).toLocal());
 
 /// The Saved tab, same as web's FavoritesPage (#34): GET/DELETE /favorites. A favorite stores only the
 /// place ID and a label (spec N4: no address or location), so this lists labels; saving happens on Nearby.
