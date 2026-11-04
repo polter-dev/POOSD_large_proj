@@ -8,6 +8,7 @@ import LoginPage from './pages/LoginPage';
 import FavoritesPage from './pages/FavoritesPage';
 import NearbyPage from './pages/NearbyPage';
 import PicksPage from './pages/PicksPage';
+import PlanPage from './pages/PlanPage';
 import ProfilePage from './pages/ProfilePage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
 import SearchPage from './pages/SearchPage';
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/home" element={<WithProfile><NearbyPage /></WithProfile>} />
           <Route path="/picks" element={<WithProfile><PicksPage /></WithProfile>} />
           <Route path="/tracker" element={<WithProfile><TrackerPage /></WithProfile>} />
+          <Route path="/plan" element={<WithProfile><PlanPage /></WithProfile>} />
           <Route path="/search" element={<LoggedIn><SearchPage /></LoggedIn>} />
           <Route path="/favorites" element={<LoggedIn><FavoritesPage /></LoggedIn>} />
           <Route path="/submissions" element={<LoggedIn><SubmissionsPage /></LoggedIn>} />
