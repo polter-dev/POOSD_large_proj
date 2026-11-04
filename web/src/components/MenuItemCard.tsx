@@ -1,15 +1,19 @@
+import { useState } from 'react';
 import type { MenuItem, RecommendationMode } from '../types/api';
 import { formatCalories } from '../units';
 import MacroBar from './MacroBar';
 import { FitPill } from './Pill';
+import { ContributeButton, ItemDialog } from './SubmissionDialogs';
 
 // Spec section 4, Menu item card: name, restaurant, calories, macro bar. Recommendations add the score
-// (worded for the response's mode) and the fit pill; search results get neither.
+// (worded for the response's mode) and the fit pill; search results get neither. Every card can open
+// "Suggest a correction" (#117).
 export default function MenuItemCard({
   item, score, mode, great,
 }: { item: MenuItem; score?: number; mode?: RecommendationMode; great?: boolean }) {
+  const [suggesting, setSuggesting] = useState(false);
   return (
-    // h-full + mt-auto on the score row: cards in a grid row match heights when a name wraps.
+    // h-full + mt-auto on the bottom row: cards in a grid row match heights when a name wraps.
     <article className="flex h-full flex-col gap-3 rounded-(--radius-card) border border-border bg-bg p-5 shadow-[0_1px_2px_rgba(0,0,0,0.06)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex min-w-0 flex-col">
@@ -19,14 +23,22 @@ export default function MenuItemCard({
         <span className="text-base font-semibold whitespace-nowrap tabular-nums">{formatCalories(item.calories)} cal</span>
       </div>
       <MacroBar item={item} />
-      {score !== undefined && (
-        <div className="mt-auto flex items-center justify-between gap-3">
-          <span className="text-sm text-text-muted tabular-nums">
-            {score.toFixed(1)} g {mode === 'carb' ? 'carbs' : 'protein'} per 100 cal
-          </span>
-          {great !== undefined && <FitPill great={great} />}
+      <div className="mt-auto flex flex-col gap-2">
+        {score !== undefined && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-text-muted tabular-nums">
+              {score.toFixed(1)} g {mode === 'carb' ? 'carbs' : 'protein'} per 100 cal
+            </span>
+            {great !== undefined && <FitPill great={great} />}
+          </div>
+        )}
+        <div className="-mx-2 -mb-1.5">
+          <ContributeButton onClick={() => setSuggesting(true)}>
+            Suggest a correction<span className="sr-only"> to {item.name}</span>
+          </ContributeButton>
         </div>
-      )}
+      </div>
+      <ItemDialog target={{ kind: 'edit', item }} open={suggesting} onClose={() => setSuggesting(false)} />
     </article>
   );
 }

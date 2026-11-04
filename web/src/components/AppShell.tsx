@@ -9,8 +9,10 @@ const NAV = [
   { to: '/tracker', label: 'Tracker' },
   { to: '/search', label: 'Search' },
   { to: '/favorites', label: 'Saved' },
+  { to: '/submissions', label: 'Submissions' },
   { to: '/targets', label: 'Profile', also: ['/profile'] },
 ];
+const ADMIN_NAV = { to: '/admin', label: 'Admin' }; // only for user.role === 'admin' (#117)
 
 // The logged-in layout. `nav={false}` is for first-time setup, which comes before the app's sections.
 export default function AppShell({ children, nav = true }: { children: ReactNode; nav?: boolean }) {
@@ -26,9 +28,9 @@ export default function AppShell({ children, nav = true }: { children: ReactNode
         <div className="mx-auto flex max-w-[1040px] flex-wrap items-center gap-x-8 px-4 sm:h-16 sm:flex-nowrap sm:px-6">
           <p className="py-4 text-lg font-bold whitespace-nowrap sm:py-0">Menu Macro Fitter</p>
           {nav && (
-            // Six sections: a narrow phone scrolls the row sideways rather than squeezing the labels.
+            // Seven or eight sections: a narrow phone scrolls the row sideways rather than squeezing the labels.
             <nav aria-label="Main" className="order-last -mx-4 flex h-12 w-[calc(100%+2rem)] gap-5 overflow-x-auto px-4 whitespace-nowrap sm:order-none sm:mx-0 sm:h-full sm:w-auto sm:gap-6 sm:overflow-visible sm:px-0">
-              {NAV.map((item) => (
+              {(user?.role === 'admin' ? [...NAV, ADMIN_NAV] : NAV).map((item: { to: string; label: string; also?: string[] }) => (
                 <NavLink
                   key={item.to}
                   to={item.to}

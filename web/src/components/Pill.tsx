@@ -4,6 +4,7 @@ const LOOKS = {
   great: 'bg-fit-great-bg text-fit-great-text',
   ok: 'bg-fit-ok-bg text-fit-ok-text',
   neutral: 'bg-surface text-text-muted',
+  over: 'bg-fit-over-bg text-fit-over-text',
 };
 
 // Spec section 4, Fit pill: caption text in a round pill. Fit colors are never the only signal, so the
