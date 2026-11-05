@@ -79,9 +79,12 @@ class _PlanScreenState extends State<PlanScreen> {
     try {
       final (chains, note) = _nearbyOnly ? await _chainsNearby() : (null, null);
       if (!mounted || request != _request) return;
-      _note = note;
-      // Same as web: when the nearby lookup fails the plan uses every restaurant, so the switch says so too.
-      if (note != null) _nearbyOnly = false;
+      // Shown now, while the plan loads. Same as web: when the nearby lookup fails the plan uses every restaurant,
+      // so the switch says so too.
+      setState(() {
+        _note = note;
+        if (note != null) _nearbyOnly = false;
+      });
       if (chains != null && chains.isEmpty) {
         // Empty chainIds would mean every chain, so say so instead of asking.
         setState(

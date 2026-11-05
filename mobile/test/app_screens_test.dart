@@ -820,7 +820,7 @@ void main() {
         expect(sent, [0.5, 10]);
       });
 
-      testWidgets('editing a matched item sends it as a custom entry; saving it unchanged keeps the match', (
+      testWidgets('an edited match goes as a custom entry; unchanged or changed back, it stays a match', (
         tester,
       ) async {
         await pumpHome(tester, userJson());
@@ -836,13 +836,21 @@ void main() {
         await tapText(tester, 'Log a photo');
         await tapText(tester, 'Take a photo');
 
-        await tester.tap(find.text('Edit').first); // Nuggets: open and save as it was
+        // Nuggets: change the calories, then change them back (review on #156): a match again, like web.
+        await tester.tap(find.text('Edit').first);
         await tester.pumpAndSettle();
+        await tester.enterText(find.widgetWithText(TextField, 'Calories a serving'), '450');
         await tapText(tester, 'Save');
+        expect(find.text('Chain c1 · edited, logged as custom'), findsOneWidget);
+        await tester.tap(find.text('Edit').first);
+        await tester.pumpAndSettle();
+        await tester.enterText(find.widgetWithText(TextField, 'Calories a serving'), '400');
+        await tapText(tester, 'Save');
+        expect(find.text('Chain c1 · edited, logged as custom'), findsNothing);
         await tapText(tester, 'Edit'); // Waffle Fries: the photo showed a bigger portion
         await tester.enterText(find.widgetWithText(TextField, 'Calories a serving'), '520');
         await tapText(tester, 'Save');
-        expect(find.text('Chain c1 · your numbers'), findsOneWidget);
+        expect(find.text('Chain c1 · edited, logged as custom'), findsOneWidget); // web's wording
         await tapText(tester, 'Log 2 items');
 
         expect(server.lastBody('POST /meal-logs'), {
