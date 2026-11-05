@@ -393,7 +393,7 @@ class _TrackerScreenState extends State<TrackerScreen> {
 
 /// One tracked nutrient against its goal: "710 / 1,558 cal", a bar, then what's left and what's planned
 /// ("848 cal left · 410 cal planned", as in prototype frames 09-10, #155). A macro an eaten entry leaves unknown
-/// reads "at least" eaten, so only "at most" is left. Over the goal says "N over": red for calories only.
+/// reads "at least" eaten, so "at most" left or "at least" over. Over the goal says "N over": red for calories only.
 class _GoalBar extends StatelessWidget {
   const _GoalBar({
     required this.nutrient,
@@ -415,7 +415,7 @@ class _GoalBar extends StatelessWidget {
     final amount = '${atLeast ? 'at least ' : ''}${_format(nutrient, eaten)}';
     final notes = [
       if (eaten > goal)
-        '${_format(nutrient, eaten - goal)} over'
+        '${atLeast ? 'at least ' : ''}${_format(nutrient, eaten - goal)} over'
       else
         '${atLeast ? 'at most ' : ''}${_format(nutrient, goal - eaten)} left',
       if (planned > 0) '${_format(nutrient, planned)} planned',
