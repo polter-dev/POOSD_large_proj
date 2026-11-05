@@ -13,34 +13,41 @@ import '../widgets/error_banner.dart';
 
 /// One row of the confirm list: a PhotoItem the user can change before anything is logged.
 class _Draft {
-  _Draft(PhotoItem i)
-    : menuItemId = i.menuItemId,
-      name = i.name,
-      chainName = i.chainName,
-      servings = i.servings,
-      calories = i.calories,
-      proteinG = i.proteinG,
-      carbsG = i.carbsG,
-      fatG = i.fatG,
-      confidence = i.confidence;
+  _Draft(this.base)
+    : name = base.name,
+      servings = base.servings,
+      calories = base.calories,
+      proteinG = base.proteinG,
+      carbsG = base.carbsG,
+      fatG = base.fatG;
 
-  final String? menuItemId; // matched: the server copies name, chain and macros from the menu item
+  final PhotoItem base; // what the analysis returned; the fields below are what the user has now
   String name;
-  final String? chainName;
   double servings;
   double calories;
   double? proteinG;
   double? carbsG;
   double? fatG;
-  final PhotoConfidence confidence;
 
-  MealLogEntry entry(String date) => menuItemId != null
-      ? MealLogEntry.menuItem(date: date, menuItemId: menuItemId!, source: MealLogSource.photo, servings: servings)
+  bool get changed =>
+      name != base.name ||
+      calories != base.calories ||
+      proteinG != base.proteinG ||
+      carbsG != base.carbsG ||
+      fatG != base.fatG;
+
+  /// Decided when logging, like web's toEntry (#152): a matched item the user hasn't changed (or changed back) goes
+  /// as its menuItemId, so the server copies the menu's values. Anything else is a custom entry with these
+  /// numbers, since a menuItemId entry may only change servings.
+  bool get matched => base.menuItemId != null && !changed;
+
+  MealLogEntry entry(String date) => matched
+      ? MealLogEntry.menuItem(date: date, menuItemId: base.menuItemId!, source: MealLogSource.photo, servings: servings)
       : MealLogEntry.custom(
           date: date,
           source: MealLogSource.photo,
           name: name,
-          chainName: chainName,
+          chainName: base.chainName,
           calories: calories,
           proteinG: proteinG,
           carbsG: carbsG,
@@ -248,11 +255,14 @@ class _DraftCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final d = draft;
-    final custom = d.menuItemId == null;
+    final chain = d.base.chainName;
     String g(String letter, double? v) => '$letter ${v == null ? '?' : '${formatGrams(v)} g'}';
-    final where = custom
-        ? (d.chainName == null ? 'Not on our menus' : '${d.chainName} · not on our menus')
-        : d.chainName!;
+    // Same wording as web (#152).
+    final where = d.base.menuItemId == null
+        ? (chain == null ? 'Not on our menus' : '$chain · not on our menus')
+        : d.matched
+        ? chain!
+        : '$chain · edited, logged as custom';
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,10 +286,10 @@ class _DraftCard extends StatelessWidget {
               ),
             ],
           ),
-          if (d.confidence != PhotoConfidence.high) ...[
+          if (d.base.confidence != PhotoConfidence.high) ...[
             const SizedBox(height: AppSpace.s1),
             Pill(
-              text: d.confidence == PhotoConfidence.low ? 'Not sure: check this one' : 'Fairly sure',
+              text: d.base.confidence == PhotoConfidence.low ? 'Not sure: check this one' : 'Fairly sure',
               icon: Icons.help_outline,
               bg: AppColors.fitOkBg,
               fg: AppColors.fitOkText,
@@ -312,8 +322,7 @@ class _DraftCard extends StatelessWidget {
                 icon: const Icon(Icons.add),
               ),
               const Spacer(),
-              // Matched items take the menu's own numbers; only food that isn't on a menu can be edited.
-              if (custom) TextButton(onPressed: onEdit, child: const Text('Edit')),
+              TextButton(onPressed: onEdit, child: const Text('Edit')),
             ],
           ),
         ],
@@ -322,8 +331,8 @@ class _DraftCard extends StatelessWidget {
   }
 }
 
-/// Name, calories and macros of a food that isn't on our menus. A blank macro means unknown (sent as null,
-/// never 0).
+/// Name, calories and macros of any item on the list. Changing a matched item's numbers logs it as a custom
+/// entry (see _Draft.matched). A blank macro means unknown (sent as null, never 0).
 class _EditDialog extends StatefulWidget {
   const _EditDialog({required this.draft});
 
@@ -364,11 +373,12 @@ class _EditDialogState extends State<_EditDialog> {
       }
     });
     if (_errors.isNotEmpty) return;
-    final d = widget.draft
-      ..name = name
-      ..calories = cal!;
+    // Whether this is still a menu match is worked out at log time (_Draft.matched), so changing the numbers
+    // back to the menu's makes it a match again.
     final parsed = [for (final m in macros) m.isEmpty ? null : double.parse(m)];
-    d
+    widget.draft
+      ..name = name
+      ..calories = cal!
       ..proteinG = parsed[0]
       ..carbsG = parsed[1]
       ..fatG = parsed[2];
