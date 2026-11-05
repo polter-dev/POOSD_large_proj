@@ -85,3 +85,11 @@ Format: see `AI Disclosure Template.md`. Add an entry for each use.
 - **Use**: Code and test generation from `docs/api-contract.md` and issues #12, #13, #21, #30 and #65; code review;
   end-to-end checks against a local MongoDB loaded with `db/schema.js` and `db/seed.js`. Those commits are marked
   `Co-Authored-By: Claude`.
+
+- **Tool**: Claude Opus 5.5 (Anthropic), via Claude Code in VS Code
+- **Dates**: November 5, 2026
+- **Scope**: M6 prototype frames 09-20 in `docs/wireframes/prototype.html`, their PNG exports in
+  `docs/wireframes/web/` and `docs/wireframes/mobile/`, and the `docs/wireframes/README.md` update (#114)
+- **Use**: Generated the frames from the built web and mobile screens, `docs/design-spec.md` and
+  `docs/api-contract.md`; exported the PNGs with headless Chrome and reviewed each one. Frames 01-08 render
+  pixel-identical to before. The commit is marked `Co-Authored-By: Claude`.

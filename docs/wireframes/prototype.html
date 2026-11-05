@@ -14,6 +14,9 @@
     prototype.html?frame=web-login     one frame at its exact size; buttons click through to the next frame
   Data is real: menu items from backend/db/menu-data/chains.js, calories for seed user janedoe
   (docs/api-contract.md: maintenance 2058, target 1558, perMeal 519).
+  Frames 09-20 (#114) are the M6 screens: tracker, add to tracker, plan, photo log, the community forms,
+  My submissions and the admin review queue (web only). They use the M6 navigation (seven sections on web,
+  six tabs on mobile); frames 01-08 keep the navigation they were exported with.
 -->
 <style>
 /* docs/design-spec.md section 6 (same as web/src/styles/tokens.css) */
@@ -129,6 +132,53 @@ button, input, select { font: inherit; color: inherit; }
 .auth .h1 { margin-bottom: 8px; }
 .center { text-align: center; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+/* M6 screens (#114) */
+.nav.m6 { gap: 20px; }
+.nav.m6 a { font-size: 15px; white-space: nowrap; }
+.tabs.m6 a { font-size: 11px; }
+.mpage > * { flex-shrink: 0; }
+.pill.over { background: var(--fit-over-bg); color: var(--fit-over-text); }
+.btn.sm { height: 40px; width: auto; padding: 0 16px; font-size: 14px; white-space: nowrap; }
+.btn.auto { width: auto; padding: 0 20px; white-space: nowrap; gap: 8px; }
+.btn.text { background: none; color: var(--primary); width: auto; padding: 0 8px; height: 40px; font-size: 14px; gap: 6px; }
+.btn svg { flex-shrink: 0; }
+.iconbtn { width: 48px; height: 48px; border: 1px solid var(--border-input); border-radius: var(--radius-input); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0; background: var(--bg); }
+.iconbtn.round { width: 40px; height: 40px; border-radius: 999px; }
+.iconbtn.bare { border: 0; width: 40px; height: 40px; color: var(--text-muted); }
+.chip.track { color: var(--text-muted); gap: 6px; }
+.chip.track.on { background: var(--fit-great-bg); border-color: var(--primary); color: var(--fit-great-text); }
+.progress { display: flex; height: 8px; border-radius: 4px; overflow: hidden; background: var(--surface); }
+.progress i { display: block; height: 100%; }
+.progress .eaten { background: var(--primary); }
+.progress .overgoal { background: var(--fit-ok-text); }
+.progress .planned { background: repeating-linear-gradient(135deg, var(--primary) 0 1.5px, var(--surface) 1.5px 5px); }
+.lrow { display: flex; align-items: center; gap: 16px; padding: 12px 0; border-bottom: 1px solid var(--border); }
+.lrow:last-child { border-bottom: 0; }
+.lrow.sel { background: var(--fit-great-bg); border-radius: var(--radius-input); padding: 12px; border-bottom-color: transparent; }
+.switch { width: 48px; height: 28px; border-radius: 999px; background: var(--primary); position: relative; flex-shrink: 0; }
+.switch::after { content: ''; position: absolute; top: 4px; left: 24px; width: 20px; height: 20px; border-radius: 999px; background: var(--bg); }
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 5; }
+.dialog { width: 560px; max-height: 784px; flex-shrink: 0; overflow: hidden; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-card);
+  padding: 24px; display: flex; flex-direction: column; gap: 16px; box-shadow: 0 10px 30px rgba(0,0,0,.2); }
+.sheet { width: 100%; align-self: flex-end; background: var(--bg); border-radius: 16px 16px 0 0; padding: 12px 16px 24px;
+  display: flex; flex-direction: column; gap: 12px; }
+.sheet .grab { width: 32px; height: 4px; border-radius: 2px; background: var(--border-input); margin: 0 auto 4px; }
+.fab { position: absolute; right: 16px; bottom: 88px; height: 56px; padding: 0 20px; border-radius: 16px; z-index: 2;
+  background: var(--fit-great-bg); color: var(--fit-great-text); display: flex; align-items: center; gap: 8px; font-size: 15px;
+  font-weight: 600; box-shadow: 0 3px 8px rgba(0,0,0,.18); cursor: pointer; }
+table.change { width: 100%; border-collapse: collapse; font-size: 14px; text-align: left; }
+table.change th, table.change td { padding: 5px 12px 5px 0; vertical-align: top; }
+table.change thead th { color: var(--text-muted); font-weight: 500; }
+table.change tbody tr { border-top: 1px solid var(--border); }
+table.change tbody th { color: var(--text-muted); font-weight: 500; width: 130px; }
+table.change td.before { text-decoration: line-through; text-decoration-color: rgba(91,100,112,.6); }
+table.change td.prop { font-weight: 600; word-break: break-all; }
+.note { background: var(--surface); border-radius: var(--radius-input); padding: 12px; font-size: 14px; }
+.subcard { background: var(--surface); border-radius: var(--radius-input); padding: 12px; }
+.empty-icon { width: 64px; height: 64px; border-radius: 999px; background: var(--fit-great-bg); color: var(--fit-great-text);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto; }
 </style>
 </head>
 <body>
@@ -157,6 +207,74 @@ const PICKS = [
 ];
 const GREAT = Math.ceil(PICKS.length / 3); // spec section 4, Fit pill: first ceil(n/3) by score
 
+// ---------- M6 data (#114) ----------
+// Daily macro goals: lose = 35/35/30 of the 1558 target (contract, Calories): P round(1558*35/400), F round(1558*30/900).
+const GOAL = { cal: CAL.target, p: 136, c: 136, f: 52 };
+const NUTRIENTS = [['cal', 'Calories'], ['p', 'Protein'], ['c', 'Carbs'], ['f', 'Fat']];
+const TRACKED = ['cal', 'p', 'f']; // Carbs switched off, to show the chips
+// "Today" is Thu, Nov 5. Items and numbers from chains.js.
+const DAY_LOG = [
+  { name: 'Cobb Salad (no dressing)', chain: "Wendy's", s: 1, cal: 410, p: 37, c: 16, f: 23, planned: true }, // added from the Plan page (frame 12)
+  { name: 'Caffè Latte (Grande, 2% Milk)', chain: 'Starbucks', s: 1, cal: 190, p: 13, c: 19, f: 7 },
+  { name: 'Grilled Chicken Sandwich', chain: 'Chick-fil-A', s: 1, cal: 390, p: 28, c: 45, f: 11 },
+  { name: 'Grilled Nuggets (8 ct)', chain: 'Chick-fil-A', s: 1, cal: 130, p: 25, c: 1, f: 3 },
+];
+const WEEK_DAYS = [
+  { day: 'Mon, Nov 2', eaten: 1540, log: [
+    { name: 'Vanilla Protein Latte (Grande)', chain: 'Starbucks', s: 1, cal: 310 },
+    { name: 'Chicken Burrito Bowl (white rice, black beans, chicken)', chain: 'Chipotle', s: 1, cal: 520 },
+    { name: 'Spicy Chicken Sandwich', chain: 'Chick-fil-A', s: 1, cal: 450 },
+    { name: 'Jr. Natural-Cut Fries', chain: "Wendy's", s: 1, cal: 260 }] },
+  { day: 'Tue, Nov 3', eaten: 1580, log: [
+    { name: 'Caffè Latte (Grande, 2% Milk)', chain: 'Starbucks', s: 1, cal: 190 },
+    { name: 'Spicy Chicken Sandwich', chain: 'Chick-fil-A', s: 1, cal: 450 },
+    { name: 'Waffle Potato Fries (Medium)', chain: 'Chick-fil-A', s: 1, cal: 420 },
+    { name: 'Chicken Burrito Bowl (white rice, black beans, chicken)', chain: 'Chipotle', s: 1, cal: 520 }] },
+];
+const sum = (rows, k, planned) => rows.filter((r) => !!r.planned === planned).reduce((a, r) => a + r[k] * r.s, 0);
+const DAY_TOTALS = Object.fromEntries(['cal', 'p', 'c', 'f'].map((k) => [k, { eaten: sum(DAY_LOG, k, false), planned: sum(DAY_LOG, k, true) }]));
+// Week of Nov 2-8: Mon 1540 + Tue 1580 + Wed 1401 + Thu 710 eaten.
+const WEEK_TOTALS = { cal: { eaten: 5231, planned: 410 }, p: { eaten: 360, planned: 37 }, c: { eaten: 541, planned: 16 }, f: { eaten: 180, planned: 23 } };
+const SEARCH = [
+  { name: 'Grilled Chicken Sandwich', chain: 'Chick-fil-A', cal: 390 },
+  { name: 'Spicy Chicken Sandwich', chain: 'Chick-fil-A', cal: 450 },
+  { name: 'Chicken (4 oz)', chain: 'Chipotle', cal: 180 },
+];
+// GET /meal-plans as fetched before Cobb was added (the page doesn't refetch after "Add to plan"): today had
+// 3 eaten entries, 710 cal, so 1558 - 710 = 848 left, max(1, 3 - 3) = 1 slot, min(519, 848) = 519 a meal.
+const PLAN = [
+  { day: 'Today, Nov 5', left: 848, items: [
+    { name: 'Cobb Salad (no dressing)', chain: "Wendy's", cal: 410, p: 37, c: 16, f: 23, added: true }] },
+  { day: 'Fri, Nov 6', left: 1558, items: [
+    { name: 'Vanilla Protein Latte (Grande)', chain: 'Starbucks', cal: 310, p: 27, c: 36, f: 6 },
+    { name: 'Grilled Chicken Sandwich', chain: 'Chick-fil-A', cal: 390, p: 28, c: 45, f: 11 },
+    { name: 'Chicken Tenders (3 pc)', chain: 'Popeyes', cal: 390, p: 35, c: 25, f: 19 }] },
+];
+// What the photo model "found" in a Chipotle lunch: one matched item, two that aren't on our menus.
+const PHOTO = [
+  { name: 'Chicken Burrito Bowl (white rice, black beans, chicken)', chain: 'Chipotle', matched: true, conf: 'high', s: 1, cal: 520, p: 44, c: 62, f: 12.5 },
+  { name: 'Tortilla chips', chain: null, conf: 'medium', s: 1, cal: 540, p: 7, c: 66, f: 27, editing: true },
+  { name: 'Lemonade', chain: null, conf: 'low', s: 1, cal: 230, p: 0, c: 58, f: 0 },
+];
+// Submissions (contract, Community). User-facing lists never show flags; the admin queue does.
+const SUBS = {
+  correction: { kind: 'Correction', when: 'Nov 5, 9:12 AM', title: 'Grilled Chicken Sandwich', status: 'auto_applied', user: 'janedoe',
+    head: ['Field', 'Before', 'Proposed'], rows: [['Calories', '390 cal', '380 cal']] },
+  chain: { kind: 'New restaurant', when: 'Nov 4, 6:40 PM', title: 'Pollo Tropical', status: 'pending', user: 'janedoe', flags: ['New restaurant'],
+    head: ['Field', 'Value'], rows: [['Name', 'Pollo Tropical'], ['Nutrition page', 'https://www.pollotropical.com/nutrition'], ['Other names', 'Pollo']] },
+  rename: { kind: 'Correction', when: 'Nov 3, 1:25 PM', title: 'Rename to Spicy Deluxe Sandwich', status: 'rejected', user: 'janedoe',
+    head: ['Field', 'Proposed'], rows: [['Name', 'Spicy Deluxe Sandwich']],
+    note: "The Spicy Deluxe is a different sandwich (it adds cheese, lettuce and tomato). Add it as a new item instead." },
+  item: { kind: 'New item', when: 'Nov 2, 4:18 PM', title: 'Grilled Nuggets (5 ct)', status: 'pending', user: 'janedoe', flags: ['New account'],
+    head: ['Field', 'Value'], rows: [['Name', 'Grilled Nuggets (5 ct)'], ['Category', 'Entree'], ['Calories', '80 cal'], ['Protein', '16 g'], ['Carbs', '1 g'], ['Fat', 'unknown']] },
+  cobb: { kind: 'Correction', when: 'Nov 4, 11:02 AM', title: 'Cobb Salad (no dressing)', status: 'auto_applied', user: 'alexkim',
+    head: ['Field', 'Before', 'Proposed'], rows: [['Protein', '37 g', '38 g'], ['Fat', '23 g', '24 g']] },
+  tenders: { kind: 'New item', when: 'Nov 3, 8:47 PM', title: 'Blackened Chicken Tenders (8 pc)', status: 'approved', user: 'mkhan',
+    head: ['Field', 'Value'], rows: [['Name', 'Blackened Chicken Tenders (8 pc)'], ['Category', 'Entree'], ['Calories', '450 cal'], ['Protein', '75 g'], ['Carbs', '6 g'], ['Fat', '14 g']],
+    note: 'Matches the Popeyes nutrition PDF.', reviewer: 'polter' },
+};
+const STATUS = { auto_applied: ['Applied', 'great'], pending: ['In review', 'ok'], approved: ['Approved', 'great'], rejected: ['Rejected', 'over'], reverted: ['Reverted', 'none'] };
+
 // ---------- icons ----------
 const I = {
   alert: '<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0;margin-top:2px"><path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0Zm0 3.5a.9.9 0 0 0-.9.95l.2 4.3a.7.7 0 0 0 1.4 0l.2-4.3A.9.9 0 0 0 8 3.5Zm0 7.25a1 1 0 1 0 0 2 1 1 0 0 0 0-2Z"/></svg>',
@@ -168,7 +286,21 @@ const I = {
   picks: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.6 5.6 6 .6-4.5 4 1.3 6-5.4-3.2-5.4 3.2 1.3-6-4.5-4 6-.6Z"/></svg>',
   search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   profile: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>',
+  saved: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-6-4-6 4Z"/></svg>',
+  tracker: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>',
+  camera: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>',
+  gallery: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="m21 16-5-5-9 9"/></svg>',
+  menu: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v8M4 3v5a3 3 0 0 0 6 0V3M7 11v10M17 3c-2 2-3 4-3 7h3v11"/></svg>',
+  left: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>',
+  right: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>',
+  close: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
+  plus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  minus: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg>',
+  help: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>',
+  spinner: '<svg width="32" height="32" viewBox="0 0 24 24" fill="none" style="color:var(--primary)"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".25" stroke-width="3"/><path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round"/></svg>',
 };
+// Set while a frame renders: true for the M6 frames, which use the M6 navigation.
+let M6 = false;
 
 // ---------- building blocks ----------
 const go = (target) => `data-go="${target}"`;
@@ -189,26 +321,103 @@ const itemCard = (it, i) => `
       <span class="body num" style="font-weight:600;white-space:nowrap">${it.cal} cal</span></div>
     ${macroBar(it)}
     <div class="between" style="align-items:center"><span class="small muted num">${it.score.toFixed(1)} g protein per 100 cal</span>${fit(i)}</div>
+    ${M6 ? `<div style="display:flex;justify-content:flex-end;margin-top:-4px"><a class="link" ${go('suggest')}>Suggest a correction</a></div>` : ''}
   </div>`;
 const restaurantCard = (r) => `
   <div class="card ${r.fits != null ? 'tap' : ''}" ${r.fits != null ? go('picks') : ''}>
     <div class="between"><span class="h2">${r.name}</span><span class="small muted num" style="white-space:nowrap">${r.dist}</span></div>
     ${r.addr ? `<span class="small muted" style="display:flex;gap:6px;align-items:center">${I.pin}${r.addr}</span>` : ''}
     <div>${r.fits != null ? `<span class="pill great">${I.check} ${r.fits} option${r.fits === 1 ? '' : 's'} fit your goal</span>` : '<span class="pill none">No nutrition data</span>'}</div>
+    ${M6 && r.fits != null ? `<div style="display:flex;justify-content:flex-end;margin-top:-4px"><a class="link" ${go('addItem')}>Add an item</a></div>` : ''}
   </div>`;
 
-function webShell(active, content) {
-  const nav = [['nearby', 'Nearby'], ['picks', 'Best picks'], ['search', 'Search'], ['targets', 'Profile']];
-  return `<div class="topbar"><div class="inner"><span class="brand">Menu Macro Fitter</span>
-    <nav class="nav">${nav.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${l}</a>`).join('')}</nav>
-    <span class="avatar">JD</span></div></div>
+// Frames 01-08 keep the four sections they were drawn with; the M6 frames get the app's current ones
+// (web/src/components/AppShell.tsx, mobile/lib/screens/app_shell.dart). Admin shows only for admins.
+function webShell(active, content, admin) {
+  const nav = M6
+    ? [['nearby', 'Nearby'], ['picks', 'Best picks'], ['tracker', 'Tracker'], ['search', 'Search'], ['saved', 'Saved'], ['submissions', 'Submissions'], ['targets', 'Profile'], ...(admin ? [['admin', 'Admin']] : [])]
+    : [['nearby', 'Nearby'], ['picks', 'Best picks'], ['search', 'Search'], ['targets', 'Profile']];
+  return `<div class="topbar"><div class="inner"><span class="brand" style="white-space:nowrap">Menu Macro Fitter</span>
+    <nav class="nav ${M6 ? 'm6' : ''}">${nav.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${l}</a>`).join('')}</nav>
+    <span class="avatar">${admin ? 'RP' : 'JD'}</span></div></div>
     <div class="page"><div class="inner">${content}</div></div>`;
 }
 function mobileShell(title, active, content, back) {
-  const tabs = [['nearby', 'Nearby'], ['picks', 'Picks'], ['search', 'Search'], ['targets', 'Profile']];
+  const tabs = M6
+    ? [['nearby', 'Nearby'], ['picks', 'Picks'], ['search', 'Search'], ['saved', 'Saved'], ['tracker', 'Tracker'], ['targets', 'Profile']]
+    : [['nearby', 'Nearby'], ['picks', 'Picks'], ['search', 'Search'], ['targets', 'Profile']];
   return `<div class="mtop">${back ? `<span ${go(back)} style="cursor:pointer;display:flex">${I.back}</span>` : '<span style="width:24px"></span>'}<span class="brand">${title}</span><span style="width:24px"></span></div>
     <div class="mpage">${content}</div>
-    ${active ? `<div class="tabs">${tabs.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${I[k === 'targets' ? 'profile' : k]}${l}</a>`).join('')}</div>` : ''}`;
+    ${active ? `<div class="tabs ${M6 ? 'm6' : ''}">${tabs.map(([k, l]) => `<a class="${k === active ? 'on' : ''}" ${SCREENS[k] ? go(k) : ''}>${I[k === 'targets' ? 'profile' : k]}${l}</a>`).join('')}</div>` : ''}`;
+}
+
+// ---------- M6 building blocks (#114) ----------
+const n0 = (n) => n.toLocaleString('en-US');
+const unit = (k) => (k === 'cal' ? ' cal' : ' g');
+const servingsText = (s) => `${s} ${s === 1 ? 'serving' : 'servings'}`;
+// Segmented control whose segments open other frames.
+const segGo = (opts) => `<div class="seg">${opts.map(([l, on, target]) => `<span class="${on ? 'on' : ''}" ${target ? go(target) : ''} style="cursor:pointer">${l}</span>`).join('')}</div>`;
+// Tracker goal bar (TrackerPage ProgressBar): eaten fills primary, planned is hatched after it.
+function goalBar(k, label, t, goal) {
+  const es = Math.min(t.eaten / goal, 1), ps = Math.min(t.planned / goal, 1 - es), over = t.eaten > goal, u = unit(k);
+  return `<div class="stack" style="gap:8px">
+    <div class="between" style="align-items:baseline"><span class="body" style="font-weight:600">${label}</span>
+      <span class="small muted num"><b style="font-weight:600;color:${over ? 'var(--fit-ok-text)' : 'var(--text)'}">${n0(t.eaten)}${u}</b> of ${n0(goal)}${u}</span></div>
+    <div class="progress"><i class="${over ? 'overgoal' : 'eaten'}" style="width:${es * 100}%"></i>${ps > 0 ? `<i class="planned" style="width:${ps * 100}%"></i>` : ''}</div>
+    <span class="small muted num">${over ? `<b style="color:var(--fit-ok-text);font-weight:600">${n0(t.eaten - goal)}${u} over</b>` : `${n0(goal - t.eaten)}${u} left`}${t.planned ? ` · ${n0(t.planned)}${u} planned` : ''}</span></div>`;
+}
+const trackChips = () => `<div class="chips" style="flex-wrap:wrap">${NUTRIENTS.map(([k, l]) => `<span class="chip track ${TRACKED.includes(k) ? 'on' : ''}">${TRACKED.includes(k) ? I.check : ''}${l}</span>`).join('')}</div>`;
+function entryRow(e, p) {
+  const dim = e.planned ? 'opacity:.6;' : '';
+  const actions = p === 'web'
+    ? `<div style="display:flex;gap:8px">${e.planned ? '<button class="btn primary sm">Ate it</button>' : ''}<button class="btn secondary sm">Delete</button></div>`
+    : `<div style="display:flex;align-items:center">${e.planned ? '<button class="btn text">Ate it</button>' : ''}<span class="iconbtn bare">${I.close}</span></div>`;
+  return `<div class="lrow" style="${p === 'mobile' ? 'gap:8px' : ''}">
+    <div class="stack" style="flex:1;min-width:0;${dim}"><span class="body" style="font-weight:600">${e.name}${e.planned ? ' <span class="small muted" style="font-weight:400">(planned)</span>' : ''}</span>
+      <span class="small muted">${e.chain} · ${servingsText(e.s)}</span></div>
+    <span class="body num" style="font-weight:600;white-space:nowrap;${dim}">${n0(Math.round(e.cal * e.s))} cal</span>${actions}</div>`;
+}
+const dateNav = (label, p) => p === 'web'
+  ? `<div style="display:flex;align-items:center;gap:8px"><span class="iconbtn">${I.left}</span><span class="body center" style="min-width:150px;font-weight:600">${label}</span><span class="iconbtn">${I.right}</span></div>`
+  : `<div class="between" style="align-items:center"><span class="iconbtn bare">${I.left}</span><span class="h2">${label}</span><span class="iconbtn bare">${I.right}</span></div>`;
+const cardBox = (inner, gap = 20) => `<div class="card" style="padding:20px;gap:${gap}px">${inner}</div>`;
+// Web dialogs sit on a dimmed page, like the native <dialog> in web/src/components/Dialog.tsx.
+const dialog = (page, title, body) => `${page}<div class="scrim"><div class="dialog">
+  <div class="between"><span class="h2">${title}</span><span class="muted" style="display:flex">${I.close}</span></div>${body}</div></div>`;
+const select = (label, value) => `<div class="field"><label>${label}</label><div class="input"><span>${value}</span><span class="muted">▾</span></div></div>`;
+const pill = (status) => `<span class="pill ${STATUS[status][1]}">${STATUS[status][1] === 'great' ? I.check : STATUS[status][1] === 'ok' ? I.dash : ''} ${STATUS[status][0]}</span>`;
+function changeTable(s) {
+  return `<table class="change"><thead><tr>${s.head.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>
+    ${s.rows.map((r) => `<tr><th>${r[0]}</th>${r.length === 3 ? `<td class="before num">${r[1]}</td>` : ''}<td class="prop num">${r[r.length - 1]}</td></tr>`).join('')}</tbody></table>`;
+}
+// One submission. admin = the review queue's version: who sent it, flags, note and the allowed actions.
+function subCard(s, admin, p) {
+  const actions = { pending: ['Approve', 'Reject'], auto_applied: ['Revert'], approved: ['Revert'] }[s.status] || [];
+  const noteBox = s.note ? `<p class="note"><b style="font-weight:600">${admin ? `Note${s.reviewer ? ` from ${s.reviewer}` : ''}` : 'Reviewer note'}: </b>${s.note}</p>` : '';
+  return `<div class="card" style="padding:${p === 'web' ? 20 : 16}px;gap:12px">
+    <div class="between"><div class="stack"><span class="small muted">${s.kind}${admin ? ` · ${s.user}` : ''} · ${s.when}</span><span class="h2" style="font-size:18px">${s.title}</span></div>${pill(s.status)}</div>
+    ${admin && s.flags ? `<div class="chips">${s.flags.map((f) => `<span class="pill ok">${I.dash} ${f}</span>`).join('')}</div>` : ''}
+    ${changeTable(s)}${noteBox}
+    ${admin && actions.length ? `<div style="display:flex;gap:12px;align-items:flex-end">
+      <div style="flex:1">${field('Note (optional)', '', { ph: 'Shown to the user' })}</div>
+      ${actions.map((a) => `<button class="btn ${a === 'Approve' ? 'primary' : 'secondary'}" style="width:120px">${a}</button>`).join('')}</div>` : ''}
+  </div>`;
+}
+function planItem(it, p) {
+  return `<div class="stack" style="gap:8px;padding:12px 0;border-bottom:1px solid var(--border)">
+    <div class="between"><div class="stack"><span class="body" style="font-weight:600">${it.name}</span><span class="small muted">${it.chain}</span></div>
+      <span class="body num" style="font-weight:600;white-space:nowrap">${it.cal} cal</span></div>
+    ${macroBar(it)}
+    <div style="display:flex;justify-content:flex-end">${it.added
+      ? `<span class="small" style="display:inline-flex;gap:4px;align-items:center;font-weight:600;color:var(--fit-great-text)">${I.check} ${p === 'web' ? 'In your plan' : 'Added'}</span>`
+      : p === 'web' ? '<button class="btn secondary sm">Add to plan</button>' : `<button class="btn text">${I.plus} Add to plan</button>`}</div></div>`;
+}
+function itemForm(p, v) {
+  const nums = [['Calories', v.cal, 'cal'], ['Protein', v.p, 'g'], ['Carbs', v.c, 'g'], ['Fat', v.f, 'g']];
+  return `${field('Name', v.name, v.nameState ? { state: v.nameState } : {})}
+    ${select('Category', v.category)}
+    <div style="display:grid;grid-template-columns:${p === 'web' ? 'repeat(4,1fr)' : '1fr 1fr'};gap:12px">
+      ${nums.map(([l, val, u]) => field(l, val, { suffix: u, ph: '?', state: v.focus === l ? 'focus' : '' })).join('')}</div>`;
 }
 
 // ---------- screens: each returns the frame's inner HTML for 'web' or 'mobile' ----------
@@ -301,11 +510,184 @@ const SCREENS = {
       ? webShell('picks', `<div style="display:flex;flex-direction:column;gap:24px">${head}<div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">${list}</div></div>`)
       : mobileShell('Best picks', 'picks', `${head}${list}`, 'nearby');
   } },
+
+  // ---------- M6 (#114). m6: true = M6 navigation; web: true = web only. ----------
+  tracker: { m6: true, label: '09 Tracker: day', render: (p) => trackerPage(p, false) },
+  trackerWeek: { m6: true, label: '10 Tracker: week', render: (p) => trackerPage(p, true) },
+
+  addFood: { m6: true, label: '11 Add to tracker', render: (p) => {
+    if (p === 'web') {
+      const results = SEARCH.map((it) => `<div class="lrow"><div class="stack" style="flex:1"><span class="body" style="font-weight:600">${it.name}</span><span class="small muted">${it.chain}</span></div>
+        <span class="small muted num">${it.cal} cal</span><button class="btn secondary sm" ${go('tracker')}>Add</button></div>`).join('');
+      // Scrolled to the bottom of the tracker, where Add food lives.
+      return webShell('tracker', `<div class="stack" style="gap:24px">
+        <div class="stack" style="gap:8px"><span class="h2">Entries</span><div class="stack">${DAY_LOG.map((e) => entryRow(e, p)).join('')}</div></div>
+        ${cardBox(`<div><span class="h2">Add food</span><p class="small muted">Adds to Thu, Nov 5 as eaten.</p></div>
+          <div style="display:grid;grid-template-columns:1fr 140px;gap:12px">${field('Menu item', 'chicken', { state: 'focus' })}${field('Servings', '1.5')}</div>
+          <div class="stack">${results}</div>`, 16)}</div>`);
+    }
+    const results = SEARCH.map((it, i) => `<div class="lrow ${i === 0 ? 'sel' : ''}" style="gap:8px"><div class="stack" style="flex:1"><span class="body" style="font-weight:600">${it.name}</span><span class="small muted">${it.chain} · ${it.cal} cal</span></div>${i === 0 ? `<span style="color:var(--fit-great-text);display:flex;transform:scale(1.5)">${I.check}</span>` : ''}</div>`).join('');
+    return `${trackerPage(p, false)}<div class="scrim"><div class="sheet"><span class="grab"></span>
+      <div><span class="h2">Add food</span><p class="small muted">To Thu, Nov 5</p></div>
+      ${field('', 'chicken', { state: 'focus' }).replace('<label></label>', '')}
+      <div class="stack">${results}</div>
+      <div class="between" style="align-items:center"><span class="iconbtn round">${I.minus}</span><span class="body" style="font-weight:600">1.5 servings</span><span class="iconbtn round">${I.plus}</span></div>
+      <p class="small muted center num">585 cal in all</p>
+      <button class="btn primary" ${go('tracker')}>Add</button></div></div>`;
+  } },
+
+  plan: { m6: true, label: '12 Plan: day or week', render: (p) => {
+    const dayCard = (d) => {
+      const left = d.items.filter((i) => !i.added).length;
+      const t = d.items.reduce((a, i) => ({ cal: a.cal + i.cal, p: a.p + i.p, c: a.c + i.c, f: a.f + i.f }), { cal: 0, p: 0, c: 0, f: 0 });
+      if (p === 'web') return cardBox(`<div class="between"><div><span class="h2">${d.day}</span><p class="small muted num">${n0(d.left)} cal left today · up to ${CAL.perMeal} cal a meal</p></div>
+          ${left > 1 ? '<button class="btn primary sm">Add whole day</button>' : ''}</div>
+        <div class="stack">${d.items.map((i) => planItem(i, p)).join('')}</div>
+        <p class="small muted num">Picks total: ${n0(t.cal)} cal · P ${t.p}g · C ${t.c}g · F ${t.f}g</p>`, 12);
+      return `<div class="stack" style="gap:4px"><span class="h2">${d.day}</span><span class="small muted num">${n0(d.left)} cal left · up to ${CAL.perMeal} cal a meal</span>
+        <div class="stack">${d.items.map((i) => planItem(i, p)).join('')}</div>
+        <span class="small muted num" style="margin-top:8px">In all: ${n0(t.cal)} cal, ${t.p} g protein</span>
+        ${left ? `<button class="btn secondary" style="margin-top:8px">Add the whole day (${d.items.length})</button>`
+          : '<button class="btn secondary" style="margin-top:8px;opacity:.4">All added</button>'}</div>`;
+    };
+    const nearbySwitch = p === 'web'
+      ? `<div style="display:flex;align-items:center;gap:12px"><span class="switch"></span><span class="body" style="font-weight:600">Nearby only</span></div>`
+      : `<div class="between" style="align-items:center"><div class="stack"><span class="body">Nearby only</span><span class="small muted">Restaurants within 10 mi</span></div><span class="switch"></span></div>`;
+    const banner = `<div class="banner info">${I.check} Added Cobb Salad (no dressing) to Thu, Nov 5 as planned.</div>`;
+    const viewSeg = segGo([['Day', false], ['Week', true]]);
+    if (p === 'web') return webShell('tracker', `<div class="stack" style="gap:20px">
+      <a class="link" ${go('tracker')}>← Tracker</a>
+      <div><span class="h1">Meal plan</span><p class="body muted" style="margin-top:8px">Picks that fit what's left of your daily target. Add them to your tracker as planned, then mark them eaten.</p></div>
+      <div class="between" style="align-items:center"><div style="width:240px">${viewSeg}</div>${dateNav('Thu, Nov 5 + 6 days', p)}</div>
+      ${nearbySwitch}${banner}${PLAN.map(dayCard).join('')}</div>`);
+    return mobileShell('Plan meals', null, `${viewSeg}${nearbySwitch}${PLAN.map(dayCard).join('')}`, 'tracker');
+  } },
+
+  photo: { m6: true, label: '13 Photo: pick or take a photo', render: (p) => {
+    if (p === 'web') {
+      // Web: "Log from photo" opens the browser's file picker (camera on phones), then this dialog.
+      return dialog(trackerPage(p, false), 'Log from photo', `<div class="stack center" style="gap:12px;padding:32px 0;align-items:center">${I.spinner}<p class="body muted">Looking at your meal…</p></div>`);
+    }
+    return mobileShell('Log from a photo', null, `<div class="stack center" style="gap:16px;padding-top:120px">
+      <span class="empty-icon">${I.camera.replace(/20/g, '32')}</span>
+      <span class="h2">Log a meal from a photo</span>
+      <p class="body muted">We list the food we can see, and you check it before anything is logged. The photo is only used for this and is not saved.</p>
+      <button class="btn primary" style="gap:8px" ${go('photoConfirm')}>${I.camera} Take a photo</button>
+      <button class="btn secondary" style="gap:8px" ${go('photoConfirm')}>${I.gallery} Choose a photo</button></div>`, 'tracker');
+  } },
+
+  photoConfirm: { m6: true, label: '14 Photo: confirm and log', render: (p) => {
+    const g = (l, v) => `${l} ${v} g`;
+    if (p === 'web') {
+      const conf = { high: 'great', medium: 'ok', low: 'none' };
+      const rows = PHOTO.map((r) => `<div class="stack" style="gap:12px;padding:12px 0;border-bottom:1px solid var(--border)">
+        <div class="between"><div class="stack"><span class="body" style="font-weight:600">${r.name}</span><span class="small muted">${r.chain || 'Not on our menus'}</span></div>
+          <span class="pill ${conf[r.conf]}">${r.conf} confidence</span></div>
+        <div style="display:flex;align-items:flex-end;gap:12px"><div style="width:120px">${field('Servings', String(r.s))}</div>
+          <span class="small muted num" style="padding-bottom:14px">${r.cal} cal</span>
+          <div style="margin-left:auto;display:flex;gap:8px;padding-bottom:4px"><button class="btn text">${r.editing ? 'Done editing' : 'Edit'}</button><button class="btn secondary sm">Remove</button></div></div>
+        ${r.editing ? `<div class="subcard" style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px"><div style="grid-column:span 4">${field('Name', r.name)}</div>
+          ${field('Calories', String(r.cal), { suffix: 'cal' })}${field('Protein', String(r.p), { suffix: 'g' })}${field('Carbs', String(r.c), { suffix: 'g' })}${field('Fat', String(r.f), { suffix: 'g', state: 'focus' })}</div>` : ''}
+      </div>`).join('');
+      return dialog(trackerPage(p, false), 'Log from photo', `<p class="small muted" style="flex-shrink:0">Check what we found before it goes in your log for Thu, Nov 5. Fix servings, remove anything wrong, or edit the numbers.</p>
+        <div class="stack" style="flex:1;min-height:0;overflow:hidden">${rows}</div>
+        <div style="display:flex;gap:12px;flex-shrink:0"><button class="btn secondary">Cancel</button><button class="btn primary" ${go('tracker')}>Log 3 items</button></div>`);
+    }
+    const sure = { medium: 'Fairly sure', low: 'Not sure: check this one' };
+    const cards = PHOTO.map((r) => `<div class="card" style="gap:8px">
+      <div class="between"><div class="stack"><span class="body" style="font-weight:600">${r.name}</span><span class="small muted">${r.matched ? r.chain : 'Not on our menus'}</span></div><span class="iconbtn bare" style="margin:-8px -8px 0 0">${I.close}</span></div>
+      ${sure[r.conf] ? `<div><span class="pill ok">${I.help} ${sure[r.conf]}</span></div>` : ''}
+      <span class="small muted num">${r.cal} cal a serving · ${g('P', r.p)} · ${g('C', r.c)} · ${g('F', r.f)}</span>
+      <div style="display:flex;align-items:center;gap:8px"><span class="iconbtn round">${I.minus}</span><span class="body center" style="width:110px;font-weight:600">${servingsText(r.s)}</span><span class="iconbtn round">${I.plus}</span>
+        ${r.matched ? '' : '<button class="btn text" style="margin-left:auto">Edit</button>'}</div></div>`).join('');
+    return mobileShell('Log from a photo', null, `<div><span class="h2">Check what we found</span><p class="small muted">Logging to Thu, Nov 5. Fix the servings and remove anything that's wrong.</p></div>
+      ${cards}<button class="btn primary" ${go('tracker')}>Log 3 items</button><button class="btn secondary" ${go('photo')}>Use another photo</button>`, 'photo');
+  } },
+
+  suggest: { m6: true, label: '15 Suggest a correction', render: (p) => {
+    const v = { name: 'Grilled Chicken Sandwich', category: 'Entree', cal: '380', p: '28', c: '45', f: '11', focus: 'Calories' };
+    const intro = `<p class="small muted">Chick-fil-A. Fix what's wrong; only the fields you change are sent. Leave a macro blank if it's unknown.</p>`;
+    const send = `<button class="btn primary" ${go('submissions')}>Send correction</button>`;
+    return p === 'web'
+      ? dialog(SCREENS.picks.render(p), 'Suggest a correction', `${intro}${itemForm(p, v)}${send}`)
+      : mobileShell('Suggest a correction', null, `${intro}${itemForm(p, v)}${send}`, 'picks');
+  } },
+
+  addItem: { m6: true, label: '16 Add an item', render: (p) => {
+    const v = { name: 'Grilled Nuggets (5 ct)', category: 'Entree', cal: '80', p: '16', c: '1', f: '', focus: 'Fat' };
+    const intro = `<p class="small muted">Leave a macro blank if it's unknown.</p>`;
+    const send = `<button class="btn primary" ${go('submissions')}>Add item</button>`;
+    return p === 'web'
+      ? dialog(SCREENS.nearby.render(p), 'Add an item to Chick-fil-A', `${intro}${itemForm(p, v)}${send}`)
+      : mobileShell('Add an item', null, `<span class="h2">Chick-fil-A</span>${intro}${itemForm(p, v)}${send}`, 'picks');
+  } },
+
+  addChain: { m6: true, label: '17 Add a restaurant', render: (p) => {
+    const body = `<p class="small muted">New restaurants are always checked by an admin before they show up.</p>
+      ${field('Restaurant name', 'Pollo Tropical')}
+      ${field('Nutrition page', 'https://www.pollotropical.com/nutrition', { state: 'focus' })}
+      ${field('Other names (optional)', 'Pollo')}
+      <button class="btn primary" ${go('submissions')}>Send for review</button>`;
+    return p === 'web'
+      ? dialog(SCREENS.submissions.render(p), 'Add a restaurant', body)
+      : mobileShell('Add a restaurant', null, body, 'submissions');
+  } },
+
+  submissions: { m6: true, label: '18 My submissions', render: (p) => {
+    const list = [SUBS.correction, SUBS.chain, SUBS.rename, SUBS.item].map((s) => subCard(s, false, p)).join('');
+    const intro = "Corrections, new items and restaurants you've sent. Suggest a correction from any menu item card.";
+    if (p === 'web') return webShell('submissions', `<div class="stack" style="gap:24px">
+      <div class="between" style="align-items:flex-end"><div><span class="h1">My submissions</span><p class="body muted" style="margin-top:8px">${intro}</p></div>
+        <button class="btn secondary" style="width:200px" ${go('addChain')}>Add a restaurant</button></div>
+      <div class="stack" style="gap:12px">${list}</div></div>`);
+    return mobileShell('My submissions', null, `<p class="body muted">${intro}</p><button class="btn secondary" ${go('addChain')}>Add a restaurant</button>${list}`, 'targets');
+  } },
+
+  admin: { m6: true, web: true, label: '19 Admin: review queue', render: (p) => adminPage('Pending review', '2 submissions', [SUBS.item, SUBS.chain]) },
+  adminApplied: { m6: true, web: true, label: '20 Admin: applied changes (revert)', render: (p) => adminPage('Applied', '2 submissions', [SUBS.correction, SUBS.cobb]) },
 };
 
+// The tracker (web/src/pages/TrackerPage.tsx, mobile/lib/screens/tracker_screen.dart). Also the page behind
+// the photo dialogs and the Add food sheet.
+function trackerPage(p, week) {
+  const t = week ? WEEK_TOTALS : DAY_TOTALS, days = week ? 7 : 1;
+  const bars = NUTRIENTS.filter(([k]) => TRACKED.includes(k)).map(([k, l]) => goalBar(k, l, t[k], GOAL[k] * days)).join('');
+  const viewSeg = segGo([['Day', !week, 'tracker'], ['Week', week, 'trackerWeek']]);
+  const label = week ? 'Nov 2 – Nov 8' : 'Today, Nov 5';
+  const entries = week
+    ? WEEK_DAYS.map((d) => `<div class="stack"><div class="between small muted" style="font-weight:600;margin-top:8px"><span>${d.day}</span>${p === 'web' ? `<span class="num">${n0(d.eaten)} cal eaten</span>` : ''}</div>
+        ${d.log.map((e) => entryRow(e, p)).join('')}</div>`).join('')
+    : DAY_LOG.map((e) => entryRow(e, p)).join('');
+  if (p === 'web') return webShell('tracker', `<div class="stack" style="gap:24px">
+    <div class="between" style="align-items:flex-end"><div><span class="h1">Tracker</span><p class="body muted" style="margin-top:8px">What you've eaten against your daily targets.</p></div>
+      <div style="display:flex;gap:12px"><button class="btn secondary auto" ${go('photo')}>${I.camera} Log from photo</button><button class="btn primary auto" ${go('plan')}>Plan meals</button></div></div>
+    <div class="between" style="align-items:center"><div style="width:240px">${viewSeg}</div>${dateNav(label, p)}</div>
+    <div class="stack" style="gap:8px"><span class="small" style="font-weight:600">Track</span>${trackChips()}</div>
+    ${cardBox(`<span class="h2">${week ? 'Weekly goal' : 'Today’s goal'}</span>${bars}`)}
+    <div class="stack" style="gap:8px"><span class="h2">Entries</span><div class="stack">${entries}</div></div></div>`);
+  return mobileShell('Tracker', 'tracker', `${viewSeg}${dateNav(label, p)}
+    <div class="card" style="gap:16px">${bars}</div>${trackChips()}
+    <div class="grid2"><button class="btn secondary" style="gap:8px" ${go('plan')}>${I.menu} Plan meals</button><button class="btn secondary" style="gap:8px" ${go('photo')}>${I.camera} Log a photo</button></div>
+    <div class="stack">${entries}</div>`) + `<span class="fab" ${go('addFood')}>${I.plus} Add food</span>`;
+}
+
+// Review queue (web/src/pages/AdminPage.tsx). Pending edits come without "before" (contract), so before vs
+// proposed shows on applied changes, which is where Revert is.
+function adminPage(show, count, subs) {
+  return webShell('admin', `<div class="stack" style="gap:24px">
+    <div><span class="h1">Review submissions</span><p class="body muted" style="margin-top:8px">Approve or reject what auto-moderation flagged, or revert a change that went live.</p></div>
+    <div class="between" style="align-items:flex-end"><div style="width:280px">${select('Show', show)}</div>
+      <span class="small muted">${count}</span></div>
+    <div class="stack" style="gap:12px">${subs.map((s) => subCard(s, true, 'web')).join('')}</div></div>`, true);
+}
+
 // ---------- render ----------
-const ORDER = ['login', 'loginError', 'signup', 'checkEmail', 'profile', 'targets', 'nearby', 'picks'];
-const frameHTML = (p, key) => `<div class="frame ${p}" id="${p}-${key}">${SCREENS[key].render(p)}</div>`;
+const ORDER = ['login', 'loginError', 'signup', 'checkEmail', 'profile', 'targets', 'nearby', 'picks',
+  'tracker', 'trackerWeek', 'addFood', 'plan', 'photo', 'photoConfirm', 'suggest', 'addItem', 'addChain', 'submissions', 'admin', 'adminApplied'];
+const frameHTML = (p, key) => {
+  M6 = !!SCREENS[key].m6;
+  return `<div class="frame ${p}" id="${p}-${key}">${SCREENS[key].render(p)}</div>`;
+};
 const root = document.getElementById('root');
 const single = new URLSearchParams(location.search).get('frame');
 
@@ -317,7 +699,7 @@ if (single) {
 } else {
   root.innerHTML = `<div class="canvas">${['web', 'mobile'].map((p) => `
     <h2 class="group">${p === 'web' ? 'Web (1280 x 832)' : 'Mobile, Android (412 x 917)'}</h2>
-    <div class="row">${ORDER.map((k) => `<div class="slot"><span class="label">${SCREENS[k].label}</span>${frameHTML(p, k)}</div>`).join('')}</div>`).join('')}</div>`;
+    <div class="row">${ORDER.filter((k) => p === 'web' || !SCREENS[k].web).map((k) => `<div class="slot"><span class="label">${SCREENS[k].label}</span>${frameHTML(p, k)}</div>`).join('')}</div>`).join('')}</div>`;
 }
 
 // Click-through: buttons and links with data-go open the next screen on the same platform.
