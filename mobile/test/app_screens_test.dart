@@ -531,7 +531,8 @@ void main() {
 
       expect(server.to('GET /meal-logs').single.url.queryParameters, {'from': ymd(today), 'to': ymd(today)});
       expect(find.text('600 cal / 1,558 cal'), findsOneWidget);
-      expect(find.text('+400 cal planned'), findsOneWidget);
+      expect(find.text('958 cal left · 400 cal planned'), findsOneWidget); // 1,558 - 600
+      expect(find.text('91 g left · 30 g planned'), findsOneWidget);
       expect(find.text('45 g / 136 g'), findsOneWidget);
       expect(find.text('50 g / 136 g'), findsNothing); // carbs aren't tracked
 
@@ -549,6 +550,16 @@ void main() {
       });
       expect(find.text('50 g / 136 g'), findsOneWidget);
       expect(server.to('POST /restaurants/nearby'), isEmpty); // other tabs didn't reload for it
+    });
+
+    testWidgets('over the goal says by how much, in red for calories only', (tester) async {
+      await pumpHome(tester, userJson());
+      logRoutes(days: [(totals(1700, 150, 50, 20), zero)]);
+      await tapText(tester, 'Tracker');
+      expect(find.text('142 cal over'), findsOneWidget);
+      expect(find.text('14 g over'), findsOneWidget);
+      expect(tester.widget<Text>(find.text('142 cal over')).style!.color, AppColors.error);
+      expect(tester.widget<Text>(find.text('14 g over')).style!.color, AppColors.textMuted); // more protein is fine
     });
 
     testWidgets('a week sums its days against the daily goal x 7', (tester) async {
@@ -571,6 +582,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilterChip, 'Fat'));
       await tester.pumpAndSettle();
       expect(find.text('at least 50 g / 364 g'), findsOneWidget);
+      expect(find.text('at most 314 g left'), findsOneWidget); // unknown fat: only an upper bound is left
     });
 
     testWidgets('Ate it marks a planned entry eaten; Remove deletes one', (tester) async {

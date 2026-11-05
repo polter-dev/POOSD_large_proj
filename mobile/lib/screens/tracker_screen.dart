@@ -391,8 +391,9 @@ class _TrackerScreenState extends State<TrackerScreen> {
   }
 }
 
-/// One tracked nutrient against its goal: "1,230 / 1,558 cal", a bar, and what's planned on top. A macro
-/// with an unknown amount somewhere reads "at least" (contract Totals.incomplete).
+/// One tracked nutrient against its goal: "710 / 1,558 cal", a bar, then what's left and what's planned
+/// ("848 cal left · 410 cal planned", as in prototype frames 09-10, #155). A macro an eaten entry leaves unknown
+/// reads "at least" eaten, so only "at most" is left. Over the goal says "N over": red for calories only.
 class _GoalBar extends StatelessWidget {
   const _GoalBar({
     required this.nutrient,
@@ -413,8 +414,11 @@ class _GoalBar extends StatelessWidget {
     final over = nutrient == Nutrient.calories && eaten > goal;
     final amount = '${atLeast ? 'at least ' : ''}${_format(nutrient, eaten)}';
     final notes = [
-      if (planned > 0) '+${_format(nutrient, planned)} planned',
-      if (over) '${_format(nutrient, eaten - goal)} over',
+      if (eaten > goal)
+        '${_format(nutrient, eaten - goal)} over'
+      else
+        '${atLeast ? 'at most ' : ''}${_format(nutrient, goal - eaten)} left',
+      if (planned > 0) '${_format(nutrient, planned)} planned',
     ];
     return MergeSemantics(
       child: Column(
@@ -441,13 +445,8 @@ class _GoalBar extends StatelessWidget {
               backgroundColor: AppColors.surface,
             ),
           ),
-          if (notes.isNotEmpty) ...[
-            const SizedBox(height: AppSpace.s1),
-            Text(
-              notes.join(' · '),
-              style: TextStyle(fontSize: 14, color: over ? AppColors.error : AppColors.textMuted),
-            ),
-          ],
+          const SizedBox(height: AppSpace.s1),
+          Text(notes.join(' · '), style: TextStyle(fontSize: 14, color: over ? AppColors.error : AppColors.textMuted)),
         ],
       ),
     );
