@@ -647,6 +647,17 @@ void main() {
         ],
       };
 
+      testWidgets('never plans from a day before today', (tester) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        planRoute();
+        await tapText(tester, 'Tracker');
+        await tester.tap(find.byTooltip('Previous day'));
+        await tester.pumpAndSettle();
+        await tapText(tester, 'Plan meals');
+        expect(server.to('GET /meal-plans').single.url.queryParameters['start'], ymd(today));
+      });
+
       testWidgets('adds one item, then the rest of the day, as planned', (tester) async {
         await pumpHome(tester, userJson());
         logRoutes();
@@ -699,6 +710,7 @@ void main() {
         await tapText(tester, 'Plan meals');
         await tapText(tester, 'Nearby only');
         expect(find.textContaining("Couldn't get your location"), findsOneWidget);
+        expect(tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value, isFalse); // as web: back off
         expect(server.to('GET /meal-plans').last.url.queryParameters.containsKey('chainIds'), isFalse);
       });
     });
@@ -741,7 +753,7 @@ void main() {
         await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('More servings of Fries'));
         await tester.pumpAndSettle();
-        await tapText(tester, 'Edit'); // only Fries has it: matched items keep the menu's numbers
+        await tapText(tester, 'Edit'); // the last card's: Fries
         await tester.enterText(find.widgetWithText(TextField, 'Fat (g), blank if unknown'), '15');
         await tapText(tester, 'Save');
         await tapText(tester, 'Log 2 items');
@@ -806,6 +818,49 @@ void main() {
         await tapText(tester, 'Log 2 items');
         final sent = [for (final e in server.lastBody('POST /meal-logs')['entries'] as List) (e as Map)['servings']];
         expect(sent, [0.5, 10]);
+      });
+
+      testWidgets('editing a matched item sends it as a custom entry; saving it unchanged keeps the match', (
+        tester,
+      ) async {
+        await pumpHome(tester, userJson());
+        logRoutes();
+        saveLogsRoute();
+        server.routes['POST /photo-analyses'] = (_) => {
+          'items': [
+            {...item('i1', 'c1', 'Grilled Nuggets'), 'menuItemId': 'i1', 'servings': 1, 'confidence': 'high'},
+            {...item('i2', 'c1', 'Waffle Fries'), 'menuItemId': 'i2', 'servings': 1, 'confidence': 'high'},
+          ],
+        };
+        await tapText(tester, 'Tracker');
+        await tapText(tester, 'Log a photo');
+        await tapText(tester, 'Take a photo');
+
+        await tester.tap(find.text('Edit').first); // Nuggets: open and save as it was
+        await tester.pumpAndSettle();
+        await tapText(tester, 'Save');
+        await tapText(tester, 'Edit'); // Waffle Fries: the photo showed a bigger portion
+        await tester.enterText(find.widgetWithText(TextField, 'Calories a serving'), '520');
+        await tapText(tester, 'Save');
+        expect(find.text('Chain c1 · your numbers'), findsOneWidget);
+        await tapText(tester, 'Log 2 items');
+
+        expect(server.lastBody('POST /meal-logs'), {
+          'entries': [
+            {'date': ymd(today), 'servings': 1, 'source': 'photo', 'menuItemId': 'i1'},
+            {
+              'date': ymd(today),
+              'servings': 1,
+              'source': 'photo',
+              'name': 'Waffle Fries',
+              'chainName': 'Chain c1',
+              'calories': 520,
+              'proteinG': 30,
+              'carbsG': 20,
+              'fatG': 10,
+            },
+          ],
+        });
       });
 
       testWidgets('says when the daily limit is reached, the service is off, or no food was found', (tester) async {

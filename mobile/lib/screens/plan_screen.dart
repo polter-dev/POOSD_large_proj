@@ -24,6 +24,12 @@ class PlanScreen extends StatefulWidget {
 }
 
 class _PlanScreenState extends State<PlanScreen> {
+  // Never before today, same as web (#152): the Tracker may be showing a past day, and a plan is for what's ahead.
+  late final DateTime _start = () {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    return widget.start.isBefore(today) ? today : widget.start;
+  }();
   int _days = 1;
   bool _nearbyOnly = false;
   List<String>? _nearbyChains; // found once per visit; null until asked
@@ -74,6 +80,8 @@ class _PlanScreenState extends State<PlanScreen> {
       final (chains, note) = _nearbyOnly ? await _chainsNearby() : (null, null);
       if (!mounted || request != _request) return;
       _note = note;
+      // Same as web: when the nearby lookup fails the plan uses every restaurant, so the switch says so too.
+      if (note != null) _nearbyOnly = false;
       if (chains != null && chains.isEmpty) {
         // Empty chainIds would mean every chain, so say so instead of asking.
         setState(
@@ -81,7 +89,7 @@ class _PlanScreenState extends State<PlanScreen> {
         );
         return;
       }
-      final plan = await api.getMealPlan(start: ymd(widget.start), days: _days, chainIds: chains);
+      final plan = await api.getMealPlan(start: ymd(_start), days: _days, chainIds: chains);
       if (mounted && request == _request) setState(() => _plan = plan);
     } on ApiError catch (e) {
       if (mounted && request == _request) setState(() => _error = e.message);

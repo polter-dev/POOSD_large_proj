@@ -24,7 +24,10 @@ class _Draft {
       fatG = i.fatG,
       confidence = i.confidence;
 
-  final String? menuItemId; // matched: the server copies name, chain and macros from the menu item
+  // Matched: the server copies name, chain and macros from the menu item. Editing a matched item clears it, so it
+  // goes as a custom entry with the user's numbers (a menuItemId entry may only change servings), same as web.
+  String? menuItemId;
+  bool edited = false;
   String name;
   final String? chainName;
   double servings;
@@ -250,7 +253,9 @@ class _DraftCard extends StatelessWidget {
     final d = draft;
     final custom = d.menuItemId == null;
     String g(String letter, double? v) => '$letter ${v == null ? '?' : '${formatGrams(v)} g'}';
-    final where = custom
+    final where = d.edited
+        ? '${d.chainName} · your numbers'
+        : custom
         ? (d.chainName == null ? 'Not on our menus' : '${d.chainName} · not on our menus')
         : d.chainName!;
     return AppCard(
@@ -312,8 +317,7 @@ class _DraftCard extends StatelessWidget {
                 icon: const Icon(Icons.add),
               ),
               const Spacer(),
-              // Matched items take the menu's own numbers; only food that isn't on a menu can be edited.
-              if (custom) TextButton(onPressed: onEdit, child: const Text('Edit')),
+              TextButton(onPressed: onEdit, child: const Text('Edit')),
             ],
           ),
         ],
@@ -364,14 +368,25 @@ class _EditDialogState extends State<_EditDialog> {
       }
     });
     if (_errors.isNotEmpty) return;
-    final d = widget.draft
-      ..name = name
-      ..calories = cal!;
+    final d = widget.draft;
     final parsed = [for (final m in macros) m.isEmpty ? null : double.parse(m)];
+    final changed =
+        name != d.name || cal != d.calories || parsed[0] != d.proteinG || parsed[1] != d.carbsG || parsed[2] != d.fatG;
+    if (!changed) {
+      Navigator.of(context).pop(false); // a matched item saved as it was stays matched
+      return;
+    }
     d
+      ..name = name
+      ..calories = cal!
       ..proteinG = parsed[0]
       ..carbsG = parsed[1]
       ..fatG = parsed[2];
+    if (d.menuItemId != null) {
+      d
+        ..menuItemId = null
+        ..edited = true;
+    }
     Navigator.of(context).pop(true);
   }
 
