@@ -76,12 +76,14 @@ The Figma file is **Menu Macro Fitter**, view access for anyone with the link:
 - Clickable prototype, web flow: https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=6-152&starting-point-node-id=6%3A152&scaling=min-zoom
 - Clickable prototype, mobile flow: https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=6-868&starting-point-node-id=6%3A868&scaling=min-zoom
 
-It has the 16 frames 01-08 as editable layers (`Web / 01 Log in` ... `Mobile / 08 Best picks`), the links in
-the table below, and a **Web** and a **Mobile** flow, both starting at Log in.
+- Clickable prototype, web M6 flow (starts at Tracker): https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=45-2757&starting-point-node-id=45%3A2757&scaling=min-zoom
+- Clickable prototype, mobile M6 flow (starts at Tracker): https://www.figma.com/proto/uCeypcfI3bj6y6EFCIOISn/Menu-Macro-Fitter?node-id=45-1971&starting-point-node-id=45%3A1971&scaling=min-zoom
 
-**M6 frames (#114): not imported yet.** Import them into the same file with the steps below, name them
-`Web / 09 Tracker` ... `Web / 20 Admin applied` and `Mobile / 09 Tracker` ... `Mobile / 18 My submissions`,
-and add the M6 links from the second table.
+It has all 38 frames as editable layers: web 01-20 in the top row (`Web / 01 Log in` ... `Web / 20 Admin
+applied`) and mobile 01-18 below (`Mobile / 01 Log in` ... `Mobile / 18 My submissions`), with the links in the
+tables below. Flows: **Web** and **Mobile** start at Log in (01-08); **Web M6** and **Mobile M6** start at
+Tracker; **Web Admin** starts at the review queue (19) and **Mobile Correction** at Suggest a correction (15).
+The old 01-08 frames use the navigation they were exported with, so the M6 screens are their own flows.
 
 ## Getting it into Figma
 
@@ -93,8 +95,10 @@ editable Figma frames (real text, shapes and auto layout, not screenshots):
 2. Open `docs/wireframes/prototype.html` in Chrome (drag the file into a tab).
 3. Click the extension and capture the page. It saves a `.h2d` file.
 4. In Figma, create a design file named **Menu Macro Fitter**, run the **html.to.design** plugin and import
-   the `.h2d` file. All 38 frames (20 web, 18 mobile) land on the canvas, grouped by web and mobile. To add
-   only the M6 frames to the existing file, delete the imported 01-08 copies afterwards.
+   the `.h2d` file. The whole page lands as one section holding all 38 frames (20 web, 18 mobile). Drag the
+   frames you need out of it onto the canvas (each is a `Background+Shadow` layer next to its label), then
+   delete the section. The plugin's import-by-URL doesn't work for this file: free hosts like githack serve
+   the plugin an interstitial page instead of the prototype.
 5. Rename the frames to match the PNG names (`Web / 01 Log in`, `Mobile / 01 Log in`, ...).
 
 Fallback if the plugin isn't available: drag the PNGs from `web/` and `mobile/` into Figma. Each becomes a
@@ -119,22 +123,29 @@ Do it once for web and once for mobile, and set **Log in** as the flow's startin
 | Any app screen | Nearby / Best picks / Profile tab | That screen |
 | Best picks (mobile) | Back arrow | Restaurants near you |
 
-M6 links (frames 09-20):
+M6 links (frames 09-20), as wired in the Figma file:
 
 | From | Click | To |
 |---|---|---|
-| Any M6 screen | Tracker / Submissions / Admin nav or tab | That screen |
+| Web 09-12, 18-20 | Tracker / Submissions nav | Tracker: day / My submissions |
 | Tracker: day | Week segment | Tracker: week (and Day back) |
 | Tracker | Plan meals | Plan |
 | Tracker | Log from photo (web) / Log a photo (mobile) | Photo: pick or take |
 | Tracker (mobile) | Add food button | Add to tracker |
 | Add to tracker | Add | Tracker: day |
 | Plan | ← Tracker / back arrow | Tracker: day |
+| Photo (web) | The analyzing dialog | Photo: confirm and log |
 | Photo: pick or take (mobile) | Take a photo / Choose a photo | Photo: confirm and log |
 | Photo: confirm and log | Log 3 items | Tracker: day |
-| Best picks (M6 frames) | Suggest a correction | Suggest a correction |
-| Restaurants near you (M6 frames) | Add an item | Add an item |
+| Photo: confirm and log (mobile) | Back arrow | Photo: pick or take |
 | Suggest a correction / Add an item / Add a restaurant | Send button | My submissions |
+| Suggest a correction / Add an item (mobile) | Back arrow | Best picks / Restaurants near you (08 / 07) |
+| Add a restaurant (mobile) | Back arrow | My submissions |
 | My submissions | Add a restaurant | Add a restaurant |
+| My submissions (mobile) | Back arrow | Tracker: day |
+| Admin: review queue / applied | Show filter | The other admin frame |
+
+Suggest a correction and Add an item open from Best picks and Nearby in the app; those screens are 07-08 here,
+which keep the older navigation, so in Figma they start their own flow (or open from the canvas).
 
 Press **Present** to click through it.
