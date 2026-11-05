@@ -562,6 +562,18 @@ void main() {
       expect(tester.widget<Text>(find.text('14 g over')).style!.color, AppColors.textMuted); // more protein is fine
     });
 
+    testWidgets('an unknown macro over the goal is "at least N over"', (tester) async {
+      await pumpHome(tester, userJson());
+      // Fat is tracked and an eaten entry doesn't know its fat, so the 60 g eaten is a lower bound.
+      server.routes['PATCH /users/me/preferences'] = (_) => userJson();
+      logRoutes(entries: [log('l1', 'Side Salad', f: null)], days: [(totals(600, 45, 50, 60, incomplete: true), zero)]);
+      await tapText(tester, 'Tracker');
+      await tester.tap(find.widgetWithText(FilterChip, 'Fat'));
+      await tester.pumpAndSettle();
+      expect(find.text('at least 8 g over'), findsOneWidget); // 60 - 52
+      expect(find.text('91 g left'), findsOneWidget); // protein is known everywhere: no "at most" or "at least"
+    });
+
     testWidgets('a week sums its days against the daily goal x 7', (tester) async {
       await pumpHome(tester, userJson());
       logRoutes(
