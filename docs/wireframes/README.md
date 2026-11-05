@@ -17,16 +17,18 @@ milestone (#18); 09-20 are the M6 screens (#114), 12 on web and 10 on mobile (th
 
 ### M6 screens (#114)
 
-Shapes and rules from the M6 sections of [`docs/api-contract.md`](../api-contract.md); layout and copy follow
-the built screens (`web/src/pages`, `mobile/lib/screens`). These frames use the M6 navigation: seven sections
-on web (plus Admin for admins), six tabs on mobile.
+Shapes and rules from the M6 sections of [`docs/api-contract.md`](../api-contract.md); layout and copy are
+taken from the web screens (`web/src/pages`). The frames are the design target for both apps: the Flutter
+screens (`mobile/lib/screens`) have the same content and flows, but some layout details differ (tracker bars
+and entry rows, the add-food servings step, plan cards, the submissions change rows). These frames use the M6
+navigation: seven sections on web (plus Admin for admins), six tabs on mobile.
 
 | # | Screen | Web | Mobile | Shows |
 |---|---|---|---|---|
 | 09 | Tracker: day | ✓ | ✓ | Day/week toggle, nutrient chips (Carbs off), bars vs the daily goal with eaten + hatched planned, entry list with a planned row and **Ate it** |
 | 10 | Tracker: week | ✓ | ✓ | Same, goal × 7 (10,906 cal), entries grouped by day |
 | 11 | Add to tracker | ✓ | ✓ | Search "chicken" + servings; web is the Add food card, mobile a bottom sheet with a servings stepper |
-| 12 | Plan: day or week | ✓ | ✓ | Week view, Nearby only, per-day "cal left", **Add to plan** per item and **Add whole day**, one item already in the plan |
+| 12 | Plan: day or week | ✓ | ✓ | Week view, Nearby only, per-day "cal left", **Add to plan** per item and **Add whole day**; today has one slot left (3 entries), already in the plan |
 | 13 | Photo: pick or take | ✓ | ✓ | Mobile: Take / Choose a photo. Web: the browser's file picker opens straight away, so the frame shows the dialog analyzing it |
 | 14 | Photo: confirm and log | ✓ | ✓ | One matched item, two "Not on our menus" with confidence, servings, edit (web shows the edit panel open), **Log 3 items** |
 | 15 | Suggest a correction | ✓ | ✓ | Prefilled form for Grilled Chicken Sandwich, calories changed; web is a dialog over Best picks |
