@@ -235,10 +235,11 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
     });
   });
 
+  // seed.js logs janedoe's food on UCF's calendar days (America/New_York).
+  const ucfDay = (daysBack) =>
+    new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
+
   describe("meal logs", () => {
-    // seed.js logs janedoe's food on UCF's calendar days (America/New_York).
-    const ucfDay = (daysBack) =>
-      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000));
     const DAY = "2030-01-15"; // far from the seeded days, so these tests see only their own entries
 
     test("janedoe's seeded tracker: yesterday is 'at least' (a custom food without fat), today has a planned Subway sandwich", async () => {
@@ -318,6 +319,65 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
         assert.strictEqual(res.status, status, (await res.json()).error);
       }
       assert.strictEqual(await logs.countDocuments({ date: DAY }), 0);
+    });
+  });
+
+  describe("meal plans", () => {
+    test("7 days from yesterday: each day's limit follows janedoe's seeded logs; verified items only, never repeated", async () => {
+      const token = tokens["jane.doe"];
+      const { target, perMeal } = await (await api("GET", "/users/me/calories", undefined, token)).json();
+      const res = await api("GET", `/meal-plans?start=${ucfDay(1)}&days=7`, undefined, token);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.mode, "carb");
+      assert.deepStrictEqual(body.days.slice(0, 2).map((d) => d.date), [ucfDay(1), ucfDay(0)]);
+      assert.strictEqual(body.days.length, 7);
+
+      // Yesterday has 4 seeded entries (one is 1.5 servings), today 2 (one planned), the rest none.
+      const { entries } = await (await api("GET", `/meal-logs?from=${body.days[0].date}&to=${body.days[6].date}`, undefined, token)).json();
+      assert.deepStrictEqual(body.days.map((d) => entries.filter((e) => e.date === d.date).length), [4, 2, 0, 0, 0, 0, 0]);
+      const picked = new Set();
+      for (const day of body.days) {
+        const logs = entries.filter((e) => e.date === day.date);
+        const remaining = Math.max(0, target - logs.reduce((sum, e) => sum + e.calories * e.servings, 0));
+        const slots = Math.max(1, 3 - logs.length);
+        assert.strictEqual(day.remainingCalories, Math.round(remaining), day.date);
+        assert.strictEqual(day.mealCalorieLimit, Math.min(perMeal, Math.floor(remaining / slots)), day.date);
+        assert.ok(day.items.length <= slots, day.date);
+        for (const i of day.items) {
+          assert.ok(i.calories >= 300 && i.calories <= day.mealCalorieLimit, `${day.date} ${i.name} ${i.calories}`);
+          assert.strictEqual(i.isEstimate, false, i.name);
+          assert.strictEqual(i.score, Math.round((i.carbsG / i.calories) * 1000) / 10, i.name);
+          assert.ok(!picked.has(i.id), `${i.name} picked twice`);
+          picked.add(i.id);
+        }
+        assert.strictEqual(day.totals.calories, day.items.reduce((sum, i) => sum + i.calories, 0), day.date);
+      }
+      // A day with nothing logged fills all 3 slots, each from a different chain.
+      assert.strictEqual(new Set(body.days[2].items.map((i) => i.chainId)).size, 3);
+    });
+
+    test("one chain for a week uses up its verified items once each; Subway's community estimate never appears", async () => {
+      const token = tokens["jane.doe"];
+      const items = mongoose.connection.db.collection("menuItems");
+      const subway = await mongoose.connection.db.collection("chains").findOne({ nameKey: "subway" });
+      assert.ok(await items.findOne({ chainId: subway._id, isEstimate: true }), "seed gives Subway a community item");
+      const res = await api("GET", `/meal-plans?start=2030-01-15&days=7&chainIds=${subway._id}&mode=protein`, undefined, token);
+      assert.strictEqual(res.status, 200);
+      const body = await res.json();
+      assert.strictEqual(body.mode, "protein");
+
+      // 21 slots, more than Subway has items: the week picks every eligible verified one, then runs out.
+      const limit = body.days[0].mealCalorieLimit;
+      const eligible = await items
+        .find({ chainId: subway._id, isEstimate: false, proteinG: { $ne: null }, calories: { $gte: 300, $lte: limit } })
+        .toArray();
+      const picks = body.days.flatMap((d) => d.items);
+      assert.ok(eligible.length > 0 && eligible.length < 21);
+      assert.deepStrictEqual(picks.map((i) => i.id).sort(), eligible.map((i) => String(i._id)).sort());
+      const scores = picks.map((i) => i.score); // one chain, so each day takes the best item left
+      assert.deepStrictEqual(scores, [...scores].sort((a, b) => b - a));
+      for (const i of picks) assert.strictEqual(i.score, Math.round((i.proteinG / i.calories) * 1000) / 10, i.name);
     });
   });
 

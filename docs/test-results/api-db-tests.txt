@@ -1,6 +1,7 @@
 ▶ API against a seeded MongoDB
   ▶ auth
     ✔ wrong password is 401, unverified account is 403
+    ✔ login and resend-verification accept a username
     ✔ register stores a user the users validator accepts, and a taken email is 409
     ✔ protected routes need a valid token
   ✔ auth
@@ -21,12 +22,26 @@
   ▶ favorites
     ✔ add, list, reject a duplicate, and remove
   ✔ favorites
+  ▶ meal logs
+    ✔ janedoe's seeded tracker: yesterday is 'at least' (a custom food without fat), today has a planned Subway sandwich
+    ✔ log a batch, eat the planned item, change a portion, delete; the validator accepts every write
+    ✔ a batch with one bad entry or a missing menu item writes nothing
+  ✔ meal logs
+  ▶ meal plans
+    ✔ 7 days from yesterday: each day's limit follows janedoe's seeded logs; verified items only, never repeated
+    ✔ one chain for a week uses up its verified items once each; Subway's community estimate never appears
+  ✔ meal plans
+  ▶ submissions
+    ✔ kevinn's new item and its edit apply at once, show in search, stay out of recommendations; a verified edit waits
+  ✔ submissions
+  ▶ admin
+    ✔ siteadmin approves kevinn's pending Big Mac edit, then reverting puts the item back exactly
+  ✔ admin
 ✔ API against a seeded MongoDB
-ℹ tests 12
-ℹ suites 6
-ℹ pass 12
+ℹ tests 20
+ℹ suites 10
+ℹ pass 20
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-
