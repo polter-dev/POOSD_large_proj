@@ -1,4 +1,32 @@
 ﹣ API against a seeded MongoDB # set TEST_MONGODB_URI to run
+✔ both admin routes need a token, an existing account and role admin
+✔ GET lists the pending queue oldest first, with usernames, total and the public part of before
+✔ GET for another status is newest first and pages with limit and skip; a deleted author has a null username
+✔ GET rejects ?status=bogus with 400
+✔ GET rejects ?limit=0 with 400
+✔ GET rejects ?limit=101 with 400
+✔ GET rejects ?skip=-1 with 400
+✔ GET rejects ?limit=abc with 400
+✔ PATCH allows exactly the contract's transitions; every other one is 409 and saves nothing
+✔ PATCH sets reviewedBy and a trimmed note; a blank note is stored as null
+✔ PATCH answers 404 for a missing submission or a malformed id
+✔ PATCH rejects a missing status with 400
+✔ PATCH rejects an unknown status with 400
+✔ PATCH rejects a note over 300 characters with 400
+✔ PATCH rejects a note that isn't text with 400
+✔ PATCH rejects a field the contract doesn't list with 400
+✔ approving an edit applies it as a community estimate, and reverting puts the item back exactly
+✔ reverting an edit after a later applied edit of other fields is 409, so community values never read as verified
+✔ reverting an edit with only earlier applied edits on the item still restores it exactly
+✔ reverting an edit after the item changed again is 409 and changes nothing
+✔ approving or reverting an edit whose item was deleted is 404
+✔ approving a rename onto a name the chain already has is 409 and the submission stays pending
+✔ approving a new item inserts it under the chain as a community estimate and records resultId
+✔ approving a new item for a deleted chain is 404
+✔ reverting a new item deletes it only while it still holds the submitted values
+✔ approving a new chain inserts it with normalized, unique names and records resultId
+✔ approving a new chain whose name is already a chain's name or alternate name is 409
+✔ reverting a new chain deletes it only when it has no menu items
 ✔ register saves an unverified user with defaults and emails a link whose token matches the stored hash
 ✔ register 400 for missing first name, nothing saved
 ✔ register 400 for blank first name, nothing saved
@@ -14,19 +42,24 @@
 ✔ register still returns 201 and keeps the user when SendGrid rejects
 ✔ register still returns 201 when EMAIL_FROM is missing
 ✔ login returns a 7-day JWT for the user and the User object without secrets
+✔ login accepts a username
+✔ login accepts an email in the login field
 ✔ login returns birthDate as YYYY-MM-DD
 ✔ login 401 for a wrong password
-✔ login 401 for an unknown email
+✔ login 401 for an unknown email or username
 ✔ login 403 for an unverified user, but only with the right password
 ✔ login 400 for missing password, without a lookup
 ✔ login 400 for no body, without a lookup
 ✔ login 400 for email as a Mongo operator, without a lookup
+✔ login 400 for login as a Mongo operator, without a lookup
+✔ login 400 for an empty login, without a lookup
 ✔ login 500 Server error when JWT_SECRET is not set
 ✔ verify-email marks the user verified and clears the token in one update
 ✔ verify-email 400 for an unknown, used or expired token
 ✔ verify-email 400 for missing token
 ✔ verify-email 400 for repeated token
 ✔ resend-verification gives an unverified user a new 24h token and emails it
+✔ resend-verification by username emails the account's address
 ✔ forgot-password sets a 1h reset token and emails the reset link
 ✔ /resend-verification gives the same reply and sends nothing for an unknown (or verified) email
 ✔ /resend-verification gives the same 200 when SendGrid rejects
@@ -57,6 +90,81 @@
 ✔ unknown path returns 404 Not found
 ✔ bad JSON body returns 400 Invalid JSON
 ✔ Mongo duplicate key error returns 409 Already exists
+✔ every meal-logs route needs a token
+✔ GET returns the caller's entries in the range and one totals row per day, empty days included
+✔ GET takes a single day and up to 31 days counting both ends, across a month end
+✔ GET rejects no query
+✔ GET rejects a missing to
+✔ GET rejects a missing from
+✔ GET rejects from after to
+✔ GET rejects 32 days
+✔ GET rejects a date that doesn't exist
+✔ GET rejects a date that isn't YYYY-MM-DD
+✔ GET rejects from given twice
+✔ POST with menuItemId copies the item's name, chain and macros, with status eaten and 1 serving by default
+✔ POST stores custom food as sent, trimmed, with no chain when chainName is omitted, null or blank
+✔ POST saves a mixed batch in the order sent and looks each menu item up once
+✔ POST with menuItemId refuses a client name instead of trusting it (400, nothing written)
+✔ POST with menuItemId refuses a client chainName instead of trusting it (400, nothing written)
+✔ POST with menuItemId refuses a client calories instead of trusting it (400, nothing written)
+✔ POST with menuItemId refuses a client proteinG instead of trusting it (400, nothing written)
+✔ POST with menuItemId refuses a client carbsG instead of trusting it (400, nothing written)
+✔ POST with menuItemId refuses a client fatG instead of trusting it (400, nothing written)
+✔ POST answers 404 for the first entry whose menu item doesn't exist, and writes nothing
+✔ POST with one bad entry in a batch writes nothing and names that entry
+✔ POST rejects a body without entries
+✔ POST rejects an empty list
+✔ POST rejects 51 entries
+✔ POST rejects one entry not in a list
+✔ POST rejects a field next to entries
+✔ POST rejects an entry that isn't an object
+✔ POST rejects an entry with a field the schema doesn't allow
+✔ POST rejects a userId in the entry
+✔ POST rejects a missing date
+✔ POST rejects a date that doesn't exist
+✔ POST rejects a date with a time
+✔ POST rejects an unknown status
+✔ POST rejects servings under 0.25
+✔ POST rejects servings over 10
+✔ POST rejects servings as a string
+✔ POST rejects a missing source
+✔ POST rejects an unknown source
+✔ POST rejects a malformed menuItemId
+✔ POST rejects a menuItemId that is an object
+✔ POST rejects custom food without a name
+✔ POST rejects a blank name
+✔ POST rejects a name over 150 characters
+✔ POST rejects a chainName over 100 characters
+✔ POST rejects a chainName that isn't text
+✔ POST rejects custom food without calories
+✔ POST rejects calories over 5000
+✔ POST rejects negative calories
+✔ POST rejects calories null
+✔ POST rejects a missing macro (unknown is null, not left out)
+✔ POST rejects a negative macro
+✔ POST rejects a macro as a string
+✔ PATCH marks the caller's planned entry eaten and changes servings, answering the MealLog
+✔ PATCH sets only the field sent
+✔ PATCH answers 404 for a missing or someone else's entry, and for a malformed id
+✔ PATCH rejects an empty body
+✔ PATCH rejects an unknown status
+✔ PATCH rejects servings of 0
+✔ PATCH rejects servings null
+✔ PATCH rejects a macro (a log is a snapshot)
+✔ PATCH rejects a new date
+✔ DELETE removes the caller's entry and answers 204 with no body
+✔ DELETE answers 404 for a missing or someone else's entry, and for a malformed id
+✔ needs a login
+✔ janedoe gets 3 items from 3 chains on an empty day
+✔ a week plan reads the whole range's logs and applies chainIds and mode
+✔ 400 Set your profile first when the profile is null
+✔ rejects a missing start
+✔ rejects a malformed start
+✔ rejects a start that doesn't exist
+✔ rejects days other than 1 or 7
+✔ rejects a malformed chain id
+✔ rejects chainIds given twice
+✔ rejects an unknown mode
 ✔ search needs no login and returns MenuItems with total, limit and skip
 ✔ q is normalized like the stored searchName, so case and punctuation don't matter
 ✔ regex characters in q can't change the query
@@ -72,6 +180,23 @@
 ✔ search rejects a negative skip
 ✔ search rejects a word for skip
 ✔ a repeated q (an array) is rejected rather than sent to Mongo
+✔ maps the model's items to PhotoItems; DB values win for matched items
+✔ a menuItemId that isn't a real item becomes unmatched with the model's values
+✔ unmatched values are clamped to what POST /meal-logs accepts; an empty name is dropped
+✔ menu names can't add a line to the prompt
+✔ 502 when the model refuses
+✔ 502 when the SDK throws
+✔ 503 when no API key is configured
+✔ the 21st analysis of the day gets 429
+✔ 21 concurrent analyses from one user: exactly one 429 and 20 SDK calls
+✔ a failed analysis gives its slot back
+✔ 413 for a 3.5 MB body
+✔ 413 for imageBase64 over 3,000,000 chars in a body under 3 MiB
+✔ 401 without a token
+✔ 400 for bad mediaType
+✔ 400 for missing image
+✔ 400 for data: prefix
+✔ 400 for unknown field
 ✔ needs a login
 ✔ with an empty body, uses the saved mode and perMeal and returns scored items best first
 ✔ body values override the saved ones without loading the user
@@ -108,9 +233,32 @@
 ✔ 400 for null radius, without calling places
 ✔ 400 for unknown field, without calling places
 ✔ 400, not 500, when the request has no body
+✔ every map server down near UCF: 200 from the snapshot, each place matched to its chain
 ✔ Overpass failure surfaces as 502 Places lookup failed
+✔ both routes need a token
+✔ a clean edit on an estimate item is auto_applied: the item changes and before is recorded
+✔ a no-op edit is 400: the item is unchanged and nothing is stored
+✔ an edit that changes one of its fields still goes through
+✔ an edit to a verified item is pending and doesn't change it
+✔ a flagged user's clean-looking edit is pending too
+✔ the 11th submission in 24 hours is 429 and nothing is written
+✔ a new item is auto_applied into the chain and resultId is recorded
+✔ a duplicate new item is 409 and nothing is written
+✔ a rename onto another item in the chain is 409 at submit time
+✔ a unique-index clash while applying is 409, not 500, and no submission is stored
+✔ a new chain is always pending and isn't created
+✔ a new chain whose name is a chain's name or alternate name is 409
+✔ a new chain whose alternate name is already a chain's name is 409, so Nearby never matches two chains
+✔ a missing target is 404
+✔ POST rejects an unknown kind with 400
+✔ POST rejects a malformed targetId with 400
+✔ POST rejects a targetId on a new chain with 400
+✔ POST rejects an unknown body field with 400
+✔ POST rejects an operator in the payload with 400
+✔ GET /mine lists only the caller's submissions, newest first, without flags
 ✔ every /users/me route needs a token
 ✔ GET /me returns the contract's User and never the hashes
+✔ GET /me returns a stored role and trackedNutrients instead of the defaults
 ✔ GET /me answers 404 when the account was deleted
 ✔ PUT /me/profile replaces the profile, storing birthDate as UTC midnight
 ✔ PUT /me/profile rejects height too short
@@ -129,6 +277,7 @@
 ✔ PUT /me/goal answers 400 Set your profile first when the profile is null, 404 when the user is gone
 ✔ PUT /me/goal rejects an invalid goal
 ✔ PATCH /me/preferences sets only the fields sent
+✔ PATCH /me/preferences sets trackedNutrients in the order sent
 ✔ PATCH /me/preferences with mealCalorieLimit null clears it
 ✔ PATCH /me/preferences rejects an empty body
 ✔ PATCH /me/preferences rejects unknown units
@@ -138,6 +287,13 @@
 ✔ PATCH /me/preferences rejects a meal limit under 100
 ✔ PATCH /me/preferences rejects a meal limit over 3000
 ✔ PATCH /me/preferences rejects an unknown field
+✔ PATCH /me/preferences rejects role, which only scripts/make-admin.js sets
+✔ PATCH /me/preferences rejects an empty trackedNutrients
+✔ PATCH /me/preferences rejects a repeated nutrient
+✔ PATCH /me/preferences rejects more than 4 nutrients
+✔ PATCH /me/preferences rejects an unknown nutrient
+✔ PATCH /me/preferences rejects trackedNutrients as a string
+✔ PATCH /me/preferences rejects trackedNutrients null
 ✔ GET /me/calories returns integer targets from the saved profile
 ✔ GET /me/calories uses the saved meal limit for perMeal
 ✔ GET /me/calories answers 400 Set your profile first with no profile
@@ -153,6 +309,9 @@
 ✔ 401 Invalid or expired session for a no sub token
 ✔ a missing JWT_SECRET is a 500 (no status), not a 401
 ✔ seed user janedoe matches the contract's check values
+✔ macros split the target by goal: maintain 30/40/30, gain 30/45/25
+✔ macros use the floored target and ignore the meal limit
+✔ an exact .5 gram rounds up (1320 * 0.35 / 4 is 115.49999... in floating point)
 ✔ gain adds 300 and maintain adds nothing
 ✔ male bmr is 166 above female for the same body (+5 vs -161)
 ✔ every activity level uses its multiplier
@@ -167,9 +326,53 @@
 ✔ prefix must end on a word boundary
 ✔ no match returns null
 ✔ verify and reset emails send CLIENT_URL links with the token via SendGrid
+✔ an empty day gets 3 items under perMeal, from 3 different chains, with their totals
+✔ a 7-day plan never repeats an item
+✔ an already-logged day gets fewer and smaller slots; planned and eaten both count, times servings
+✔ a day with under 300 kcal per slot returns no items; remaining never goes below 0
+✔ the limit uses the real remaining calories, not the rounded one
+✔ only another day's logs leave this day alone
+✔ chainIds limits the chains
+✔ with one chain the day falls back to the top unused items; when they run out, days get fewer
+✔ picks are deterministic for the same input
+✔ a small edit to an estimate item by an established user has no flags
+✔ new_chain: always for a new chain, never for items
+✔ verified_item: editing an item with isEstimate false
+✔ renamed: only when the name actually changes
+✔ large_change: more than 30%, so exactly 30% isn't
+✔ large_change: a current value of 0 counts any other value as large
+✔ large_change: filling an unknown macro isn't large, clearing a known one is
+✔ macros_mismatch: off by more than 20% of calories, exactly 20% is fine
+✔ macros_mismatch: small items get 40 kcal of slack, and exactly 40 is fine
+✔ macros_mismatch: checked after merging with the item, and skipped while a macro is unknown
+✔ new_account: created less than 24 h ago
+✔ untrusted_user: 2 or more rejected submissions
+✔ url_in_name: http, www. or .com anywhere in the name, any case
+✔ edit_item: a non-empty subset, names trimmed
+✔ new_item: every field required, macros may be null
+✔ item fields follow the menuItems validator
+✔ operator-shaped values are 400, since revert uses the payload as a Mongo filter
+✔ new_chain: name 1-100, https URL, up to 10 alternate names
 ✔ maps nodes and ways (center) and sends the radius in meters
 ✔ throws 502 Places lookup failed when Overpass errors
 ✔ bad Overpass bodies throw 502, coordinate-less elements are dropped, no chains means no call
+✔ a failing server falls through to the next one, each attempt with a timeout signal
+✔ all servers failing is still 502 Places lookup failed, OVERPASS_URL tried first, at most 3 attempts
+✔ a repeat lookup within the TTL, even after moving a few meters, is served from cache
+✔ concurrent identical lookups share one upstream request
+✔ a failed in-flight lookup is not reused; the next identical call fetches again
+✔ every server failing near UCF answers from the snapshot: asked-for chains only, within the radius, nearest first
+✔ the snapshot is filtered with the query's own name pattern: case-insensitive, apostrophe optional
+✔ a bigger radius from the snapshot reaches further, but never past it
+✔ inside the snapshot's area with nothing matching, the answer is an empty list, not a 502
+✔ outside the snapshot's 20 miles but overlapping it, the snapshot's places within the radius are returned
+✔ far from UCF with every server failing is still 502 Places lookup failed, with nothing logged
+✔ an expired cache entry is served when every server fails, ahead of the snapshot
+✔ a server that answers is always used, even with no places: the snapshot is only for failures
+✔ a fallback answer is never cached: the next lookup asks Overpass again and gets the live answer
+✔ covers 20 miles around UCF and says where it came from
+✔ every place has the shape the Overpass mapper produces, a unique favorite-safe placeId, and lies in the circle
+✔ every place matches a seeded chain, and every seeded chain has places (re-capture after adding a chain)
 ✔ score is grams of the macro per 100 kcal, 1 decimal
 ✔ protein mode ranks by protein per 100 kcal and attaches the score
 ✔ carb mode ranks by carbs, and an item with unknown protein can still rank on carbs
@@ -178,11 +381,16 @@
 ✔ equal scores put the lower-calorie item first, then sort by name
 ✔ limit caps the list after ranking
 ✔ the input items are not modified
-ℹ tests 179
+✔ totals: integer calories, 1-decimal macros, and a null macro marks them incomplete
+✔ totals multiply each value by servings; no servings counts as 1
+✔ a null macro adds nothing, even with servings, and the other macros still add up
+✔ no entries give zero totals that are complete
+✔ dailyTotals: one row per date in order, empty days included, eaten and planned apart
+✔ dailyTotals leaves out entries on dates it wasn't asked for
+ℹ tests 388
 ℹ suites 1
-ℹ pass 179
+ℹ pass 388
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-
