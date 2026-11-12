@@ -77,16 +77,17 @@ jobs:
           cache: npm
           cache-dependency-path: backend/package-lock.json
       - run: npm ci --omit=dev
+      # shortcut: mongosh 2.14.2 (2026-11-11) installs without mongodb-redact and exits at startup; back to mongosh@2 once a fixed release is out
       - name: Load schema and seed
         working-directory: backend/db
-        run: npx -y mongosh@2 "$MONGODB_URI" schema.js seed.js
+        run: npx -y mongosh@2.14.1 "$MONGODB_URI" schema.js seed.js
         env:
           SEED_ADMIN: "1" # adds siteadmin for the admin tests; never set for production
       # deploy.sh re-runs schema.js on every deploy. Start from an outdated users validator (production's state
       # when PATCH trackedNutrients gave 500) and re-run it; the API tests below then save trackedNutrients.
       - name: Re-apply schema over an outdated validator, as deploy.sh does
         working-directory: backend/db
-        run: npx -y mongosh@2 "$MONGODB_URI" ../tests/db/old-validator.mongosh.js schema.js
+        run: npx -y mongosh@2.14.1 "$MONGODB_URI" ../tests/db/old-validator.mongosh.js schema.js
       - name: API tests against the seeded database
         run: npm run test:db
         env:
