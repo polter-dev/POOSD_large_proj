@@ -175,7 +175,8 @@ Returns items with `300 <= calories <= mealCalorieLimit` (300 kcal floor, so no 
 - `placeId` is `osm-<type>-<id>` for the OpenStreetMap element (`osm-node-123...`, `osm-way-...`). It has no `/`, so it can be saved as a favorite as-is.
 - `chainId` is set when the normalized place name matches a chain's `nameKey` or `alternateNames` (exact lookup, then the prefix fallback in `backend/db/README.md` "For the API team"). `null` = no nutrition data.
 - Nothing about the location or the user's coordinates is stored (spec N4).
-- When the map service is down (every Overpass server fails), results may come from the server's last cached answer for the same search or from a snapshot of OpenStreetMap places within 20 miles of UCF (`backend/db/places-snapshot.json`, #128). They are filtered by the same radius and chain names and have exactly this shape, with no extra field. The 502 is returned only when nothing is within the radius and the point is more than 20 miles from UCF.
+- Lookup order (#163): a cached answer for the same search from the last 10 minutes; else, when the whole search circle lies inside the 20 miles around UCF covered by a snapshot of OpenStreetMap places (`backend/db/places-snapshot.json`), the snapshot right away while the server refreshes its cache from Overpass in the background for the next request; else every Overpass server at once, first usable answer wins (15 s limit).
+- When the map service is down (every Overpass server fails), results may come from the server's last cached answer for the same search (even if expired) or from the snapshot (#128). Snapshot and cached results are filtered by the same radius and chain names and have exactly this shape, with no extra field. The 502 is returned only when nothing is within the radius and the point is more than 20 miles from UCF.
 
 ### Favorites (all auth yes)
 
