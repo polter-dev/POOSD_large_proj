@@ -153,7 +153,7 @@ test("a failed in-flight lookup is not reused; the next identical call fetches a
 // ---------------------------------------------------------------------------
 // Inside the snapshot's circle (#163): the snapshot at once, Overpass in the background. Outside it, every server
 // down (#128): an expired cache entry, then db/places-snapshot.json, then the 502.
-// UCF with radiusMiles <= 19 lies inside the snapshot's 20 miles; 25 does not.
+// UCF with radiusMiles <= 20 lies inside the snapshot's 21 miles; 25 does not.
 // ---------------------------------------------------------------------------
 const UCF = { lat: 28.6024, lng: -81.2001 };
 const hanging = () => {
@@ -188,6 +188,12 @@ test("inside the snapshot's circle with an empty cache, the snapshot answers wit
   assert.deepStrictEqual(Object.keys(rows[0]), ["placeId", "name", "address", "lat", "lng", "distanceMiles"]);
   assert.deepStrictEqual([rows[0].placeId, rows[0].name, rows[0].address], ["osm-node-9661240581", "Panda Express", "12715 Pegasus Drive, Orlando"]);
   assert.strictEqual(log.mock.callCount(), 0);
+});
+
+test("the largest radius the API accepts, 20 mi at UCF, is answered from the snapshot without waiting on fetch", async () => {
+  hanging();
+  const rows = await findNearbyChainLocations({ ...UCF, radiusMiles: 20, chainNames: ["Starbucks"] });
+  assert.ok(rows.length > 0 && rows.some((r) => r.distanceMiles > 15) && rows.every((r) => r.distanceMiles <= 20));
 });
 
 test("the background refresh warms the cache: the next tap gets the live answer, ahead of the snapshot", async () => {
@@ -247,7 +253,7 @@ test("inside the snapshot's area with nothing matching, the answer is an empty l
   assert.deepStrictEqual(await findNearbyChainLocations({ ...UCF, radiusMiles: 5, chainNames: ["Nonexistent Burger"] }), []);
 });
 
-test("outside the snapshot's 20 miles but overlapping it, the snapshot's places within the radius are returned", async () => {
+test("outside the snapshot's 21 miles but overlapping it, the snapshot's places within the radius are returned", async () => {
   failing();
   quiet();
   // 25 mi west of UCF (Clermont): its 20-mile circle still covers west Orlando.
