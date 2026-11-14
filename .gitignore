@@ -110,4 +110,5 @@ mobile/ios/Flutter/Generated.xcconfig
 # these lines so the disclosure ships with the project
 # ---------------------------------------------------------------------------
 /prompts/marcus/
-/prompts/richard/
+/prompts/richard/*
+!/prompts/richard/ai-disclosure.md
