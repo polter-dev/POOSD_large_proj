@@ -15,6 +15,15 @@ review.
 Built on the MERN stack (MongoDB, Express, React, Node.js) with a Flutter
 mobile client. Calorie targets are general estimates, not medical advice.
 
+## Team
+
+| Name | GitHub | Role |
+|---|---|---|
+| polter-dev | [@polter-dev](https://github.com/polter-dev) | Project manager, API lead, hosting/deploy |
+| Richard Magiday | [@richardmagiday-cell](https://github.com/richardmagiday-cell) | Database and web front end |
+| Alex Kemper | [@Alex-Kemper](https://github.com/Alex-Kemper) | Mobile (Flutter) |
+| MonklyS | [@MonklyS](https://github.com/MonklyS) | API |
+
 ## Repository layout
 
 | Folder | What lives there | Small-project equivalent |
