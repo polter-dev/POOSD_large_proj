@@ -26,6 +26,24 @@ const hoursAgo = (h) => new Date(now.getTime() - h * 60 * 60 * 1000);
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York" }).format(now);
 
 // ---------------------------------------------------------------------------
+// Read the seed data first: if seed.js has not run, throw before writing anything
+// ---------------------------------------------------------------------------
+function fromItem(chainName, name, extra) {
+  const m = db.menuItems.findOne({ chainName, name });
+  if (!m) throw new Error(`seed-demo.js: no menu item "${name}" at ${chainName}; run seed.js first`);
+  return { menuItemId: m._id, name: m.name, chainName: m.chainName, calories: m.calories, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG, servings: 1, ...extra };
+}
+const mealLogEntries = [
+  fromItem("Starbucks", "Spinach, Feta & Egg White Wrap", { status: "eaten", source: "search" }),
+  fromItem("Chick-fil-A", "Grilled Nuggets (8 ct)", { status: "eaten", source: "photo" }),
+  { menuItemId: null, name: "Protein shake", chainName: null, servings: 1, calories: 160, proteinG: 30, carbsG: 5, fatG: 2, status: "eaten", source: "custom" },
+  fromItem("Chipotle", "Chicken Burrito Bowl (white rice, black beans, chicken)", { status: "planned", source: "plan" }),
+  fromItem("Panda Express", "Grilled Teriyaki Chicken", { status: "planned", servings: 1.5, source: "plan" }),
+];
+const cfa = db.chains.findOne({ nameKey: "chick fil a" });
+if (!cfa) throw new Error("seed-demo.js: no Chick-fil-A chain; run seed.js first");
+
+// ---------------------------------------------------------------------------
 // users: upserted, so a re-run resets the password, role and profile
 // ---------------------------------------------------------------------------
 const DEFAULT_PREFERENCES = { units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null };
@@ -76,20 +94,7 @@ const favorites = db.favorites.insertMany([
 // ---------------------------------------------------------------------------
 // mealLogs: today, eaten and planned, snapshots of seeded items like the API makes
 // ---------------------------------------------------------------------------
-function fromItem(chainName, name, extra) {
-  const m = db.menuItems.findOne({ chainName, name });
-  if (!m) throw new Error(`seed-demo.js: no menu item "${name}" at ${chainName}; run seed.js first`);
-  return { menuItemId: m._id, name: m.name, chainName: m.chainName, calories: m.calories, proteinG: m.proteinG, carbsG: m.carbsG, fatG: m.fatG, servings: 1, ...extra };
-}
-const mealLogs = db.mealLogs.insertMany(
-  [
-    fromItem("Starbucks", "Spinach, Feta & Egg White Wrap", { status: "eaten", source: "search" }),
-    fromItem("Chick-fil-A", "Grilled Nuggets (8 ct)", { status: "eaten", source: "photo" }),
-    { menuItemId: null, name: "Protein shake", chainName: null, servings: 1, calories: 160, proteinG: 30, carbsG: 5, fatG: 2, status: "eaten", source: "custom" },
-    fromItem("Chipotle", "Chicken Burrito Bowl (white rice, black beans, chicken)", { status: "planned", source: "plan" }),
-    fromItem("Panda Express", "Grilled Teriyaki Chicken", { status: "planned", servings: 1.5, source: "plan" }),
-  ].map((e) => ({ userId: demoId, date: today, createdAt: now, ...e })),
-);
+const mealLogs = db.mealLogs.insertMany(mealLogEntries.map((e) => ({ userId: demoId, date: today, createdAt: now, ...e })));
 
 // ---------------------------------------------------------------------------
 // submissions: one in each state demouser's screen and the admin queue show
@@ -97,8 +102,6 @@ const mealLogs = db.mealLogs.insertMany(
 // All of them act on one community item this script owns, so no seeded item is
 // changed. Its state is set the same way every run: the approved new_item's
 // values plus the auto-applied carbs fix. Found by chain + searchName, never duplicated.
-const cfa = db.chains.findOne({ nameKey: "chick fil a" });
-if (!cfa) throw new Error("seed-demo.js: no Chick-fil-A chain; run seed.js first");
 const COMMUNITY = { isEstimate: true, source: "community", lastVerified: null };
 const wrap = { name: "Grilled Cool Wrap", category: "entree", calories: 350, proteinG: 42, carbsG: 29, fatG: 13 };
 const carbsFix = { carbsG: 32 };

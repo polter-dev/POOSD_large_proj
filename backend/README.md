@@ -88,8 +88,8 @@ cd backend/db && mongosh --quiet "$MONGODB_URI" seed-demo.js
 ```
 
 Meal logs are dated to the day it runs (UCF time), so re-run it shortly before the demo; a re-run also puts back a
-submission the admin approved or rejected on stage. `demoadmin`'s password is public, so remove the role right after
-the demo with `node scripts/make-admin.js demoadmin --revoke` (from `backend/`).
+submission the admin approved or rejected on stage. `demoadmin`'s password is public, so after the last run of
+`seed-demo.js` (a re-run restores the role) run `node scripts/make-admin.js demoadmin --revoke` (from `backend/`).
 
 ## What's built
 
