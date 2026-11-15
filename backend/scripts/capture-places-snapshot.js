@@ -58,6 +58,7 @@ async function main() {
       server: url,
       center: CENTER,
       radiusMiles: RADIUS_MILES,
+      chainNames, // the fast path in src/integrations/places.js runs only for searches whose chains are all here
     };
     const head = JSON.stringify(meta, null, 2).slice(0, -2); // without the closing "\n}"
     fs.writeFileSync(OUT, `${head},\n  "places": [\n${places.map((p) => `    ${JSON.stringify(p)}`).join(",\n")}\n  ]\n}\n`);

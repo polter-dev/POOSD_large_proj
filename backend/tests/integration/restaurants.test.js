@@ -137,7 +137,8 @@ test("400, not 500, when the request has no body", async () => {
 });
 
 test("near UCF the snapshot answers without waiting on the map servers: 200, each place matched to its chain", async () => {
-  stubChains();
+  // Only names the snapshot was captured with ("panda" isn't one), or Overpass is asked first.
+  mock.method(Chain, "find", () => ({ lean: async () => [{ ...chains[0], alternateNames: [] }, chains[1]] }));
   places._clearCache();
   // Overpass never answers; this test's own requests to the API still go through.
   const realFetch = global.fetch;
