@@ -53,9 +53,6 @@ re-run it on the morning of a demo.
   ```
   It reads `MONGODB_URI` from `backend/.env` and exits with an error if the
   username doesn't exist. There's no API route for it.
-- **The one exception** is `demoadmin` from `seed-demo.js`, for the
-  presentation only: revoke it right after with
-  `node scripts/make-admin.js demoadmin --revoke`.
 
 ## Collections
 

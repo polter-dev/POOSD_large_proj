@@ -11,11 +11,12 @@
 // to the day it runs (UCF's time zone), so re-run it shortly before the demo.
 //
 // ACCOUNTS (password for all three: Password123!, same hash as seed.js)
-//   demoadmin    demoadmin@example.com    role "admin": opens the review queue
+//   demoadmin    demoadmin@example.com    the review queue, once it is made an admin (below)
 //   demouser     demouser@example.com     favorites, today's meal logs, one submission in each state
 //   swaggerdemo  swaggerdemo@example.com  profile only, for SwaggerHub "Try it out"
-// demoadmin's password is public, so revoke it after the demo:
-//   node scripts/make-admin.js demoadmin --revoke
+// demoadmin has no role until you run `node scripts/make-admin.js demoadmin` on the server;
+// revoke with `--revoke` after the demo. Its password is public, so this script never grants
+// or removes the role: a re-run leaves whatever make-admin.js set.
 
 db = db.getSiblingDB("MenuMacroFitter");
 
@@ -44,7 +45,7 @@ const cfa = db.chains.findOne({ nameKey: "chick fil a" });
 if (!cfa) throw new Error("seed-demo.js: no Chick-fil-A chain; run seed.js first");
 
 // ---------------------------------------------------------------------------
-// users: upserted, so a re-run resets the password, role and profile
+// users: upserted, so a re-run resets the password and profile (never demoadmin's role)
 // ---------------------------------------------------------------------------
 const DEFAULT_PREFERENCES = { units: "imperial", searchRadius: 5, recommendationMode: "protein", mealCalorieLimit: null };
 
@@ -64,7 +65,6 @@ function upsertUser(firstName, lastName, username, extra) {
 }
 
 const adminId = upsertUser("Demo", "Admin", "demoadmin", {
-  role: "admin",
   profile: { heightIn: 68, weightLb: 170, birthDate: new Date("2003-04-21"), sex: "male", activityLevel: "moderate", goal: "maintain" },
 });
 const demoId = upsertUser("Demo", "User", "demouser", {

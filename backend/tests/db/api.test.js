@@ -485,7 +485,11 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
 
     test("each account shows its feature, and a second run changes nothing", async () => {
       seedDemo();
-      const queue = await (await api("GET", "/admin/submissions?status=pending&limit=100", undefined, await login("demoadmin"))).json();
+      // demoadmin's password is public: the script must not make it an admin (make-admin.js does, on demo day)
+      const demoadmin = await (await api("POST", "/auth/login", { login: "demoadmin", password: "Password123!" })).json();
+      assert.strictEqual(demoadmin.user.role, "user");
+      assert.strictEqual((await api("GET", "/admin/submissions", undefined, demoadmin.token)).status, 403);
+      const queue = await (await api("GET", "/admin/submissions?status=pending&limit=100", undefined, await login("siteadmin"))).json();
       const pending = queue.submissions.find((s) => s.user.username === "demouser");
       assert.ok(pending && pending.flags.length > 0, "demouser's pending edit, with flags, is in the queue");
 

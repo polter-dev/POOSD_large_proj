@@ -79,7 +79,7 @@ the seeded chains and menu items. Every password is `Password123!`.
 
 | Username | Email | Show with it |
 |---|---|---|
-| `demoadmin` | `demoadmin@example.com` | Admin review queue: approve or reject `demouser`'s pending Grilled Cool Wrap edit (flagged `large_change`, `macros_mismatch`) |
+| `demoadmin` | `demoadmin@example.com` | Admin review queue, after `node scripts/make-admin.js demoadmin` (from `backend/`) right before the demo: approve or reject `demouser`'s pending Grilled Cool Wrap edit (flagged `large_change`, `macros_mismatch`); remove the role after with `--revoke` |
 | `demouser` | `demouser@example.com` | My submissions (one auto-applied, approved, rejected and pending), 3 favorites, today's Tracker and Plan (3 eaten, 2 planned) |
 | `swaggerdemo` | `swaggerdemo@example.com` | SwaggerHub: `POST /auth/login`, then `GET /users/me/calories` and `GET /menu-items/search` return real numbers |
 
@@ -88,8 +88,9 @@ cd backend/db && mongosh --quiet "$MONGODB_URI" seed-demo.js
 ```
 
 Meal logs are dated to the day it runs (UCF time), so re-run it shortly before the demo; a re-run also puts back a
-submission the admin approved or rejected on stage. `demoadmin`'s password is public, so after the last run of
-`seed-demo.js` (a re-run restores the role) run `node scripts/make-admin.js demoadmin --revoke` (from `backend/`).
+submission the admin approved or rejected on stage. `demoadmin`'s password is public, so the script never makes it an
+admin: grant the role with `node scripts/make-admin.js demoadmin` (from `backend/`) right before the demo, and remove
+it right after with `node scripts/make-admin.js demoadmin --revoke`. A re-run of `seed-demo.js` leaves the role as is.
 
 ## What's built
 
