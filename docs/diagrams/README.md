@@ -12,7 +12,7 @@ PlantUML sources, each rendered to a PNG with the same name (for the slides, #42
 | [`activity-moderation.puml`](activity-moderation.puml) | A community submission (#122): submit-time checks, auto-moderation flags, `auto_applied` or `pending`, and the admin's approve / reject / revert with their 404/409 guards. |
 | [`class-mobile.puml`](class-mobile.puml) | The Flutter app's classes: screens and how each opens the next, the Api and location services behind `ApiScope`, and the API models (#38). |
 | [`erd.puml`](erd.puml) | Database collections and relations (#39, #121): users, favorites, chains, menu items, and the M6 meal logs and community submissions, with `users.role` and `preferences.trackedNutrients`. |
-| [`gantt.puml`](gantt.puml) | Project schedule (#40). |
+| [`gantt.puml`](gantt.puml) | Project schedule (#40): one bar per issue for M1 to M6 by owner, green when closed, dates from GitHub as of Nov 14. |
 
 Render (needs Java; download `plantuml.jar` from https://plantuml.com/download):
 
