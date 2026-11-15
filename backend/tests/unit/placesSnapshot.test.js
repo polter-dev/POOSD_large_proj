@@ -11,9 +11,9 @@ function distanceMiles(lat1, lng1, lat2, lng2) {
   return 2 * 3958.8 * Math.asin(Math.sqrt(a));
 }
 
-test("covers 20 miles around UCF and says where it came from", () => {
+test("covers 21 miles around UCF and says where it came from", () => {
   assert.ok(distanceMiles(28.6024, -81.2001, snapshot.center.lat, snapshot.center.lng) < 0.1);
-  assert.strictEqual(snapshot.radiusMiles, 20);
+  assert.strictEqual(snapshot.radiusMiles, 21);
   assert.ok(!Number.isNaN(Date.parse(snapshot.capturedAt)), snapshot.capturedAt);
   assert.match(snapshot.attribution, /OpenStreetMap contributors/); // ODbL requires it
   assert.ok(snapshot.places.length > 100, `${snapshot.places.length} places`);

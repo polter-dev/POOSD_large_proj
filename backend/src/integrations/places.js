@@ -1,17 +1,19 @@
 // OpenStreetMap Overpass: free, no key, no card (decision on #27).
-// When every server fails, Nearby answers from an expired cache entry, then from db/places-snapshot.json (#128).
+// Lookup order (#163): a fresh cache entry; else, when the search circle lies inside db/places-snapshot.json's circle
+// and every chain name is in its chainNames, the snapshot at once while Overpass refreshes the cache in the background; else every server at once, first answer
+// wins. When every server fails, Nearby answers from an expired cache entry, then from the snapshot (#128).
 const path = require("path");
 
 // Loaded on first use (require caches it), so scripts/capture-places-snapshot.js runs even when the file is missing.
 const SNAPSHOT_FILE = path.join(__dirname, "..", "..", "db", "places-snapshot.json");
 const METERS_PER_MILE = 1609.344;
-// Tried in order after OVERPASS_URL; the public servers are often overloaded, so one failing is routine.
+// Raced with OVERPASS_URL; the public servers are often overloaded, so one failing is routine.
 const MIRRORS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.openstreetmap.fr/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter",
 ];
-// 3 attempts x 15 s keeps the worst case near 45 s, under the mobile client's 60 s limit.
+// Attempts run in parallel, so the worst case is 15 s, well under the mobile client's 60 s limit.
 const ATTEMPT_TIMEOUT_MS = 15000;
 const CACHE_TTL_MS = 10 * 60 * 1000;
 const CACHE_MAX = 300;
@@ -78,7 +80,7 @@ async function postQuery(url, query, timeoutMs) {
   return data;
 }
 
-// POST the query to each server in turn; first good body wins and is cached.
+// POST the query to every server at once; first good body wins and is cached.
 async function queryOverpass(query) {
   const hit = cache.get(query);
   if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
@@ -90,20 +92,20 @@ async function queryOverpass(query) {
 }
 
 async function fetchOverpass(query) {
-  // At most 3 attempts even when OVERPASS_URL is a fourth server, to keep the 45 s cap.
-  for (const url of overpassServers().slice(0, 3)) {
-    try {
-      const data = await postQuery(url, query, ATTEMPT_TIMEOUT_MS);
-      if (!data) continue;
-      cache.delete(query); // re-insert at the end so the oldest entry is first
-      if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
-      cache.set(query, { at: Date.now(), data });
-      return data;
-    } catch {
-      // network error, timeout or bad JSON: try the next server
-    }
+  let data;
+  try {
+    // At most 3 servers even when OVERPASS_URL is a fourth, so one lookup holds few slots on the public servers.
+    // A null (unusable) body rejects so it can't win; losers run on until their own timeout, ignored.
+    data = await Promise.any(
+      overpassServers().slice(0, 3).map((url) => postQuery(url, query, ATTEMPT_TIMEOUT_MS).then((d) => d || Promise.reject())),
+    );
+  } catch {
+    throw placesError(); // every server: network error, timeout, bad JSON or unusable body
   }
-  throw placesError();
+  cache.delete(query); // re-insert at the end so the oldest entry is first
+  if (cache.size >= CACHE_MAX) cache.delete(cache.keys().next().value);
+  cache.set(query, { at: Date.now(), data });
+  return data;
 }
 
 // An Overpass element as { placeId, name, address, lat, lng }, or null when it has no coordinates.
@@ -133,6 +135,13 @@ function nearestFirst(places, lat, lng) {
     .sort((a, b) => a.distanceMiles - b.distanceMiles);
 }
 
+// The snapshot's places within radiusMiles whose name matches the query's own chain-name regex, nearest first.
+function snapshotPlaces(snapshot, { lat, lng, radiusMiles, chainNames }) {
+  const name = new RegExp(namePattern(chainNames), "i");
+  return nearestFirst(snapshot.places.filter((p) => name.test(p.name)), lat, lng)
+    .filter((p) => p.distanceMiles <= radiusMiles);
+}
+
 // Every server failed. Answers are never cached from here, so the next request tries Overpass again.
 function fallback(query, { lat, lng, radiusMiles, chainNames }) {
   const stale = cache.get(query);
@@ -142,9 +151,7 @@ function fallback(query, { lat, lng, radiusMiles, chainNames }) {
     return nearestFirst(toPlaces(stale.data.elements), lat, lng);
   }
   const snapshot = require(SNAPSHOT_FILE);
-  const name = new RegExp(namePattern(chainNames), "i");
-  const places = nearestFirst(snapshot.places.filter((p) => name.test(p.name)), lat, lng)
-    .filter((p) => p.distanceMiles <= radiusMiles);
+  const places = snapshotPlaces(snapshot, { lat, lng, radiusMiles, chainNames });
   // Outside the snapshot's circle an empty list would wrongly say "nothing near you", so that stays a 502.
   const { center } = snapshot;
   if (!places.length && distanceMiles(lat, lng, center.lat, center.lng) > snapshot.radiusMiles) throw placesError();
@@ -161,6 +168,19 @@ async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
   // An empty pattern would match every restaurant in the radius.
   if (!chainNames.length) return [];
   const query = buildQuery({ lat, lng, radiusMiles, chainNames });
+  const hit = cache.get(query);
+  const snapshot = require(SNAPSHOT_FILE);
+  const { center } = snapshot;
+  // Chains approved after the capture (moderation's new_chain) aren't in the snapshot, so those searches ask Overpass.
+  const key = (n) => n.trim().toLowerCase();
+  const captured = new Set((snapshot.chainNames || []).map(key));
+  if (!(hit && Date.now() - hit.at < CACHE_TTL_MS)
+    && distanceMiles(lat, lng, center.lat, center.lng) + radiusMiles <= snapshot.radiusMiles
+    && chainNames.every((n) => captured.has(key(n)))) {
+    // The snapshot covers the whole search circle, so answer now and warm the cache for the next tap (#163).
+    queryOverpass(query).catch(() => console.error("[places] background Overpass refresh failed; served the snapshot"));
+    return snapshotPlaces(snapshot, { lat, lng, radiusMiles, chainNames });
+  }
   let data;
   try {
     data = await queryOverpass(query);

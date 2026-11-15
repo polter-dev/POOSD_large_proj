@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Re-captures db/places-snapshot.json, Nearby's fallback when every Overpass server is down (#128).
 // Runs the API's own query (same amenity filter, chain-name regex and mapping as src/integrations/places.js) for
-// 20 miles around UCF and writes one place per line, so a re-capture diffs cleanly.
+// 21 miles around UCF so every accepted radius, 20 included, is fully inside, and writes one place per line, so a
+// re-capture diffs cleanly.
 //
 //   node scripts/capture-places-snapshot.js
 //
@@ -16,7 +17,7 @@ const normalize = require("../src/utils/normalize");
 
 // UCF (28.6024, -81.2001) to the 3 decimals buildQuery rounds to, so this is the circle the query covers.
 const CENTER = { lat: 28.602, lng: -81.2 };
-const RADIUS_MILES = 20;
+const RADIUS_MILES = 21;
 const OUT = path.join(__dirname, "..", "db", "places-snapshot.json");
 
 // The chains in db/menu-data/chains.js as seed.js stores them: alternate names normalized, without repeats or the
@@ -57,6 +58,7 @@ async function main() {
       server: url,
       center: CENTER,
       radiusMiles: RADIUS_MILES,
+      chainNames, // the fast path in src/integrations/places.js runs only for searches whose chains are all here
     };
     const head = JSON.stringify(meta, null, 2).slice(0, -2); // without the closing "\n}"
     fs.writeFileSync(OUT, `${head},\n  "places": [\n${places.map((p) => `    ${JSON.stringify(p)}`).join(",\n")}\n  ]\n}\n`);
