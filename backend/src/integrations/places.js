@@ -1,6 +1,6 @@
 // OpenStreetMap Overpass: free, no key, no card (decision on #27).
-// Lookup order (#163): a fresh cache entry; else, when the search circle lies inside db/places-snapshot.json's circle,
-// the snapshot at once while Overpass refreshes the cache in the background; else every server at once, first answer
+// Lookup order (#163): a fresh cache entry; else, when the search circle lies inside db/places-snapshot.json's circle
+// and every chain name is in its chainNames, the snapshot at once while Overpass refreshes the cache in the background; else every server at once, first answer
 // wins. When every server fails, Nearby answers from an expired cache entry, then from the snapshot (#128).
 const path = require("path");
 
@@ -171,8 +171,12 @@ async function findNearbyChainLocations({ lat, lng, radiusMiles, chainNames }) {
   const hit = cache.get(query);
   const snapshot = require(SNAPSHOT_FILE);
   const { center } = snapshot;
+  // Chains approved after the capture (moderation's new_chain) aren't in the snapshot, so those searches ask Overpass.
+  const key = (n) => n.trim().toLowerCase();
+  const captured = new Set((snapshot.chainNames || []).map(key));
   if (!(hit && Date.now() - hit.at < CACHE_TTL_MS)
-    && distanceMiles(lat, lng, center.lat, center.lng) + radiusMiles <= snapshot.radiusMiles) {
+    && distanceMiles(lat, lng, center.lat, center.lng) + radiusMiles <= snapshot.radiusMiles
+    && chainNames.every((n) => captured.has(key(n)))) {
     // The snapshot covers the whole search circle, so answer now and warm the cache for the next tap (#163).
     queryOverpass(query).catch(() => console.error("[places] background Overpass refresh failed; served the snapshot"));
     return snapshotPlaces(snapshot, { lat, lng, radiusMiles, chainNames });

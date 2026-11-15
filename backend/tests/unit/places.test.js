@@ -249,8 +249,25 @@ test("inside the snapshot's area with nothing matching, the answer is an empty l
   failing();
   quiet();
   assert.deepStrictEqual(await findNearbyChainLocations({ ...UCF, radiusMiles: 25, chainNames: ["Nonexistent Burger"] }), []);
-  hanging();
+  // Not a captured chain, so inside the circle Overpass is asked first; failing, the snapshot still answers [].
   assert.deepStrictEqual(await findNearbyChainLocations({ ...UCF, radiusMiles: 5, chainNames: ["Nonexistent Burger"] }), []);
+});
+
+test("inside the circle, a chain the snapshot wasn't captured with (approved later) sends the search to Overpass", async () => {
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(url);
+    return okBody("Pollo Tropical");
+  };
+  const rows = await findNearbyChainLocations({ ...UCF, radiusMiles: 5, chainNames: ["Starbucks", "Pollo Tropical"] });
+  assert.strictEqual(calls.length, 3);
+  assert.deepStrictEqual(rows.map((r) => r.placeId), ["osm-node-9"]); // the live answer, not the snapshot
+});
+
+test("inside the circle, captured chain names in any case take the snapshot path", async () => {
+  hanging();
+  const rows = await findNearbyChainLocations({ ...UCF, radiusMiles: 5, chainNames: ["STARBUCKS", "panda express"] });
+  assert.ok(rows.length > 2 && rows.every((r) => /^(Starbucks|Panda Express)$/.test(r.name)), rows.map((r) => r.name).join(", "));
 });
 
 test("outside the snapshot's 21 miles but overlapping it, the snapshot's places within the radius are returned", async () => {
