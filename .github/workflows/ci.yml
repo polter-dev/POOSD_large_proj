@@ -80,7 +80,7 @@ jobs:
       # shortcut: mongosh 2.14.2 (2026-11-11) installs without mongodb-redact and exits at startup; back to mongosh@2 once a fixed release is out
       - name: Load schema and seed
         working-directory: backend/db
-        run: npx -y mongosh@2.14.1 "$MONGODB_URI" schema.js seed.js
+        run: npx -y mongosh@2.14.1 "$MONGODB_URI" schema.js seed.js seed-demo.js
         env:
           SEED_ADMIN: "1" # adds siteadmin for the admin tests; never set for production
       # deploy.sh re-runs schema.js on every deploy. Start from an outdated users validator (production's state
@@ -92,6 +92,7 @@ jobs:
         run: npm run test:db
         env:
           TEST_MONGODB_URI: mongodb://localhost:27017
+          MONGOSH: npx -y mongosh@2.14.1 # the demo-accounts test re-runs seed-demo.js
       - name: Start server
         id: start
         run: nohup node src/server.js > server.log 2>&1 &

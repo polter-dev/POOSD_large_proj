@@ -5,8 +5,11 @@
 //
 //   SEED_ADMIN=1 mongosh "$TEST_MONGODB_URI" db/schema.js db/seed.js
 //   TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
+// The demo-accounts test runs db/seed-demo.js itself, with mongosh from PATH or the MONGOSH command.
 const { describe, test, before, after } = require("node:test");
 const assert = require("node:assert");
+const { execSync } = require("node:child_process");
+const path = require("node:path");
 const mongoose = require("mongoose");
 
 const uri = process.env.TEST_MONGODB_URI;
@@ -468,6 +471,50 @@ describe("API against a seeded MongoDB", { skip: !uri && "set TEST_MONGODB_URI t
         await items.replaceOne({ _id: original._id }, original);
         await submissions.replaceOne({ _id: id }, storedSub);
       }
+    });
+  });
+
+  describe("demo accounts (seed-demo.js)", () => {
+    const seedDemo = () =>
+      execSync(`${process.env.MONGOSH || "mongosh"} --quiet "${uri}" seed-demo.js`, { cwd: path.join(__dirname, "../../db"), stdio: "pipe" });
+    const login = async (username) => {
+      const res = await api("POST", "/auth/login", { login: username, password: "Password123!" });
+      assert.strictEqual(res.status, 200, `${username} login`);
+      return (await res.json()).token;
+    };
+
+    test("each account shows its feature, and a second run changes nothing", async () => {
+      seedDemo();
+      // demoadmin's password is public: the script must not make it an admin (make-admin.js does, on demo day)
+      const demoadmin = await (await api("POST", "/auth/login", { login: "demoadmin", password: "Password123!" })).json();
+      assert.strictEqual(demoadmin.user.role, "user");
+      assert.strictEqual((await api("GET", "/admin/submissions", undefined, demoadmin.token)).status, 403);
+      const queue = await (await api("GET", "/admin/submissions?status=pending&limit=100", undefined, await login("siteadmin"))).json();
+      const pending = queue.submissions.find((s) => s.user.username === "demouser");
+      assert.ok(pending && pending.flags.length > 0, "demouser's pending edit, with flags, is in the queue");
+
+      const mine = await (await api("GET", "/submissions/mine", undefined, await login("demouser"))).json();
+      assert.deepStrictEqual(mine.submissions.map((s) => s.status).sort(), ["approved", "auto_applied", "pending", "rejected"]);
+      const applied = mine.submissions.find((s) => s.status === "auto_applied");
+      assert.deepStrictEqual(applied.before, { carbsG: 29 });
+
+      const calories = await (await api("GET", "/users/me/calories", undefined, await login("swaggerdemo"))).json();
+      assert.strictEqual(typeof calories.target, "number");
+
+      const userId = (await User.findOne({ username: "demouser" }).lean())._id;
+      const snapshot = async () => {
+        const c = (name) => mongoose.connection.db.collection(name);
+        return [
+          await c("users").countDocuments(),
+          await c("menuItems").countDocuments(),
+          ...(await Promise.all(["favorites", "mealLogs", "submissions"].map((n) => c(n).countDocuments({ userId })))),
+          await c("menuItems").findOne({ _id: new mongoose.Types.ObjectId(applied.targetId) }),
+        ];
+      };
+      const first = await snapshot();
+      assert.deepStrictEqual(first.slice(2, 5), [3, 5, 4]);
+      seedDemo();
+      assert.deepStrictEqual(await snapshot(), first);
     });
   });
 });
