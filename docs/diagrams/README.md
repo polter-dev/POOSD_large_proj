@@ -10,7 +10,7 @@ PlantUML sources, each rendered to a PNG with the same name (for the slides, #42
 | [`activity-recommendations.puml`](activity-recommendations.puml) | How recommendations are picked and ranked: per-meal limit, protein or carb mode, score, "Great fit". |
 | [`sequence-photo-log.puml`](sequence-photo-log.puml) | Log a meal from a photo (#122): `POST /photo-analyses` limits and errors, the Claude call, the DB-trust step, then the confirm screen and `POST /meal-logs`. |
 | [`activity-moderation.puml`](activity-moderation.puml) | A community submission (#122): submit-time checks, auto-moderation flags, `auto_applied` or `pending`, and the admin's approve / reject / revert with their 404/409 guards. |
-| [`class-mobile.puml`](class-mobile.puml) | The Flutter app's classes: screens and how each opens the next, the Api and location services behind `ApiScope`, and the API models (#38). |
+| [`class-mobile.puml`](class-mobile.puml) | The Flutter app's classes: screens and how each opens the next, the Api, location and photo services behind `ApiScope`, and the API models (#38), with the M6 Tracker, plans, photo log and submission screens. |
 | [`erd.puml`](erd.puml) | Database collections and relations (#39, #121): users, favorites, chains, menu items, and the M6 meal logs and community submissions, with `users.role` and `preferences.trackedNutrients`. |
 | [`gantt.puml`](gantt.puml) | Project schedule (#40): one bar per issue for M1 to M6 by owner, green when closed, dates from GitHub as of Nov 14. |
 
