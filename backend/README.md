@@ -40,9 +40,12 @@ write must also pass the collection validators. It writes data (and puts it back
 `TEST_MONGODB_URI` is set. Never point it at the production database. CI runs it on every backend PR.
 
 ```bash
-SEED_ADMIN=1 mongosh "mongodb://localhost:27017" db/schema.js db/seed.js   # SEED_ADMIN adds siteadmin for the admin tests
+SEED_ADMIN=1 mongosh "mongodb://localhost:27017" db/schema.js db/seed.js db/seed-demo.js   # SEED_ADMIN adds siteadmin for the admin tests
 TEST_MONGODB_URI=mongodb://localhost:27017 npm run test:db
 ```
+
+The demo-accounts test runs `db/seed-demo.js` again itself with `mongosh` from your `PATH`; set `MONGOSH` to another
+command (CI uses `npx -y mongosh@2.14.1`) if it isn't there.
 
 Saved results for the slides are in [`docs/test-results/`](../docs/test-results/). A Postman collection covering
 every endpoint is in [`docs/postman/`](../docs/postman/).
@@ -66,6 +69,27 @@ With the seed data loaded and `npm run dev` running (every seed password is `Pas
 
 The demo tokens are single use and expire relative to when `seed.js` ran: **`demo-reset-token` after 1 hour**,
 `demo-verify-token` after 24 hours. Re-run `seed.js` shortly before a demo.
+
+### Demo accounts
+
+`db/seed-demo.js` (#169) adds three accounts for the presentation without wiping anything, so unlike `seed.js` it can
+run on the server. It upserts the users, replaces only `demouser`'s own favorites, meal logs and submissions, and
+resets the one community item it owns (Grilled Cool Wrap at Chick-fil-A); running it twice changes nothing. It needs
+the seeded chains and menu items. Every password is `Password123!`.
+
+| Username | Email | Show with it |
+|---|---|---|
+| `demoadmin` | `demoadmin@example.com` | Admin review queue: approve or reject `demouser`'s pending Grilled Cool Wrap edit (flagged `large_change`, `macros_mismatch`) |
+| `demouser` | `demouser@example.com` | My submissions (one auto-applied, approved, rejected and pending), 3 favorites, today's Tracker and Plan (3 eaten, 2 planned) |
+| `swaggerdemo` | `swaggerdemo@example.com` | SwaggerHub: `POST /auth/login`, then `GET /users/me/calories` and `GET /menu-items/search` return real numbers |
+
+```bash
+cd backend/db && mongosh --quiet "$MONGODB_URI" seed-demo.js
+```
+
+Meal logs are dated to the day it runs (UCF time), so re-run it shortly before the demo; a re-run also puts back a
+submission the admin approved or rejected on stage. `demoadmin`'s password is public, so remove the role right after
+the demo with `node scripts/make-admin.js demoadmin --revoke` (from `backend/`).
 
 ## What's built
 

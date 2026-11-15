@@ -6,6 +6,7 @@ Database name: **`MenuMacroFitter`** (MongoDB 5.0+)
 |---|---|---|
 | `schema.js` | Creates the 6 collections with validation rules and indexes | `sql/schema.sql` |
 | `seed.js` | Deletes everything, then inserts test users, chains, menu items, favorites, meal logs, submissions | `sql/database/seed.sql` |
+| `seed-demo.js` | Adds the presentation's demo accounts after `seed.js` without deleting anything else; safe on the server (backend README, "Demo accounts") | — |
 | `menu-data/chains.js` | Restaurant chains + menu items (edit this to add or verify food) | — |
 | `places-snapshot.json` | Nearby's fallback when every Overpass server is down: OpenStreetMap places of the seeded chains within 20 miles of UCF. Not loaded into MongoDB; the API reads the file (#128) | — |
 | `queries.md` | Demo queries for the GTA, with expected results | `sql/database/queries.md` |
@@ -52,6 +53,9 @@ re-run it on the morning of a demo.
   ```
   It reads `MONGODB_URI` from `backend/.env` and exits with an error if the
   username doesn't exist. There's no API route for it.
+- **The one exception** is `demoadmin` from `seed-demo.js`, for the
+  presentation only: revoke it right after with
+  `node scripts/make-admin.js demoadmin --revoke`.
 
 ## Collections
 
