@@ -6,6 +6,7 @@
 ' Issues opened later (M6 and after) start at their creation date. M6 has no due date, so no diamond.
 ' Dates from GitHub as of 2026-11-14.
 ' Skipped: #3, #4 (admin), #49, #57 (decision/follow-up issues).
+' Exceptions: the disclosure row is PRs with no issue; #163 has no milestone, so its open bar ends Nov 15 (presentation week).
 
 skinparam defaultFontName Verdana
 scale 2
@@ -93,6 +94,6 @@ end legend
 [~#122 M6 UML diagrams (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
 
 -- No milestone --
-[~#159-#161 AI disclosure PRs (Richard)] starts 2026-11-11 and ends 2026-11-14 and is colored in YellowGreen
+[~#159, #161 AI disclosure PRs (Richard)] starts 2026-11-11 and ends 2026-11-14 and is colored in YellowGreen
 [~#163 Nearby speed-up (Marcus)] starts 2026-11-14 and ends 2026-11-15
 @endgantt

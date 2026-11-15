@@ -468,8 +468,8 @@ NearbyScreen ..> ChainFormScreen : Add this restaurant
 NearbyScreen ..> ItemFormScreen : Add a missing item
 PicksScreen ..> ItemFormScreen : Add item,\nSuggest a correction
 SearchScreen ..> ItemFormScreen : Suggest a correction
-ItemFormScreen ..> MySubmissionsScreen : sent
-ChainFormScreen ..> MySubmissionsScreen : sent
+ItemFormScreen ..> MySubmissionsScreen : My submissions
+ChainFormScreen ..> MySubmissionsScreen : My submissions
 
 ' --- screens use services through ApiScope
 LoginScreen ..> Api : via ApiScope\n(every screen)
