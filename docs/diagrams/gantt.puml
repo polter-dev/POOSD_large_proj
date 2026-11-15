@@ -3,7 +3,10 @@
 ' One bar per GitHub issue. Start = previous milestone's due date (Oct 12 for M1),
 ' end = the issue's milestone due date, or its closedAt date if closed.
 ' Closed issues finished before their window opened start at their creation date (Oct 22).
+' Issues opened later (M6 and after) start at their creation date. M6 has no due date, so no diamond.
+' Dates from GitHub as of 2026-11-14.
 ' Skipped: #3, #4 (admin), #49, #57 (decision/follow-up issues).
+' Exceptions: the disclosure row is PRs with no issue; #163 has no milestone, so its open bar ends Nov 15 (presentation week).
 
 skinparam defaultFontName Verdana
 scale 2
@@ -22,51 +25,75 @@ end legend
 [M1 Database demo] happens at 2026-10-23
 
 -- M2: API and front-end demo --
-[~#9 Provision server (Marcus)] starts 2026-10-23 and ends 2026-10-30
+[~#9 Provision server (Marcus)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
 [~#10 Express skeleton (Marcus)] starts 2026-10-23 and ends 2026-10-27 and is colored in YellowGreen
-[~#11 Email service (Marcus)] starts 2026-10-23 and ends 2026-10-30
-[~#12 Register endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-30
-[~#13 Login endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-30
-[~#14 Postman collection (Monkly)] starts 2026-10-23 and ends 2026-10-30
-[~#15 React + TS project (Richard)] starts 2026-10-23 and ends 2026-10-30
+[~#11 Email service (Marcus)] starts 2026-10-23 and ends 2026-10-29 and is colored in YellowGreen
+[~#12 Register endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
+[~#13 Login endpoint (Monkly)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
+[~#14 Postman collection (Monkly)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
+[~#15 React + TS project (Richard)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
 [~#16 Web API client (Marcus)] starts 2026-10-23 and ends 2026-10-27 and is colored in YellowGreen
-[~#17 Login/register pages (Richard)] starts 2026-10-23 and ends 2026-10-30
-[~#18 Figma prototypes (Alex, Richard)] starts 2026-10-23 and ends 2026-10-30
-[~#19 Deploy API + web (Marcus)] starts 2026-10-23 and ends 2026-10-30
+[~#17 Login/register pages (Richard)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
+[~#18 Figma prototypes (Alex, Richard)] starts 2026-10-23 and ends 2026-11-01 and is colored in YellowGreen
+[~#19 Deploy API + web (Marcus)] starts 2026-10-23 and ends 2026-10-28 and is colored in YellowGreen
 [M2 API and front-end demo] happens at 2026-10-30
 
 -- M3: Mobile demo --
-[~#20 Flutter login/register (Alex)] starts 2026-10-30 and ends 2026-11-06
-[~#21 Verify/reset endpoints (Monkly)] starts 2026-10-30 and ends 2026-11-06
-[~#22 Reset-password pages (Richard)] starts 2026-10-30 and ends 2026-11-06
-[~#23 Profile endpoints (Monkly)] starts 2026-10-30 and ends 2026-11-06
-[~#24 Calories endpoint (Monkly)] starts 2026-10-30 and ends 2026-11-06
-[~#25 Profile/calorie pages (Richard)] starts 2026-10-30 and ends 2026-11-06
-[~#26 Rehearse mobile demo (Alex)] starts 2026-10-30 and ends 2026-11-06
+[~#20 Flutter login/register (Alex)] starts 2026-10-30 and ends 2026-11-01 and is colored in YellowGreen
+[~#21 Verify/reset endpoints (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#22 Reset-password pages (Richard)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#23 Profile endpoints (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#24 Calories endpoint (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#25 Profile/calorie pages (Richard)] starts 2026-10-22 and ends 2026-10-29 and is colored in YellowGreen
+[~#26 Rehearse mobile demo (Alex)] starts 2026-10-30 and ends 2026-11-10 and is colored in YellowGreen
+[~#128 Nearby snapshot fallback (Monkly)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
 [M3 Mobile demo] happens at 2026-11-06
 
 -- M4: Feature complete --
-[~#27 Places API decision (Marcus)] starts 2026-11-06 and ends 2026-11-10
+[~#27 Places API decision (Marcus)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
 [~#28 Chain nutrition data (Richard)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
 [~#29 Menu collections (Richard)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
-[~#30 Nearby restaurants (Monkly)] starts 2026-11-06 and ends 2026-11-10
-[~#31 Menu search (Monkly)] starts 2026-11-06 and ends 2026-11-10
-[~#32 Recommendations (Monkly)] starts 2026-11-06 and ends 2026-11-10
-[~#33 Favorites endpoints (Monkly)] starts 2026-11-06 and ends 2026-11-10
-[~#34 Web feature screens (Richard)] starts 2026-11-06 and ends 2026-11-10
-[~#35 Mobile feature screens (Alex)] starts 2026-11-06 and ends 2026-11-10
+[~#30 Nearby restaurants (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#31 Menu search (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#32 Recommendations (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#33 Favorites endpoints (Monkly)] starts 2026-10-22 and ends 2026-10-28 and is colored in YellowGreen
+[~#34 Web feature screens (Richard)] starts 2026-10-22 and ends 2026-11-03 and is colored in YellowGreen
+[~#35 Mobile feature screens (Alex)] starts 2026-10-22 and ends 2026-11-01 and is colored in YellowGreen
 [M4 Feature complete] happens at 2026-11-10
 
 -- M5: Presentation --
 [~#36 SwaggerHub spec (Marcus)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
-[~#37 Use case/sequence diagrams (Marcus)] starts 2026-11-10 and ends 2026-11-15
-[~#38 Mobile class diagram (Alex)] starts 2026-11-10 and ends 2026-11-15
-[~#39 Final ERD (Richard)] starts 2026-11-10 and ends 2026-11-15
-[~#40 Gantt chart (Marcus)] starts 2026-11-10 and ends 2026-11-15
-[~#41 Integration tests (Monkly)] starts 2026-11-10 and ends 2026-11-15
+[~#37 Use case/sequence diagrams (Marcus)] starts 2026-10-22 and ends 2026-11-02 and is colored in YellowGreen
+[~#38 Mobile class diagram (Alex)] starts 2026-10-22 and ends 2026-11-03 and is colored in YellowGreen
+[~#39 Final ERD (Richard)] starts 2026-10-22 and ends 2026-11-03 and is colored in YellowGreen
+[~#40 Gantt chart (Marcus)] starts 2026-10-22 and ends 2026-10-27 and is colored in YellowGreen
+[~#41 Integration tests (Monkly)] starts 2026-11-10 and ends 2026-11-12 and is colored in YellowGreen
 [~#42 Slides (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
-[~#43 Campus network check (Marcus)] starts 2026-11-10 and ends 2026-11-15
+[~#43 Campus network check (Marcus)] starts 2026-11-10 and ends 2026-11-11 and is colored in YellowGreen
 [~#44 Timed rehearsal (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
 [~#45 Submit PowerPoint (Alex, Marcus, Richard)] starts 2026-11-10 and ends 2026-11-15
 [M5 Presentation] happens at 2026-11-15
+
+-- M6: Tracking, plans, photo, community --
+[~#106 M6 API contract (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#107 DB schema for M6 (Richard)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#108 Meal-log endpoints (Monkly)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#109 Admin role (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#110 Submissions API (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#111 Meal plans endpoint (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#112 Photo analysis endpoint (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#113 Photo model eval (Marcus)] starts 2026-11-03 and ends 2026-11-12 and is colored in YellowGreen
+[~#114 M6 prototypes (Alex, Richard)] starts 2026-11-03 and ends 2026-11-05 and is colored in YellowGreen
+[~#115 Web meal tracker (Richard)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#116 Web plans + photo (Richard)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#117 Web community + admin (Richard)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#118 Mobile Tracker tab (Alex)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#119 Mobile plans + photo (Alex)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#120 Mobile community forms (Alex)] starts 2026-11-03 and ends 2026-11-04 and is colored in YellowGreen
+[~#121 ERD for M6 (Richard)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+[~#122 M6 UML diagrams (Marcus)] starts 2026-11-03 and ends 2026-11-03 and is colored in YellowGreen
+
+-- No milestone --
+[~#159, #161 AI disclosure PRs (Richard)] starts 2026-11-11 and ends 2026-11-14 and is colored in YellowGreen
+[~#163 Nearby speed-up (Marcus)] starts 2026-11-14 and ends 2026-11-15
 @endgantt

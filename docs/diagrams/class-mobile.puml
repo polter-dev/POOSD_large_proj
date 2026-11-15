@@ -2,6 +2,7 @@
 ' Menu Macro Fitter -- class diagram of the Flutter Android app (issue #38)
 ' Traced from mobile/lib. Screens show the fields passed to them and their key state;
 ' widgets that only draw (AppCard, Pill, MacroBar, ErrorBanner...) are left out.
+' M6 adds the Saved and Tracker tabs, meal plans, photo logging and community submissions (#118-#120).
 
 !theme plain
 
@@ -25,18 +26,21 @@ package "App" {
   class MenuMacroFitterApp <<StatelessWidget>> {
     + api : Api
     + location : LocationSource
+    + photos : PhotoSource
     + build() : MaterialApp
   }
   class ApiScope <<InheritedWidget>> {
     + api : Api
     + location : LocationSource
+    + photos : PhotoSource
     + {static} of(context) : Api
     + {static} locationOf(context) : LocationSource
+    + {static} photosOf(context) : PhotoSource
   }
   note right of ApiScope
-    Every screen reaches the Api and the
-    LocationSource through ApiScope, so tests
-    swap in a fake server and a fake location.
+    Every screen reaches the Api, the LocationSource
+    and the PhotoSource through ApiScope, so tests swap
+    in a fake server, location and camera.
   end note
 }
 
@@ -79,12 +83,15 @@ package "Screens" {
   }
   class NearbyScreen {
     + user : User
+    + active : bool
     - radius : int
     - here : LatLng?
     - restaurants : List<NearbyRestaurant>?
     - fits : Map<String, int>?
+    - saved : Map<String, String>
     - load()
     - setRadius(int)
+    - toggleSaved(NearbyRestaurant)
   }
   class PicksScreen {
     + user : User
@@ -98,10 +105,60 @@ package "Screens" {
     - total : int
     - search(more)
   }
+  class FavoritesScreen {
+    + active : bool
+    - favorites : List<Favorite>?
+    - load()
+    - remove(Favorite)
+  }
+  class TrackerScreen {
+    + user : User
+    + onUser : ValueChanged<User>
+    - day : DateTime
+    - cal : Calories?
+    - logs : MealLogsResponse?
+    - load()
+    - toggle(Nutrient)
+    - add()
+  }
+  class PlanScreen {
+    + user : User
+    + start : DateTime
+    - days : int
+    - nearbyOnly : bool
+    - plan : MealPlanResponse?
+    - load()
+    - add(date, items)
+  }
+  class PhotoLogScreen {
+    + date : DateTime
+    - photo : MealPhoto?
+    - pick(PhotoFrom)
+    - analyze()
+    - log()
+  }
+  class MySubmissionsScreen {
+    - list : List<Submission>?
+    - total : int
+    - load()
+    - more()
+  }
+  class ItemFormScreen {
+    + item : MenuItem?
+    + chainId : String?
+    + chainName : String?
+    - submit()
+  }
+  class ChainFormScreen {
+    + initialName : String
+    - submit()
+  }
   enum AppTab {
     nearby
     picks
     search
+    saved
+    tracker
     profile
   }
 }
@@ -121,6 +178,17 @@ package "Services" {
     + searchMenuItems(q, limit, skip) : Future<SearchMenuItemsResponse>
     + recommendations(mode, chainIds, limit) : Future<RecommendationsResponse>
     + nearby(lat, lng, radiusMiles) : Future<List<NearbyRestaurant>>
+    + getFavorites() : Future<List<Favorite>>
+    + addFavorite(placeId, label) : Future<Favorite>
+    + removeFavorite(id) : Future<void>
+    + getMealLogs(from, to) : Future<MealLogsResponse>
+    + addMealLogs(entries) : Future<List<MealLog>>
+    + updateMealLog(id, status, servings) : Future<MealLog>
+    + deleteMealLog(id) : Future<void>
+    + getMealPlan(start, days, chainIds, mode) : Future<MealPlanResponse>
+    + analyzePhoto(imageBase64, mediaType) : Future<List<PhotoItem>>
+    + createSubmission(kind, targetId, payload) : Future<Submission>
+    + getMySubmissions(limit, skip) : Future<MySubmissionsResponse>
   }
   class ApiClient {
     + baseUrl : String
@@ -157,6 +225,19 @@ package "Services" {
     + lat : double
     + lng : double
   }
+  interface PhotoSource {
+    + pick(PhotoFrom) : Future<List<int>?>
+  }
+  class DevicePhotos
+  class MealPhoto {
+    + base64 : String
+    + mediaType : String
+    + {static} fromBytes(bytes) : MealPhoto?
+  }
+  enum PhotoFrom {
+    camera
+    gallery
+  }
 }
 
 package "Models (API JSON)" {
@@ -167,6 +248,7 @@ package "Models (API JSON)" {
     + username : String
     + email : String
     + isVerified : bool
+    + role : UserRole
   }
   class Profile {
     + heightIn : double
@@ -181,12 +263,18 @@ package "Models (API JSON)" {
     + searchRadius : int
     + recommendationMode : RecommendationMode
     + mealCalorieLimit : double?
+    + trackedNutrients : List<Nutrient>
   }
   class Calories {
     + age : int
     + maintenance : int
     + target : int
     + perMeal : int
+  }
+  class MacroTargets {
+    + proteinG : int
+    + carbsG : int
+    + fatG : int
   }
   class MenuItem {
     + id : String
@@ -222,6 +310,60 @@ package "Models (API JSON)" {
   class LoginResponse {
     + token : String
   }
+  class Favorite {
+    + id : String
+    + placeId : String
+    + label : String?
+  }
+  class Totals {
+    + calories : int
+    + proteinG : double
+    + carbsG : double
+    + fatG : double
+    + incomplete : bool
+  }
+  class MealLog {
+    + id : String
+    + date : String
+    + menuItemId : String?
+    + name : String
+    + servings : double
+    + calories : double
+  }
+  class MealLogEntry {
+    + date : String
+    + menuItemId : String?
+    + servings : double?
+    + name : String?
+    + calories : double?
+  }
+  class MealLogDay {
+    + date : String
+  }
+  class MealLogsResponse
+  class MealPlanDay {
+    + date : String
+    + remainingCalories : int
+    + mealCalorieLimit : int
+  }
+  class MealPlanResponse {
+    + mode : RecommendationMode
+  }
+  class PhotoItem {
+    + menuItemId : String?
+    + name : String
+    + servings : double
+    + calories : double
+  }
+  class Submission {
+    + id : String
+    + targetId : String?
+    + payload : Map<String, dynamic>
+    + reviewNote : String?
+  }
+  class MySubmissionsResponse {
+    + total : int
+  }
   enum Sex {
     male
     female
@@ -254,12 +396,50 @@ package "Models (API JSON)" {
     drink
     dessert
   }
+  enum UserRole {
+    user
+    admin
+  }
+  enum Nutrient {
+    calories
+    protein
+    carbs
+    fat
+  }
+  enum MealLogStatus {
+    planned
+    eaten
+  }
+  enum MealLogSource {
+    search
+    plan
+    photo
+    custom
+  }
+  enum PhotoConfidence {
+    high
+    medium
+    low
+  }
+  enum SubmissionKind {
+    editItem
+    newItem
+    newChain
+  }
+  enum SubmissionStatus {
+    autoApplied
+    pending
+    approved
+    rejected
+    reverted
+  }
 }
 
 ' --- app wiring
 MenuMacroFitterApp *-- ApiScope : provides
 ApiScope o-- Api
 ApiScope o-- LocationSource
+ApiScope o-- PhotoSource
 
 ' --- navigation (who opens whom)
 MenuMacroFitterApp ..> LoginScreen : no saved session
@@ -275,13 +455,26 @@ AppShell *-- "1" TargetsScreen : Profile tab
 AppShell *-- "1" NearbyScreen : Nearby tab
 AppShell *-- "1" PicksScreen : Picks tab
 AppShell *-- "1" SearchScreen : Search tab
+AppShell *-- "1" FavoritesScreen : Saved tab
+AppShell *-- "1" TrackerScreen : Tracker tab
 AppShell --> AppTab
 TargetsScreen ..> ProfileScreen : Edit
 NearbyScreen ..> PicksScreen : tap a restaurant
+TrackerScreen ..> PlanScreen : Plan meals
+TrackerScreen ..> PhotoLogScreen : Log a photo
+TargetsScreen ..> MySubmissionsScreen : My submissions
+MySubmissionsScreen ..> ChainFormScreen : Add a restaurant
+NearbyScreen ..> ChainFormScreen : Add this restaurant
+NearbyScreen ..> ItemFormScreen : Add a missing item
+PicksScreen ..> ItemFormScreen : Add item,\nSuggest a correction
+SearchScreen ..> ItemFormScreen : Suggest a correction
+ItemFormScreen ..> MySubmissionsScreen : My submissions
+ChainFormScreen ..> MySubmissionsScreen : My submissions
 
 ' --- screens use services through ApiScope
 LoginScreen ..> Api : via ApiScope\n(every screen)
 NearbyScreen ..> LocationSource : current()
+PhotoLogScreen ..> PhotoSource : pick()
 
 ' --- services
 Api *-- ApiClient
@@ -293,11 +486,17 @@ LocationSource <|.. DeviceLocation
 DeviceLocation ..> LocationException : throws
 LocationException --> LocationProblem
 LocationSource ..> LatLng
+PhotoSource <|.. DevicePhotos
+PhotoSource ..> PhotoFrom
+PhotoLogScreen ..> MealPhoto : fromBytes()
+PhotoSource -[hidden]- MealPhoto
 Api ..> User : returns
 
 ' --- models
 User *-- "0..1" Profile : null until set up
 User *-- "1" Preferences
+User --> UserRole
+Calories *-- "1" MacroTargets
 LoginResponse *-- "1" User
 RecommendationsResponse *-- "*" RecommendedItem
 RecommendedItem *-- MenuItem
@@ -307,7 +506,23 @@ Profile --> ActivityLevel
 Profile --> Goal
 Preferences --> Units
 Preferences --> RecommendationMode
+Preferences --> "1..4" Nutrient : tracked
 MenuItem --> Category
 NearbyRestaurant ..> MenuItem : chainId links to\nthe chain's items
+Favorite ..> NearbyRestaurant : placeId
+MealLogsResponse *-- "*" MealLog
+MealLogsResponse *-- "*" MealLogDay
+MealLogDay *-- "2" Totals : eaten, planned
+MealLog --> MealLogStatus
+MealLog --> MealLogSource
+MealLogEntry --> MealLogSource
+MealPlanResponse *-- "*" MealPlanDay
+MealPlanDay *-- "*" RecommendedItem
+MealPlanDay *-- "1" Totals
+PhotoItem --> PhotoConfidence
+PhotoItem ..> MealLogEntry : confirmed as
+MySubmissionsResponse *-- "*" Submission
+Submission --> SubmissionKind
+Submission --> SubmissionStatus
 
 @enduml
