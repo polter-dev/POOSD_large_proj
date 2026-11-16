@@ -99,3 +99,8 @@ Format: see `AI Disclosure Template.md`. Add an entry for each use.
 - **Use**: Code and test generation from `docs/api-contract.md` and issues #12, #13, #21, #30 and #65; code review;
   end-to-end checks against a local MongoDB loaded with `db/schema.js` and `db/seed.js`. Those commits are marked
   `Co-Authored-By: Claude`.
+
+- **Alex Kemper**: Claude Opus 5.5 (Anthropic), via Claude Code, October 27 to November 15, 2026: the shared design
+  spec, the web login and email pages, prototype frames 01-08, the Flutter Android app, the mobile class diagram,
+  the Android CI build, PR reviews and the final slides. Every entry is in
+  [`prompts/alex/ai-disclosure.md`](prompts/alex/ai-disclosure.md).
