@@ -109,6 +109,6 @@ mobile/ios/Flutter/Generated.xcconfig
 # AI prompt logs per member: kept private until final submission, then remove
 # these lines so the disclosure ships with the project
 # ---------------------------------------------------------------------------
-/prompts/marcus/
+!/prompts/marcus/
 /prompts/richard/*
 !/prompts/richard/ai-disclosure.md
